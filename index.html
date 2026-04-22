@@ -137,7 +137,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <body>
 <div class="header">
   <div class="header-logo"><svg viewBox="0 0 16 16" fill="none" width="16" height="16"><rect x="2" y="1" width="12" height="14" rx="2" stroke="white" stroke-width="1.3"/><line x1="5" y1="5" x2="11" y2="5" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="11" x2="8.5" y2="11" stroke="white" stroke-width="1.1" stroke-linecap="round"/></svg></div>
-  <h1>証憑仕訳AI <span class="header-sub">弥生会計対応</span></h1>
+  <div style="flex:1;">
+    <div style="font-size:15px;font-weight:700;color:#1a1a1a;line-height:1.3;">領収書を投げ込むだけで、仕訳CSVが出てくる</div>
+    <div style="font-size:11px;color:#aaa;margin-top:2px;">弥生会計・freee・マネーフォワード・勘定奉行 対応</div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -148,19 +151,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <div class="main">
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
-    <div style="margin-bottom:20px;">
-    <div style="font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:6px;">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
-    <div style="font-size:14px;color:#888;">AI が勘定科目・税区分・摘要を自動判定。承認するだけで完了。</div>
-    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">弥生会計</span>
-      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">freee</span>
-      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">マネーフォワード</span>
-      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">勘定奉行</span>
-      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">その他（汎用CSV）</span>
-    </div>
-  </div>
-
-  <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+    <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
       <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
       <small>領収書・レシート・通帳 JPG / PNG / PDF 最大10枚</small>
@@ -207,14 +198,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
         <div>
           <div class="guide-step-title">CSVを出力する</div>
           <div class="guide-step-desc" id="g2desc">承認済みのみ、または全件を選んで出力できます。</div>
-          <div class="csv-btns">
-            <select id="csvFormat" style="padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;background:#fff;">
+          <div style="margin-bottom:8px;">
+            <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">出力形式を選択</label>
+            <select id="csvFormat" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:7px;font-size:13px;background:#fff;">
               <option value="yayoi">弥生会計</option>
               <option value="freee">freee</option>
               <option value="mf">マネーフォワード</option>
               <option value="bugyo">勘定奉行</option>
               <option value="generic">汎用CSV</option>
             </select>
+          </div>
+          <div class="csv-btns">
             <button class="btn-csv-approved" onclick="exportCSV('approved')">承認済みのみ（<span id="csvOkCount">0</span>件）</button>
             <button class="btn-csv-all" onclick="exportCSV('all')">全件出力（<span id="csvAllCount">0</span>件）</button>
           </div>
