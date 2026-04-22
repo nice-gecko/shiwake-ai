@@ -148,10 +148,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <div class="main">
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
-    <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+    <div style="margin-bottom:20px;">
+    <div style="font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:6px;">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
+    <div style="font-size:14px;color:#888;">AI が勘定科目・税区分・摘要を自動判定。承認するだけで完了。</div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">弥生会計</span>
+      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">freee</span>
+      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">マネーフォワード</span>
+      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">勘定奉行</span>
+      <span style="background:#F0F7FF;color:#185FA5;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid #B5D4F4;">その他（汎用CSV）</span>
+    </div>
+  </div>
+
+  <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
       <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
-      <small>領収書・レシート・通帳 JPG / PNG / PDF 最大4枚</small>
+      <small>領収書・レシート・通帳 JPG / PNG / PDF 最大10枚</small>
     </div>
     <input type="file" id="fi" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="addFiles(this.files)">
     <div class="previews" id="prev"></div>
@@ -196,6 +208,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
           <div class="guide-step-title">CSVを出力する</div>
           <div class="guide-step-desc" id="g2desc">承認済みのみ、または全件を選んで出力できます。</div>
           <div class="csv-btns">
+            <select id="csvFormat" style="padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;background:#fff;">
+              <option value="yayoi">弥生会計</option>
+              <option value="freee">freee</option>
+              <option value="mf">マネーフォワード</option>
+              <option value="bugyo">勘定奉行</option>
+              <option value="generic">汎用CSV</option>
+            </select>
             <button class="btn-csv-approved" onclick="exportCSV('approved')">承認済みのみ（<span id="csvOkCount">0</span>件）</button>
             <button class="btn-csv-all" onclick="exportCSV('all')">全件出力（<span id="csvAllCount">0</span>件）</button>
           </div>
@@ -336,11 +355,33 @@ async function deleteMasterRule(title){
   await loadMasterFromServer();
 }
 
-// 承認時にマスタへ自動登録
+// 表記ゆれ正規化（全角→半角、スペース除去）
+function normalizeTitle(str){
+  return str
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s=>String.fromCharCode(s.charCodeAt(0)-0xFEE0))
+    .replace(/　/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+// 既存マスタと部分一致チェック
+function findExistingKey(title, master){
+  const norm = normalizeTitle(title);
+  for(const key of Object.keys(master)){
+    const normKey = normalizeTitle(key);
+    if(norm===normKey) return key; // 完全一致
+    if(norm.includes(normKey)||normKey.includes(norm)) return key; // 部分一致
+  }
+  return null;
+}
+
+// 承認時にマスタへ自動登録（重複チェック付き）
 async function autoLearn(item){
   if(!item.title||item.title==='不明')return;
   const rule={debit:item.debit,credit:item.credit,tax:item.tax};
-  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[item.title]:rule})});
+  const existingKey=findExistingKey(item.title, masterData);
+  const key=existingKey||item.title;
+  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:rule})});
   await loadMasterFromServer();
 }
 
@@ -357,7 +398,7 @@ function onDrop(e){e.preventDefault();onDragLeave();addFiles(e.dataTransfer.file
 function addFiles(fl){
   Array.from(fl).forEach(f=>{
     const ok=f.type.startsWith('image/')||f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
-    if(ok&&files.length<4)files.push(f);
+    if(ok&&files.length<10)files.push(f);
   });
   renderPrev();checkSavedState();
   document.getElementById('runBtn').disabled=files.length===0;
@@ -468,7 +509,20 @@ async function startProcess(resume){
   }
   done();
 }
-function done(){document.getElementById('runBtn').disabled=false;updateBottom();}
+function done(){
+  document.getElementById('runBtn').disabled=false;
+  // ファイルをリセットして次のアップロードを受け付ける
+  files=[];
+  renderPrev();
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('statusPanel').className='status-panel';
+  // 蓄積件数を表示
+  if(results.length>0){
+    document.getElementById('dz').querySelector('small').textContent=
+      `追加アップロード可能 · 現在${results.length}件蓄積中`;
+  }
+  updateBottom();
+}
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function aOpts(s){return ACCTS.map(a=>`<option${a===s?' selected':''}>${a}</option>`).join('');}
@@ -599,17 +653,39 @@ function updateBottom(){
   document.getElementById('g1desc').textContent=pend>0?`${ok}件承認済み・${pend}件未処理。承認すると取引先マスタに自動登録されます。`:'全件確認済みです。';
   document.getElementById('g2desc').textContent=pend>0?`まだ${pend}件未処理があります。`:'準備完了。CSVを出力してください。';
 }
+function getRows(mode){
+  return results.filter((_,i)=>!deleted.has(i)&&(mode!=='approved'||approved.has(i)));
+}
+function cleanAmt(s){ return (s||'').replace(/[¥,￥]/g,''); }
 function exportCSV(mode){
-  const rows=[['日付','借方科目','貸方科目','金額','税区分','摘要']];
-  results.forEach((r,i)=>{
-    if(deleted.has(i))return;
-    if(mode==='approved'&&!approved.has(i))return;
-    rows.push([r.date||'',r.debit||'',r.credit||'',r.amount||'',r.tax||'',r.memo||'']);
-  });
-  const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const fmt=document.getElementById('csvFormat').value;
+  const rows=getRows(mode);
+  let headers,lines,filename;
+  if(fmt==='freee'){
+    headers=['取引日','借方勘定科目','借方税区分','借方金額','貸方勘定科目','貸方税区分','貸方金額','摘要'];
+    lines=rows.map(r=>[r.date||'',r.debit||'',r.tax||'',cleanAmt(r.amount),r.credit||'',r.tax||'',cleanAmt(r.amount),r.memo||'']);
+    filename='freee_'+mode+'.csv';
+  } else if(fmt==='mf'){
+    headers=['決済日','借方勘定科目','借方補助科目','借方税区分','借方金額','貸方勘定科目','貸方補助科目','貸方税区分','貸方金額','摘要','仕訳メモ'];
+    lines=rows.map(r=>[r.date||'',r.debit||'','',r.tax||'',cleanAmt(r.amount),r.credit||'','',r.tax||'',cleanAmt(r.amount),r.memo||'','']);
+    filename='mf_'+mode+'.csv';
+  } else if(fmt==='bugyo'){
+    headers=['伝票日付','借方科目','借方金額','貸方科目','貸方金額','摘要','消費税区分'];
+    lines=rows.map(r=>[r.date||'',r.debit||'',cleanAmt(r.amount),r.credit||'',cleanAmt(r.amount),r.memo||'',r.tax||'']);
+    filename='bugyo_'+mode+'.csv';
+  } else if(fmt==='generic'){
+    headers=['日付','借方','貸方','金額','税区分','摘要'];
+    lines=rows.map(r=>[r.date||'',r.debit||'',r.credit||'',cleanAmt(r.amount),r.tax||'',r.memo||'']);
+    filename='shiwake_'+mode+'.csv';
+  } else {
+    headers=['日付','借方科目','貸方科目','金額','税区分','摘要'];
+    lines=rows.map(r=>[r.date||'',r.debit||'',r.credit||'',cleanAmt(r.amount),r.tax||'',r.memo||'']);
+    filename='yayoi_'+mode+'.csv';
+  }
+  const csv=[headers,...lines].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download=mode==='approved'?'siwake_approved.csv':'siwake_all.csv';
+  a.download=filename;
   a.click();
 }
 </script>
