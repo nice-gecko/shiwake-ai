@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>証憑仕訳AI</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#F5F4F0;color:#1a1a1a;min-height:100vh;}
+.header{background:#fff;border-bottom:1px solid #e5e5e5;padding:14px 24px;display:flex;align-items:center;gap:10px;}
+.header-logo{width:28px;height:28px;background:#185FA5;border-radius:6px;display:flex;align-items:center;justify-content:center;}
+.header h1{font-size:15px;font-weight:600;flex:1;}
+.header-sub{font-size:12px;color:#888;margin-left:4px;}
+.btn-master-open{padding:7px 14px;border:1px solid #ddd;border-radius:7px;font-size:12px;background:#fff;cursor:pointer;color:#555;}
+.btn-master-open:hover{background:#f5f5f5;}
+
+.tabs{display:flex;border-bottom:1px solid #e5e5e5;background:#fff;padding:0 24px;}
+.tab{padding:12px 16px;font-size:13px;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:500;}
+
+.main{max-width:680px;margin:0 auto;padding:24px 16px;}
+.panel{display:none;}.panel.active{display:block;}
+
+.drop{border:2px dashed #ccc;border-radius:12px;padding:40px 24px;text-align:center;background:#fff;cursor:pointer;transition:all 0.2s;margin-bottom:16px;}
+.drop:hover,.drop.over{border-color:#378ADD;background:#EBF4FD;}
+.drop-icon{width:40px;height:40px;margin:0 auto 12px;color:#bbb;}
+.drop p{font-size:14px;color:#555;}.drop p strong{color:#222;}
+.drop small{font-size:12px;color:#aaa;margin-top:4px;display:block;}
+.previews{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.thumb{position:relative;width:72px;height:72px;}
+.thumb img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #eee;}
+.thumb .pdf-icon{width:72px;height:72px;border-radius:8px;border:1px solid #eee;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;flex-direction:column;gap:3px;}
+.thumb button{position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;background:#E24B4A;color:#fff;border:none;font-size:11px;cursor:pointer;line-height:18px;text-align:center;}
+
+.status-panel{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:16px 20px;margin-bottom:16px;display:none;}
+.status-panel.show{display:block;}
+.sp-title{font-size:13px;font-weight:600;margin-bottom:10px;}
+.sp-progress{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.sp-bar-wrap{flex:1;background:#eee;border-radius:999px;height:8px;}
+.sp-bar{background:#185FA5;height:8px;border-radius:999px;transition:width 0.3s;}
+.sp-pct{font-size:13px;font-weight:600;color:#185FA5;white-space:nowrap;}
+.sp-nums{display:flex;gap:16px;margin-bottom:12px;}
+.sp-num{text-align:center;}
+.sp-n{font-size:20px;font-weight:700;line-height:1;}
+.sp-l{font-size:11px;color:#888;margin-top:2px;}
+.sp-incomplete{background:#FFF8E6;border:1px solid #FAC775;border-radius:8px;padding:10px 14px;font-size:13px;color:#633806;margin-bottom:12px;display:none;}
+.sp-incomplete.show{display:block;}
+.sp-btns{display:flex;gap:8px;}
+.btn-continue{padding:9px 20px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-restart-small{padding:9px 16px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:13px;color:#555;cursor:pointer;}
+
+.run-btn{width:100%;padding:12px;background:#185FA5;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:16px;}
+.run-btn:hover{background:#0C447C;}.run-btn:disabled{background:#c0c0c0;cursor:default;}
+.prog{display:none;background:#fff;border-radius:10px;border:1px solid #eee;padding:14px 18px;margin-bottom:16px;}
+.prog.show{display:block;}
+.prog-title{font-size:13px;color:#185FA5;font-weight:500;margin-bottom:8px;}
+.prog-bar-wrap{background:#eee;border-radius:999px;height:6px;margin-bottom:6px;}
+.prog-bar{background:#185FA5;height:6px;border-radius:999px;transition:width 0.3s;width:0%;}
+.prog-status{font-size:12px;color:#888;}
+.err{background:#FFF0F0;border:1px solid #F7C1C1;border-radius:8px;padding:12px 14px;font-size:13px;color:#A32D2D;margin-bottom:14px;display:none;}
+.err.show{display:block;}
+
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.card.approved{border-color:#1D9E75;}
+.card-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fafafa;border-bottom:1px solid #f0f0f0;}
+.card-pdf{width:44px;height:44px;border-radius:6px;border:1px solid #eee;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.card-info{flex:1;min-width:0;}
+.card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card-meta{font-size:11px;color:#888;margin-top:2px;}
+.badge{font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;}
+.bh{background:#EAF3DE;color:#3B6D11;}.bm{background:#FAEEDA;color:#854F0B;}.bl{background:#FCEBEB;color:#A32D2D;}
+.badge-master{background:#E6F1FB;color:#185FA5;font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;}
+.badge-dup{background:#FEF0F0;color:#A32D2D;font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;border:1px dashed #F09595;}
+.card-body{padding:14px;}
+.rows{display:grid;grid-template-columns:64px 1fr;}
+.rk{font-size:11px;color:#999;padding:6px 0;border-top:1px solid #f5f5f5;}
+.rv{font-size:13px;padding:6px 0;border-top:1px solid #f5f5f5;}
+.rows .rk:first-child,.rows .rv:nth-child(2){border-top:none;}
+.debit{color:#185FA5;font-weight:600;}.credit{color:#C0392B;font-weight:600;}
+.reason-box{margin-top:10px;padding:8px 10px;background:#F8F8F6;border-radius:6px;font-size:11px;color:#777;line-height:1.5;}
+.reason-lbl{font-size:9px;color:#bbb;font-weight:700;margin-bottom:2px;letter-spacing:0.05em;}
+.edit-area{display:none;padding:12px 14px;border-top:1px solid #DDEEFF;background:#F0F7FF;}
+.edit-area.show{display:block;}
+.erow{display:grid;grid-template-columns:52px 1fr;gap:8px;align-items:center;margin-bottom:7px;}
+.erow label{font-size:11px;color:#666;}
+.erow select,.erow input{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;}
+.btn-save{width:100%;padding:8px;background:#378ADD;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;margin-top:3px;}
+.card-foot{display:flex;gap:8px;padding:10px 14px;border-top:1px solid #f0f0f0;background:#fafafa;}
+.btn-ok{flex:1;padding:8px;background:#1D9E75;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-ok.done{background:#EAF3DE;color:#3B6D11;cursor:default;}
+.btn-ed,.btn-del{padding:8px 14px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#555;cursor:pointer;}
+.btn-ed:hover,.btn-del:hover{background:#f5f5f5;}
+
+.bottom-panel{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:16px 20px;margin-top:12px;display:none;}
+.bottom-panel.show{display:block;}
+.bp-counts{display:flex;gap:20px;margin-bottom:16px;}
+.bp-n{font-size:22px;font-weight:700;line-height:1;}
+.bp-l{font-size:11px;color:#888;margin-top:3px;}
+.bp-divider{border:none;border-top:1px solid #f0f0f0;margin:14px 0;}
+.bp-guide-title{font-size:13px;font-weight:600;margin-bottom:10px;}
+.guide-step{display:flex;gap:10px;padding:10px 12px;background:#F8F8F6;border-radius:8px;margin-bottom:8px;}
+.guide-num{width:22px;height:22px;border-radius:50%;background:#185FA5;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.guide-num.done{background:#1D9E75;}
+.guide-step-title{font-size:13px;font-weight:600;margin-bottom:2px;}
+.guide-step-desc{font-size:12px;color:#666;line-height:1.5;}
+.csv-btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+.btn-csv-all{padding:8px 18px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-csv-approved{padding:8px 18px;background:#fff;border:1px solid #1D9E75;border-radius:7px;font-size:13px;color:#1D9E75;font-weight:600;cursor:pointer;}
+
+/* マスタ管理 */
+.master-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.master-toolbar h2{font-size:15px;font-weight:600;}
+.btn-add-master{padding:8px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;}
+.master-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;}
+.master-table th{background:#fafafa;font-size:12px;color:#888;font-weight:500;padding:10px 14px;text-align:left;border-bottom:1px solid #eee;}
+.master-table td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
+.master-table tr:last-child td{border-bottom:none;}
+.master-table tr:hover td{background:#fafafa;}
+.btn-edit-rule,.btn-del-rule{padding:4px 10px;border:1px solid #ddd;border-radius:5px;font-size:12px;background:#fff;cursor:pointer;color:#555;}
+.btn-del-rule{color:#A32D2D;border-color:#F7C1C1;}
+.master-empty{text-align:center;padding:40px;color:#aaa;font-size:13px;}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:#fff;border-radius:14px;padding:24px;width:360px;max-width:90vw;}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:16px;}
+.modal-row{margin-bottom:12px;}
+.modal-row label{display:block;font-size:12px;color:#666;margin-bottom:4px;}
+.modal-row input,.modal-row select{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;}
+.modal-btns{display:flex;gap:8px;margin-top:16px;}
+.btn-modal-ok{flex:1;padding:9px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-modal-cancel{flex:1;padding:9px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#555;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-logo"><svg viewBox="0 0 16 16" fill="none" width="16" height="16"><rect x="2" y="1" width="12" height="14" rx="2" stroke="white" stroke-width="1.3"/><line x1="5" y1="5" x2="11" y2="5" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="11" x2="8.5" y2="11" stroke="white" stroke-width="1.1" stroke-linecap="round"/></svg></div>
+  <h1>証憑仕訳AI <span class="header-sub">弥生会計対応</span></h1>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('siwake')">仕訳処理</div>
+  <div class="tab" onclick="switchTab('master')">取引先マスタ <span id="masterCount" style="background:#e5e5e5;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;">0</span></div>
+</div>
+
+<div class="main">
+  <!-- 仕訳処理パネル -->
+  <div class="panel active" id="panel-siwake">
+    <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+      <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
+      <small>領収書・レシート・通帳 JPG / PNG / PDF 最大4枚</small>
+    </div>
+    <input type="file" id="fi" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="addFiles(this.files)">
+    <div class="previews" id="prev"></div>
+    <div class="status-panel" id="statusPanel">
+      <div class="sp-title" id="spTitle"></div>
+      <div class="sp-progress"><div class="sp-bar-wrap"><div class="sp-bar" id="spBar"></div></div><div class="sp-pct" id="spPct"></div></div>
+      <div class="sp-nums">
+        <div class="sp-num"><div class="sp-n" id="spDone">0</div><div class="sp-l">読み込み済み</div></div>
+        <div class="sp-num"><div class="sp-n" style="color:#BA7517" id="spRem">?</div><div class="sp-l">残り推定</div></div>
+        <div class="sp-num"><div class="sp-n" style="color:#888" id="spChunk">0/0</div><div class="sp-l">チャンク</div></div>
+      </div>
+      <div class="sp-incomplete" id="spIncomplete"></div>
+      <div class="sp-btns" id="spBtns"></div>
+    </div>
+    <div class="err" id="errBox"></div>
+    <button class="run-btn" id="runBtn" disabled onclick="onRunClick()">仕訳を自動生成する</button>
+    <div class="prog" id="prog">
+      <div class="prog-title" id="progTitle">処理中...</div>
+      <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"></div></div>
+      <div class="prog-status" id="progStatus"></div>
+    </div>
+    <div id="cards"></div>
+    <div class="bottom-panel" id="bottomPanel">
+      <div class="bp-counts">
+        <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
+        <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
+        <div><div class="bp-n" style="color:#BA7517" id="bpPend">0</div><div class="bp-l">未処理</div></div>
+        <div><div class="bp-n" style="color:#888" id="bpDel">0</div><div class="bp-l">削除済み</div></div>
+      </div>
+      <hr class="bp-divider">
+      <div class="bp-guide-title">次のステップ</div>
+      <div class="guide-step">
+        <div class="guide-num" id="g1num">1</div>
+        <div>
+          <div class="guide-step-title">仕訳を確認・承認する</div>
+          <div class="guide-step-desc" id="g1desc">各カードの「承認」を押してください。承認すると取引先マスタに自動登録されます。</div>
+        </div>
+      </div>
+      <div class="guide-step">
+        <div class="guide-num" id="g2num">2</div>
+        <div>
+          <div class="guide-step-title">CSVを出力する</div>
+          <div class="guide-step-desc" id="g2desc">承認済みのみ、または全件を選んで出力できます。</div>
+          <div class="csv-btns">
+            <button class="btn-csv-approved" onclick="exportCSV('approved')">承認済みのみ（<span id="csvOkCount">0</span>件）</button>
+            <button class="btn-csv-all" onclick="exportCSV('all')">全件出力（<span id="csvAllCount">0</span>件）</button>
+          </div>
+        </div>
+      </div>
+      <div class="guide-step">
+        <div class="guide-num">3</div>
+        <div>
+          <div class="guide-step-title">弥生会計にインポートする</div>
+          <div class="guide-step-desc">弥生会計 →「ファイル」→「インポート」→「仕訳日記帳」でCSVを読み込みます。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- マスタ管理パネル -->
+  <div class="panel" id="panel-master">
+    <div class="master-toolbar">
+      <h2>取引先マスタ</h2>
+      <button class="btn-add-master" onclick="openModal()">＋ 追加</button>
+    </div>
+    <table class="master-table">
+      <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
+      <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- マスタ編集モーダル -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">取引先ルールを追加</h3>
+    <div class="modal-row"><label>取引先名</label><input id="mTitle" placeholder="例：セブン-イレブン"></div>
+    <div class="modal-row"><label>借方</label><select id="mDebit"></select></div>
+    <div class="modal-row"><label>貸方</label><select id="mCredit"></select></div>
+    <div class="modal-row"><label>税区分</label><select id="mTax">
+      <option>課税仕入(10%)</option><option>課税仕入(8%軽減)</option><option>非課税</option><option>不課税</option>
+    </select></div>
+    <div class="modal-btns">
+      <button class="btn-modal-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-modal-ok" onclick="saveMasterRule()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ACCTS=["現金","普通預金","当座預金","売掛金","買掛金","仕入高","売上高","給与手当","役員報酬","会議費","交際費","旅費交通費","消耗品費","地代家賃","水道光熱費","通信費","広告宣伝費","支払手数料","未払金","前払費用","仮払金","雑費","雑収入"];
+const TAXES=["課税仕入(10%)","課税仕入(8%軽減)","非課税","不課税"];
+let files=[],results=[],approved=new Set(),deleted=new Set();
+let currentFile=null,currentKey=null,allChunks=[],totalChunks=0;
+let masterData={};
+let editingTitle=null;
+
+// 起動時にマスタとセレクトを初期化
+document.addEventListener('DOMContentLoaded',()=>{
+  ACCTS.forEach(a=>{
+    document.getElementById('mDebit').innerHTML+=`<option>${a}</option>`;
+    document.getElementById('mCredit').innerHTML+=`<option>${a}</option>`;
+  });
+  loadMasterFromServer();
+});
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.className='tab'+((['siwake','master'][i]===tab)?' active':''));
+  document.querySelectorAll('.panel').forEach(p=>p.className='panel');
+  document.getElementById('panel-'+tab).className='panel active';
+  if(tab==='master')loadMasterFromServer();
+}
+
+// マスタ管理
+async function loadMasterFromServer(){
+  const res=await fetch('/api/master');
+  masterData=await res.json();
+  renderMaster();
+  document.getElementById('masterCount').textContent=Object.keys(masterData).length;
+}
+
+function renderMaster(){
+  const tbody=document.getElementById('masterTbody');
+  const entries=Object.entries(masterData);
+  if(entries.length===0){
+    tbody.innerHTML='<tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr>';
+    return;
+  }
+  tbody.innerHTML=entries.map(([title,rule])=>`
+    <tr>
+      <td style="font-weight:500">${esc(title)}</td>
+      <td style="color:#185FA5">${esc(rule.debit)}</td>
+      <td style="color:#C0392B">${esc(rule.credit)}</td>
+      <td style="font-size:12px;color:#888">${esc(rule.tax)}</td>
+      <td style="display:flex;gap:6px">
+        <button class="btn-edit-rule" onclick="openModal('${esc(title)}')">編集</button>
+        <button class="btn-del-rule" onclick="deleteMasterRule('${esc(title)}')">削除</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openModal(title=''){
+  editingTitle=title||null;
+  document.getElementById('modalTitle').textContent=title?'ルールを編集':'取引先ルールを追加';
+  document.getElementById('mTitle').value=title;
+  document.getElementById('mTitle').disabled=!!title;
+  if(title&&masterData[title]){
+    const r=masterData[title];
+    document.getElementById('mDebit').value=r.debit;
+    document.getElementById('mCredit').value=r.credit;
+    document.getElementById('mTax').value=r.tax;
+  } else {
+    document.getElementById('mDebit').value='会議費';
+    document.getElementById('mCredit').value='未払金';
+    document.getElementById('mTax').value='課税仕入(10%)';
+  }
+  document.getElementById('modalOverlay').className='modal-overlay show';
+}
+function closeModal(){document.getElementById('modalOverlay').className='modal-overlay';}
+
+async function saveMasterRule(){
+  const title=editingTitle||document.getElementById('mTitle').value.trim();
+  if(!title)return alert('取引先名を入力してください');
+  const rule={debit:document.getElementById('mDebit').value,credit:document.getElementById('mCredit').value,tax:document.getElementById('mTax').value};
+  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[title]:rule})});
+  await loadMasterFromServer();
+  closeModal();
+}
+
+async function deleteMasterRule(title){
+  if(!confirm(`「${title}」のルールを削除しますか？`))return;
+  await fetch('/api/master',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+  await loadMasterFromServer();
+}
+
+// 承認時にマスタへ自動登録
+async function autoLearn(item){
+  if(!item.title||item.title==='不明')return;
+  const rule={debit:item.debit,credit:item.credit,tax:item.tax};
+  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[item.title]:rule})});
+  await loadMasterFromServer();
+}
+
+// ファイル管理
+function pdfKey(f){return `siwake_${f.name}_${f.size}`;}
+function saveState(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch(e){}}
+function loadState(key){try{const d=localStorage.getItem(key);return d?JSON.parse(d):null;}catch(e){return null;}}
+function clearState(key){try{localStorage.removeItem(key);}catch(e){}}
+
+function onDragOver(e){e.preventDefault();document.getElementById('dz').classList.add('over');}
+function onDragLeave(){document.getElementById('dz').classList.remove('over');}
+function onDrop(e){e.preventDefault();onDragLeave();addFiles(e.dataTransfer.files);}
+
+function addFiles(fl){
+  Array.from(fl).forEach(f=>{
+    const ok=f.type.startsWith('image/')||f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
+    if(ok&&files.length<4)files.push(f);
+  });
+  renderPrev();checkSavedState();
+  document.getElementById('runBtn').disabled=files.length===0;
+}
+
+function checkSavedState(){
+  const panel=document.getElementById('statusPanel');
+  const f=files.find(f=>f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf'));
+  if(!f){panel.className='status-panel';return;}
+  const key=pdfKey(f);const saved=loadState(key);
+  if(!saved){panel.className='status-panel';return;}
+  currentFile=f;currentKey=key;
+  const done=saved.items?saved.items.length:0;
+  const lc=saved.lastChunk??-1;const tc=saved.totalChunks??'?';
+  const pct=tc==='?'?50:Math.round(((lc+1)/tc)*100);
+  document.getElementById('spTitle').textContent=`${f.name} — 前回の途中データが見つかりました`;
+  document.getElementById('spBar').style.width=pct+'%';
+  document.getElementById('spPct').textContent=pct+'%';
+  document.getElementById('spDone').textContent=done;
+  document.getElementById('spRem').textContent=tc==='?'?'?':Math.max(0,tc-lc-1)+'チャンク';
+  document.getElementById('spChunk').textContent=`${lc+1}/${tc}`;
+  const inc=document.getElementById('spIncomplete');
+  if(lc+1<tc){inc.className='sp-incomplete show';inc.textContent=`⚠️ ${done}件読み込み済みですが未完了です。「残りを読み込む」で続きから再開できます。`;}
+  else{inc.className='sp-incomplete';}
+  const btns=document.getElementById('spBtns');btns.innerHTML='';
+  if(lc+1<tc){const b=document.createElement('button');b.className='btn-continue';b.textContent='残りを読み込む';b.onclick=()=>startProcess(true);btns.appendChild(b);}
+  const b2=document.createElement('button');b2.className='btn-restart-small';b2.textContent='最初からやり直す';
+  b2.onclick=()=>{clearState(key);document.getElementById('statusPanel').className='status-panel';document.getElementById('runBtn').style.display='';startProcess(false);};
+  btns.appendChild(b2);
+  panel.className='status-panel show';
+  document.getElementById('runBtn').style.display='none';
+  if(saved.items&&saved.items.length>0){results=[...saved.items];renderCards();updateBottom();document.getElementById('bottomPanel').className='bottom-panel show';}
+}
+
+function removeFile(i){files.splice(i,1);renderPrev();document.getElementById('statusPanel').className='status-panel';document.getElementById('runBtn').style.display='';document.getElementById('runBtn').disabled=files.length===0;}
+function renderPrev(){
+  const c=document.getElementById('prev');c.innerHTML='';
+  files.forEach((f,i)=>{
+    const isPdf=f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
+    c.innerHTML+=isPdf
+      ?`<div class="thumb"><div class="pdf-icon"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg>PDF</div><button onclick="removeFile(${i})">×</button></div>`
+      :`<div class="thumb"><img src="${URL.createObjectURL(f)}"><button onclick="removeFile(${i})">×</button></div>`;
+  });
+}
+function toB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});}
+function setProgress(pct,title,status){
+  document.getElementById('progBar').style.width=pct+'%';
+  document.getElementById('progTitle').textContent=title;
+  document.getElementById('progStatus').textContent=status;
+}
+function showErr(msg){const b=document.getElementById('errBox');b.textContent=msg;b.className='err show';}
+function hideErr(){document.getElementById('errBox').className='err';}
+function onRunClick(){startProcess(false);}
+
+async function startProcess(resume){
+  hideErr();
+  document.getElementById('statusPanel').className='status-panel';
+  document.getElementById('runBtn').style.display='';
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('prog').className='prog show';
+  document.getElementById('bottomPanel').className='bottom-panel show';
+  if(!resume){results=[];approved=new Set();deleted=new Set();document.getElementById('cards').innerHTML='';}
+
+  for(let fi=0;fi<files.length;fi++){
+    const f=files[fi];
+    const isPdf=f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
+    if(isPdf){
+      const key=pdfKey(f);currentFile=f;currentKey=key;
+      const saved=resume?loadState(key):null;
+      const startChunk=saved?(saved.lastChunk??-1)+1:0;
+      if(saved&&saved.items&&resume){results=[...saved.items];}
+      setProgress(2,'PDFを分割中...',f.name);
+      const b64=await toB64(f);
+      const splitRes=await fetch('/api/split-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:b64,fileName:f.name})});
+      const sd=await splitRes.json();
+      if(sd.error){showErr(sd.error);done();return;}
+      allChunks=sd.chunks;totalChunks=sd.chunks.length;
+      for(let ci=startChunk;ci<totalChunks;ci++){
+        const chunk=allChunks[ci];
+        const pct=5+Math.round((ci/totalChunks)*90);
+        setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
+        try{
+          const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks})});
+          const data=await resp.json();
+          if(data.error)throw new Error(data.error);
+          results.push(...data.items);
+          saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
+          renderCards();updateBottom();
+        }catch(e){
+          showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}\n${results.length}件読み込み済み。同じPDFを再アップロードすると続きから再開できます。`);
+          done();return;
+        }
+      }
+      setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
+      setTimeout(()=>{document.getElementById('prog').className='prog';},2500);
+    } else {
+      setProgress(50,'画像を解析中...',f.name);
+      const b64=await toB64(f);
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1})});
+      const data=await resp.json();
+      if(data.error){showErr(data.error);done();return;}
+      results.push(...data.items);
+      renderCards();updateBottom();
+      setProgress(100,'完了','');
+      setTimeout(()=>{document.getElementById('prog').className='prog';},1500);
+    }
+  }
+  done();
+}
+function done(){document.getElementById('runBtn').disabled=false;updateBottom();}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function aOpts(s){return ACCTS.map(a=>`<option${a===s?' selected':''}>${a}</option>`).join('');}
+function tOpts(s){return TAXES.map(a=>`<option${a===s?' selected':''}>${a}</option>`).join('');}
+
+function renderCards(){
+  const c=document.getElementById('cards');c.innerHTML='';
+  // 同じ日付・同じ取引先が複数ある場合を検出
+  const dupCheck={};
+  results.forEach((r,i)=>{
+    if(deleted.has(i))return;
+    const key=`${r.date}_${r.title}_${r.amount}`;
+    if(!dupCheck[key])dupCheck[key]=[];
+    dupCheck[key].push(i);
+  });
+  const dupSet=new Set();
+  Object.values(dupCheck).forEach(idxs=>{
+    if(idxs.length>1)idxs.forEach(i=>dupSet.add(i));
+  });
+  results.forEach((r,i)=>{
+    const conf=r.confidence==='high'?'高信頼':r.confidence==='mid'?'要確認':'低信頼';
+    const bc=r.confidence==='high'?'bh':r.confidence==='mid'?'bm':'bl';
+    const isApproved=approved.has(i),isDeleted=deleted.has(i);
+    const d=document.createElement('div');d.className='card'+(isApproved?' approved':'');d.id='c'+i;
+    if(isDeleted)d.style.opacity='0.35';
+    d.innerHTML=`
+<div class="card-head">
+  <div class="card-pdf"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg></div>
+  <div class="card-info"><div class="card-name">${esc(r.title)}</div><div class="card-meta">${esc(r.date)} · ${esc(r.amount)}</div></div>
+  ${r.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${bc}">${conf}</span>`}
+  ${dupSet.has(i)&&!approved.has(i)?'<span class="badge-dup">⚠ 重複の可能性</span>':''}
+</div>
+<div class="card-body">
+  <div class="rows">
+    <span class="rk" style="border-top:none;">借方</span><span class="rv debit" id="dbt${i}" style="border-top:none;">${esc(r.debit)}</span>
+    <span class="rk">貸方</span><span class="rv credit" id="cdt${i}">${esc(r.credit)}</span>
+    <span class="rk">税区分</span><span class="rv" style="font-size:11px;color:#888;" id="tax${i}">${esc(r.tax)}</span>
+    <span class="rk">摘要</span><span class="rv" id="mem${i}">${esc(r.memo)}</span>
+  </div>
+  <div class="reason-box"><div class="reason-lbl">AIの根拠</div>${esc(r.reason)}</div>
+</div>
+<div class="edit-area" id="ep${i}">
+  <div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div>
+  <div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div>
+  <div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div>
+  <div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div>
+  <button class="btn-save" onclick="saveEdit(${i})">保存して承認</button>
+</div>
+<div class="card-foot" id="foot${i}" ${isDeleted?'style="display:none"':''}>
+  <button class="btn-ok${isApproved?' done':''}" id="ok${i}" onclick="approve(${i})">${isApproved?'✓ 承認済み':'✓ 承認'}</button>
+  <button class="btn-ed" onclick="document.getElementById('ep${i}').classList.toggle('show')">修正</button>
+  <button class="btn-del" onclick="deleteCard(${i})">削除</button>
+</div>`;
+    c.appendChild(d);
+  });
+}
+
+async function approve(i){
+  approved.add(i);deleted.delete(i);
+  document.getElementById('c'+i).className='card approved';
+  document.getElementById('c'+i).style.opacity='';
+  document.getElementById('foot'+i).style.display='';
+  document.getElementById('ep'+i).classList.remove('show');
+  const b=document.getElementById('ok'+i);b.textContent='✓ 承認済み';b.classList.add('done');
+  await autoLearn(results[i]);
+  // 同じ取引先の未承認カードにマスタを即時適用（借方・貸方・税区分・摘要すべて）
+  const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
+  results.forEach((r,j)=>{
+    if(j!==i && r.title===results[i].title && !approved.has(j) && !deleted.has(j)){
+      results[j]={...r,...rule,masterApplied:true};
+      const dbt=document.getElementById('dbt'+j);
+      const cdt=document.getElementById('cdt'+j);
+      const tax=document.getElementById('tax'+j);
+      const mem=document.getElementById('mem'+j);
+      if(dbt)dbt.textContent=rule.debit;
+      if(cdt)cdt.textContent=rule.credit;
+      if(tax)tax.textContent=rule.tax;
+      if(mem)mem.textContent=rule.memo;
+      // 編集パネルの値も更新
+      const ed=document.getElementById('ed'+j);
+      const ec=document.getElementById('ec'+j);
+      const et=document.getElementById('et'+j);
+      const em=document.getElementById('em'+j);
+      if(ed)ed.value=rule.debit;
+      if(ec)ec.value=rule.credit;
+      if(et)et.value=rule.tax;
+      if(em)em.value=rule.memo;
+      // バッジをマスタ適用に変更
+      const card=document.getElementById('c'+j);
+      if(card){
+        const badge=card.querySelector('.badge,.badge-master');
+        if(badge){badge.className='badge-master';badge.textContent='マスタ適用';}
+      }
+    }
+  });
+  updateBottom();
+}
+function deleteCard(i){
+  deleted.add(i);approved.delete(i);
+  document.getElementById('c'+i).style.opacity='0.35';
+  document.getElementById('foot'+i).style.display='none';
+  updateBottom();
+}
+async function saveEdit(i){
+  results[i].debit=document.getElementById('ed'+i).value;
+  results[i].credit=document.getElementById('ec'+i).value;
+  results[i].tax=document.getElementById('et'+i).value;
+  results[i].memo=document.getElementById('em'+i).value;
+  document.getElementById('dbt'+i).textContent=results[i].debit;
+  document.getElementById('cdt'+i).textContent=results[i].credit;
+  document.getElementById('tax'+i).textContent=results[i].tax;
+  document.getElementById('mem'+i).textContent=results[i].memo;
+  await approve(i);
+}
+function updateBottom(){
+  const active=results.length-deleted.size;
+  const ok=approved.size,pend=active-ok,del=deleted.size;
+  document.getElementById('bpTotal').textContent=active;
+  document.getElementById('bpOk').textContent=ok;
+  document.getElementById('bpPend').textContent=pend;
+  document.getElementById('bpDel').textContent=del;
+  document.getElementById('csvOkCount').textContent=ok;
+  document.getElementById('csvAllCount').textContent=active;
+  const g1=document.getElementById('g1num'),g2=document.getElementById('g2num');
+  g1.className='guide-num'+(ok===active&&active>0?' done':'');
+  g1.textContent=ok===active&&active>0?'✓':'1';
+  g2.className='guide-num'+(pend===0&&active>0?' done':'');
+  document.getElementById('g1desc').textContent=pend>0?`${ok}件承認済み・${pend}件未処理。承認すると取引先マスタに自動登録されます。`:'全件確認済みです。';
+  document.getElementById('g2desc').textContent=pend>0?`まだ${pend}件未処理があります。`:'準備完了。CSVを出力してください。';
+}
+function exportCSV(mode){
+  const rows=[['日付','借方科目','貸方科目','金額','税区分','摘要']];
+  results.forEach((r,i)=>{
+    if(deleted.has(i))return;
+    if(mode==='approved'&&!approved.has(i))return;
+    rows.push([r.date||'',r.debit||'',r.credit||'',r.amount||'',r.tax||'',r.memo||'']);
+  });
+  const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=mode==='approved'?'siwake_approved.csv':'siwake_all.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
