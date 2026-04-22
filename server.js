@@ -14,7 +14,15 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const SYSTEM = `あなたは日本の会計仕訳の専門家です。証憑画像を分析し、弥生会計の勘定科目体系に従って仕訳を生成してください。
+const SYSTEM = `あなたは日本の会計仕訳の専門家であり、OCRの専門家でもあります。証憑画像（レシート・領収書・手書き領収書・銀行通帳など）を分析し、弥生会計の勘定科目体系に従って仕訳を生成してください。
+
+【画像読み取りのガイドライン】
+- 手書き文字は文脈から推測して読み取ってください
+- 崩し字・略字も可能な限り解読してください
+- 金額は「¥」「円」「,」の有無に関わらず数値として読み取ってください
+- 傾いた画像や影があっても最大限読み取ってください
+- 銀行通帳の場合：入金（+）は「売上高」または「雑収入」、出金（-）は支出として処理してください
+- 読み取れない文字は「?」で表現し、confidenceを「low」にしてください
 
 【貸方（支払手段）の判定ルール】
 1. クレジットカードの記載（VISA/Mastercard/JCB/カード/クレジット/サイン欄/カード番号末尾4桁など）があれば → 「未払金」
@@ -125,6 +133,13 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/api/master') { getMasterRoutes(req, res); return; }
   if (req.method === 'POST' && req.url === '/api/master') { updateMasterRoute(req, res); return; }
   if (req.method === 'DELETE' && req.url === '/api/master') { deleteMasterRoute(req, res); return; }
+  if (req.method === 'POST' && req.url === '/api/master/clear') {
+    saveMaster({});
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+    console.log('マスタをクリアしました');
+    return;
+  }
 
   if (req.method === 'POST' && req.url === '/api/split-pdf') {
     let body = '';
