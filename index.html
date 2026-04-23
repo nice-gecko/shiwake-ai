@@ -219,6 +219,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 
 /* レスポンシブ */
 @media(max-width:640px){
+  .sp-hide{display:none !important;}
   .mobile-header{display:block;}
   .hamburger{display:flex;}
   .sidebar{position:fixed;top:0;left:-240px;height:100%;z-index:250;transition:left 0.25s ease;width:240px;}
@@ -267,8 +268,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
   .main-subcopy .sp-mobile{display:inline;}
 }
 .sp-mobile{display:none;}
+.sp-pc-only{display:inline;}
+
+/* スマホ専用 PCセッション共有バー */
+.mobile-pc-bar{display:none;background:#fff;border-bottom:1px solid #e5e5e5;padding:8px 16px;}
+.mobile-pc-bar-inner{display:flex;align-items:center;justify-content:space-between;}
+.mobile-pc-bar-actions{display:flex;gap:8px;}
+.mobile-pc-btn{padding:6px 14px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-weight:600;background:#fff;cursor:pointer;color:#555;}
+.mobile-pc-btn.primary{background:#185FA5;color:#fff;border-color:#185FA5;}
+.qr-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;align-items:center;justify-content:center;}
+.qr-modal.show{display:flex;}
+.qr-modal-inner{background:#fff;border-radius:16px;padding:24px;text-align:center;max-width:280px;width:90%;}
+@media(max-width:640px){
+  .mobile-pc-bar{display:block;}
+}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 </head>
 <body>
@@ -281,6 +297,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
     <span class="mobile-header-title">証憑仕訳AI</span>
     <div class="mobile-header-copy">
       <div class="mobile-header-catch">領収書を投げ込むだけで、仕訳CSVが出てくる</div>
+    </div>
+  </div>
+</div>
+<div class="mobile-pc-bar">
+  <div class="mobile-pc-bar-inner">
+    <div class="mobile-pc-bar-left">
+      <div style="font-size:11px;font-weight:600;color:#1a1a1a;margin-bottom:2px;">PCでも開けます</div>
+      <div style="font-size:10px;color:#888;">QRまたはシェアでURLを送る</div>
+    </div>
+    <div class="mobile-pc-bar-actions">
+      <button class="mobile-pc-btn" onclick="showQR()">QR</button>
+      <button class="mobile-pc-btn primary" onclick="shareSessionUrl()">シェア</button>
+    </div>
+  </div>
+  <!-- QRモーダル -->
+  <div class="qr-modal" id="qrModal" onclick="hideQR()">
+    <div class="qr-modal-inner" onclick="event.stopPropagation()">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;">PCのカメラで読み取ってください</div>
+      <div id="qrCanvas"></div>
+      <div style="font-size:10px;color:#888;margin-top:10px;word-break:break-all;" id="qrUrl"></div>
+      <button onclick="hideQR()" style="margin-top:12px;padding:8px 24px;border:1px solid #ddd;border-radius:7px;font-size:13px;background:#f5f5f5;cursor:pointer;">閉じる</button>
     </div>
   </div>
 </div>
@@ -305,7 +342,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="11" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="8" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
       仕訳処理
     </div>
-    <div class="sidebar-nav-item" onclick="switchTab('scan')">
+    <div class="sidebar-nav-item sp-hide" onclick="switchTab('scan')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>
       スキャン
     </div>
@@ -354,7 +391,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <div class="main">
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
-    <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>取引先マスタに自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span></p>
+    <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>取引先マスタに自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span><span class="sp-pc-only"><br>スマホでスキャンした仕訳はそのままPCと共有されます。</span></p>
     <button class="mobile-scan-btn" onclick="document.getElementById('scanInput').click()">
       <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
       カメラで撮影する
@@ -459,11 +496,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       </button>
       <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
       <div class="scan-hint">撮影後にパース補正できます。PCと仕訳が自動共有されます<br>JPG / PNG 対応・最大10枚まで</div>
-      <div style="margin-top:8px;padding:10px 14px;background:#fff;border-radius:10px;border:1px solid #e5e5e5;text-align:center;width:100%;max-width:320px;">
-        <div style="font-size:11px;color:#888;margin-bottom:6px;">このセッションをPCで開く</div>
-        <div id="sessionUrlText" style="font-size:10px;color:#185FA5;word-break:break-all;line-height:1.5;"></div>
-        <button onclick="copySessionUrl()" style="margin-top:8px;padding:5px 14px;border:1px solid #ddd;border-radius:6px;font-size:11px;background:#f5f5f5;cursor:pointer;color:#555;">URLをコピー</button>
-      </div>
+
     </div>
   </div>
 
@@ -562,6 +595,26 @@ let masterData={};
 let editingTitle=null;
 
 // 起動時にマスタとセレクトを初期化
+let qrInstance=null;
+function showQR(){
+  const url=getSessionUrl();
+  document.getElementById('qrUrl').textContent=url;
+  const canvas=document.getElementById('qrCanvas');
+  canvas.innerHTML='';
+  qrInstance=new QRCode(canvas,{text:url,width:200,height:200,correctLevel:QRCode.CorrectLevel.M});
+  document.getElementById('qrModal').className='qr-modal show';
+}
+function hideQR(){
+  document.getElementById('qrModal').className='qr-modal';
+}
+function shareSessionUrl(){
+  const url=getSessionUrl();
+  if(navigator.share){
+    navigator.share({title:'証憑仕訳AI',text:'このURLをPCで開いてください',url}).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(url).then(()=>alert('URLをコピーしました')).catch(()=>prompt('PCで開くURL',url));
+  }
+}
 function copySessionUrl(){
   const url=getSessionUrl();
   navigator.clipboard.writeText(url).then(()=>alert('コピーしました！\nPCのブラウザに貼り付けてください')).catch(()=>{
