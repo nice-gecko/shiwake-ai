@@ -6,10 +6,10 @@
 <title>証憑仕訳AI</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#F5F4F0;color:#1a1a1a;min-height:100vh;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#F5F4F0;color:#1a1a1a;min-height:100vh;display:flex;flex-direction:column;}
 
 /* レイアウト: サイドバー + メイン */
-.layout{display:flex;min-height:100vh;}
+.layout{display:flex;flex:1;}
 
 /* サイドバー */
 .sidebar{width:220px;flex-shrink:0;background:#f0efe9;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:0;}
@@ -157,6 +157,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-csv-all:hover{background:#0C447C;}
 .btn-csv-approved{flex:1;padding:0 18px;height:48px;background:#fff;border:2px solid #1D9E75;border-radius:9px;font-size:14px;color:#1D9E75;font-weight:600;cursor:pointer;white-space:nowrap;}
 .btn-csv-approved:hover{background:#E1F5EE;}
+.btn-continue-scan{width:100%;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:10px;font-size:14px;font-weight:600;color:#185FA5;cursor:pointer;margin-bottom:12px;display:none;}
+.btn-continue-scan.show{display:block;}
+.btn-continue-scan:hover{background:#EBF4FD;}
 .csv-format-wrap{position:relative;display:flex;align-self:stretch;}
 .csv-format-wrap select{appearance:none;-webkit-appearance:none;padding:0 40px 0 14px;border:1px solid #ddd;border-radius:9px;font-size:14px;background:#fff;color:#1a1a1a;cursor:pointer;min-width:140px;height:100%;width:100%;box-sizing:border-box;}
 .csv-format-wrap select:focus{outline:none;border-color:#185FA5;}
@@ -206,6 +209,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .scan-use-btn{width:100%;max-width:320px;padding:14px;background:#1D9E75;color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;display:none;}
 .scan-use-btn.show{display:block;}
 
+/* スマホ専用ヘッダー */
+.mobile-header{display:none;background:#f0efe9;border-bottom:1px solid #e0dfd8;padding:10px 16px;width:100%;flex-shrink:0;}
+.mobile-header-top{display:flex;align-items:center;gap:10px;}
+.mobile-header-icon{width:26px;height:26px;background:#185FA5;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mobile-header-title{font-size:16px;font-weight:700;color:#1a1a1a;}
+.mobile-header-copy{flex:1;}
+.mobile-header-catch{font-size:11px;font-weight:500;color:#888;line-height:1.45;}
+
 /* レスポンシブ */
 @media(max-width:640px){
   .mobile-header{display:block;}
@@ -243,13 +254,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .perspective-canvas{max-width:100%;max-height:calc(100vh - 230px);touch-action:none;}
 .persp-handle{position:absolute;width:24px;height:24px;border-radius:50%;background:#6fa8fc;border:2px solid #fff;cursor:grab;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.5);touch-action:none;}
 
-/* スマホ専用ヘッダー */
-.mobile-header{display:none;background:#f0efe9;border-bottom:1px solid #e0dfd8;padding:12px 16px;}
-.mobile-header-logo{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.mobile-header-icon{width:24px;height:24px;background:#185FA5;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.mobile-header-title{font-size:15px;font-weight:700;color:#1a1a1a;}
-.mobile-header-copy{background:#e8e7e0;border-radius:7px;padding:8px 12px;}
-.mobile-header-catch{font-size:12px;font-weight:600;color:#1a1a1a;line-height:1.55;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
@@ -257,14 +261,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <body>
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <div class="mobile-header">
-  <div class="mobile-header-logo">
+  <div class="mobile-header-top">
     <div class="mobile-header-icon">
-      <svg viewBox="0 0 16 16" fill="none" width="13" height="13"><rect x="2" y="1" width="12" height="14" rx="2" stroke="white" stroke-width="1.3"/><line x1="5" y1="5" x2="11" y2="5" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="11" x2="8.5" y2="11" stroke="white" stroke-width="1.1" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="2" y="1" width="12" height="14" rx="2" stroke="white" stroke-width="1.3"/><line x1="5" y1="5" x2="11" y2="5" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="11" x2="8.5" y2="11" stroke="white" stroke-width="1.1" stroke-linecap="round"/></svg>
     </div>
     <span class="mobile-header-title">証憑仕訳AI</span>
-  </div>
-  <div class="mobile-header-copy">
-    <div class="mobile-header-catch">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
+    <div class="mobile-header-copy">
+      <div class="mobile-header-catch">領収書を投げ込むだけで、仕訳CSVが出てくる</div>
+    </div>
   </div>
 </div>
 <div class="layout">
@@ -365,6 +369,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
     </div>
     <div id="cards"></div>
     <div class="bottom-panel" id="bottomPanel">
+      <button class="btn-continue-scan" id="btnContinueScan" onclick="continueScan()">📷 続けてスキャン</button>
       <div class="bp-counts">
         <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
         <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
@@ -562,22 +567,65 @@ function initPerspective(){
     canvas.height=img.height*scale;
     const ctx=canvas.getContext('2d');
     ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    // キャンバスのDOM上での位置
     const rect=canvas.getBoundingClientRect();
     const wrapRect=wrap.getBoundingClientRect();
     const ox=rect.left-wrapRect.left;
     const oy=rect.top-wrapRect.top;
-    // 四隅のデフォルト位置（キャンバス内座標）
+    // 自動エッジ検出
+    const corners=autoDetectCorners(ctx,canvas.width,canvas.height);
     perspCorners=[
-      {x:ox,y:oy},
-      {x:ox+canvas.width,y:oy},
-      {x:ox+canvas.width,y:oy+canvas.height},
-      {x:ox,y:oy+canvas.height}
+      {x:ox+corners[0][0],y:oy+corners[0][1]},
+      {x:ox+corners[1][0],y:oy+corners[1][1]},
+      {x:ox+corners[2][0],y:oy+corners[2][1]},
+      {x:ox+corners[3][0],y:oy+corners[3][1]}
     ];
     updateHandles();
     drawPerspOverlay(ctx,canvas,ox,oy);
   };
   img.src=scanRawUrl;
+}
+
+function autoDetectCorners(ctx,w,h){
+  // Canvasのピクセルデータを取得してエッジ検出
+  const data=ctx.getImageData(0,0,w,h).data;
+  const gray=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){
+    gray[i]=(data[i*4]*0.299+data[i*4+1]*0.587+data[i*4+2]*0.114)/255;
+  }
+  // Sobelフィルタでエッジ検出
+  const edge=new Float32Array(w*h);
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      const gx=(-gray[(y-1)*w+(x-1)]+gray[(y-1)*w+(x+1)]
+                -2*gray[y*w+(x-1)]+2*gray[y*w+(x+1)]
+                -gray[(y+1)*w+(x-1)]+gray[(y+1)*w+(x+1)]);
+      const gy=(-gray[(y-1)*w+(x-1)]-2*gray[(y-1)*w+x]-gray[(y-1)*w+(x+1)]
+                +gray[(y+1)*w+(x-1)]+2*gray[(y+1)*w+x]+gray[(y+1)*w+(x+1)]);
+      edge[y*w+x]=Math.sqrt(gx*gx+gy*gy);
+    }
+  }
+  // 四隅それぞれの象限でエッジが強い点を探す
+  const margin=Math.min(w,h)*0.05;
+  const findCorner=(x0,y0,x1,y1)=>{
+    let best=0,bx=x0,by=y0;
+    for(let y=Math.floor(y0);y<Math.floor(y1);y+=2){
+      for(let x=Math.floor(x0);x<Math.floor(x1);x+=2){
+        if(edge[y*w+x]>best){best=edge[y*w+x];bx=x;by=y;}
+      }
+    }
+    return [bx,by];
+  };
+  const qw=w/2,qh=h/2;
+  const tl=findCorner(margin,margin,qw,qh);
+  const tr=findCorner(qw,margin,w-margin,qh);
+  const br=findCorner(qw,qh,w-margin,h-margin);
+  const bl=findCorner(margin,qh,qw,h-margin);
+  // エッジが弱すぎる場合は安全なデフォルト値にフォールバック
+  const pad=Math.min(w,h)*0.08;
+  const fallback=[[pad,pad],[w-pad,pad],[w-pad,h-pad],[pad,h-pad]];
+  const maxEdge=Math.max(edge[tl[1]*w+tl[0]],edge[tr[1]*w+tr[0]],edge[br[1]*w+br[0]],edge[bl[1]*w+bl[0]]);
+  if(maxEdge<0.05)return fallback;
+  return [tl,tr,br,bl];
 }
 
 function updateHandles(){
@@ -889,7 +937,7 @@ function checkSavedState(){
   btns.appendChild(b2);
   panel.className='status-panel show';
   document.getElementById('runBtn').style.display='none';
-  if(saved.items&&saved.items.length>0){results=[...saved.items];renderCards();updateBottom();document.getElementById('bottomPanel').className='bottom-panel show';}
+  if(saved.items&&saved.items.length>0){results=[...saved.items];renderCards();updateBottom();document.getElementById('bottomPanel').className='bottom-panel show';document.getElementById('btnContinueScan').className='btn-continue-scan show';}
 }
 
 function removeFile(i){files.splice(i,1);renderPrev();document.getElementById('statusPanel').className='status-panel';document.getElementById('runBtn').style.display='';document.getElementById('runBtn').disabled=files.length===0;}
@@ -918,7 +966,7 @@ async function startProcess(resume){
   document.getElementById('runBtn').style.display='';
   document.getElementById('runBtn').disabled=true;
   document.getElementById('prog').className='prog show';
-  document.getElementById('bottomPanel').className='bottom-panel show';
+  document.getElementById('bottomPanel').className='bottom-panel show';document.getElementById('btnContinueScan').className='btn-continue-scan show';
   updateStepBar(2);
   if(!resume){results=[];approved=new Set();deleted=new Set();document.getElementById('cards').innerHTML='';}
 
