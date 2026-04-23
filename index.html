@@ -16,7 +16,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid #e0dfd8;}
 .sidebar-logo-mark{display:flex;align-items:center;gap:8px;}
 .sidebar-logo-icon{width:26px;height:26px;background:#185FA5;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.sidebar-logo-text{font-size:13px;font-weight:700;color:#1a1a1a;letter-spacing:0.01em;}
+.sidebar-logo-text{font-size:16px;font-weight:700;color:#1a1a1a;letter-spacing:0.01em;line-height:26px;}
 .sidebar-copy{margin-top:10px;padding:12px 14px;background:#e8e7e0;border-radius:8px;text-align:left;}
 .sidebar-catch{font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.65;margin-bottom:0;}
 .sidebar-sub{font-size:10px;color:#666;line-height:1.5;}
@@ -79,7 +79,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sp-title{font-size:13px;font-weight:600;margin-bottom:10px;}
 .sp-progress{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
 .sp-bar-wrap{flex:1;background:#eee;border-radius:999px;height:8px;}
-.sp-bar{background:#185FA5;height:8px;border-radius:999px;transition:width 0.3s;}
+.sp-bar{background:#185FA5;height:8px;border-radius:999px;transition:width 0.4s ease;position:relative;overflow:hidden;}
+.sp-bar::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);animation:shimmer 1.2s ease-in-out infinite;}
 .sp-pct{font-size:13px;font-weight:600;color:#185FA5;white-space:nowrap;}
 .sp-nums{display:flex;gap:16px;margin-bottom:12px;}
 .sp-num{text-align:center;}
@@ -95,9 +96,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .run-btn:hover{background:#0C447C;}.run-btn:disabled{background:#c0c0c0;cursor:default;}
 .prog{display:none;background:#fff;border-radius:10px;border:1px solid #eee;padding:14px 18px;margin-bottom:16px;}
 .prog.show{display:block;}
-.prog-title{font-size:13px;color:#185FA5;font-weight:500;margin-bottom:8px;}
-.prog-bar-wrap{background:#eee;border-radius:999px;height:6px;margin-bottom:6px;}
-.prog-bar{background:#185FA5;height:6px;border-radius:999px;transition:width 0.3s;width:0%;}
+.prog-title{font-size:13px;color:#185FA5;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+.prog-spinner{width:14px;height:14px;border:2px solid #d0e4f5;border-top-color:#185FA5;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.prog-bar-wrap{background:#eee;border-radius:999px;height:6px;margin-bottom:6px;overflow:hidden;position:relative;}
+.prog-bar{background:#185FA5;height:6px;border-radius:999px;transition:width 0.4s ease;width:0%;position:relative;overflow:hidden;}
+.prog-bar::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);animation:shimmer 1.2s ease-in-out infinite;}
+@keyframes shimmer{0%{left:-60%;}100%{left:160%;}}
+.prog-bar-pulse{position:absolute;top:0;right:0;width:6px;height:6px;border-radius:50%;background:#185FA5;box-shadow:0 0 6px 2px rgba(24,95,165,0.5);animation:pulse 1.2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.7);}}
 .prog-status{font-size:12px;color:#888;}
 .err{background:#FFF0F0;border:1px solid #F7C1C1;border-radius:8px;padding:12px 14px;font-size:13px;color:#A32D2D;margin-bottom:14px;display:none;}
 .err.show{display:block;}
@@ -145,16 +152,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .guide-num.done{background:#1D9E75;}
 .guide-step-title{font-size:13px;font-weight:600;margin-bottom:2px;}
 .guide-step-desc{font-size:12px;color:#666;line-height:1.5;}
-.csv-btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
-.btn-csv-all{padding:8px 18px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
-.btn-csv-approved{padding:8px 18px;background:#fff;border:1px solid #1D9E75;border-radius:7px;font-size:13px;color:#1D9E75;font-weight:600;cursor:pointer;}
+.csv-btns{display:flex;gap:10px;margin-top:10px;align-items:stretch;height:48px;}
+.btn-csv-all{flex:1;padding:0 18px;height:48px;background:#185FA5;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-csv-all:hover{background:#0C447C;}
+.btn-csv-approved{flex:1;padding:0 18px;height:48px;background:#fff;border:2px solid #1D9E75;border-radius:9px;font-size:14px;color:#1D9E75;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-csv-approved:hover{background:#E1F5EE;}
+.csv-format-wrap{position:relative;display:flex;align-self:stretch;}
+.csv-format-wrap select{appearance:none;-webkit-appearance:none;padding:0 40px 0 14px;border:1px solid #ddd;border-radius:9px;font-size:14px;background:#fff;color:#1a1a1a;cursor:pointer;min-width:140px;height:100%;width:100%;box-sizing:border-box;}
+.csv-format-wrap select:focus{outline:none;border-color:#185FA5;}
+.csv-format-arrow{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:#555;pointer-events:none;font-weight:600;}
 
 /* マスタ管理 */
 .master-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
 .master-toolbar h2{font-size:15px;font-weight:600;}
 .btn-add-master{padding:8px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;}
-.btn-clear-master{padding:8px 16px;background:#fff;border:1px solid #F7C1C1;border-radius:8px;font-size:13px;color:#A32D2D;cursor:pointer;}
-.btn-clear-master:hover{background:#FFF0F0;}
+.btn-clear-master{padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:13px;color:#888;cursor:pointer;}
+.btn-clear-master:hover{background:#f5f5f5;}
 .master-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;}
 .master-table th{background:#fafafa;font-size:12px;color:#888;font-weight:500;padding:10px 14px;text-align:left;border-bottom:1px solid #eee;}
 .master-table td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
@@ -262,8 +275,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
     <div class="err" id="errBox"></div>
     <button class="run-btn" id="runBtn" disabled onclick="onRunClick()">仕訳を自動生成する</button>
     <div class="prog" id="prog">
-      <div class="prog-title" id="progTitle">処理中...</div>
-      <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"></div></div>
+      <div class="prog-title"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
+      <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"><div class="prog-bar-pulse" id="progPulse"></div></div></div>
       <div class="prog-status" id="progStatus"></div>
     </div>
     <div id="cards"></div>
@@ -288,17 +301,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
         <div>
           <div class="guide-step-title">CSVを出力する</div>
           <div class="guide-step-desc" id="g2desc">承認済みのみ、または全件を選んで出力できます。</div>
-          <div style="margin-bottom:8px;">
-            <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">出力形式を選択</label>
-            <select id="csvFormat" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:7px;font-size:13px;background:#fff;">
-              <option value="yayoi">弥生会計</option>
-              <option value="freee">freee</option>
-              <option value="mf">マネーフォワード</option>
-              <option value="bugyo">勘定奉行</option>
-              <option value="generic">汎用CSV</option>
-            </select>
-          </div>
           <div class="csv-btns">
+            <div class="csv-format-wrap">
+              <select id="csvFormat">
+                <option value="yayoi">弥生会計</option>
+                <option value="freee">freee</option>
+                <option value="mf">マネーフォワード</option>
+                <option value="bugyo">勘定奉行</option>
+                <option value="generic">汎用CSV</option>
+              </select>
+              <span class="csv-format-arrow">∨</span>
+            </div>
             <button class="btn-csv-approved" onclick="exportCSV('approved')">承認済みのみ（<span id="csvOkCount">0</span>件）</button>
             <button class="btn-csv-all" onclick="exportCSV('all')">全件出力（<span id="csvAllCount">0</span>件）</button>
           </div>
@@ -593,7 +606,7 @@ async function startProcess(resume){
         }
       }
       setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
-      setTimeout(()=>{document.getElementById('prog').className='prog';},2500);
+      setTimeout(()=>{document.getElementById('prog').className='prog';document.getElementById('progSpinner').style.animation='none';document.getElementById('progPulse').style.display='none';},2500);
     } else {
       setProgress(50,'画像を解析中...',f.name);
       const b64=await toB64(f);
