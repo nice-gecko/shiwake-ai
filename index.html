@@ -39,7 +39,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .main-area{flex:1;display:flex;flex-direction:column;min-width:0;}
 
 /* ステップ進捗バー */
-.step-bar{background:#fff;border-bottom:1px solid #e5e5e5;padding:10px 16px;display:flex;align-items:center;margin:-24px -16px 20px;}
+.step-bar{background:#fff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 
 .step-item{display:flex;align-items:center;gap:6px;padding:0 4px;}
 .step-circle{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
@@ -369,26 +369,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <div class="main-area">
 
 <div class="main">
-<!-- ステップ進捗バー -->
-<div class="step-bar">
-  <button class="hamburger" onclick="toggleSidebar()" aria-label="メニュー" style="margin-right:10px;">
-    <svg viewBox="0 0 18 18" fill="none" width="16" height="16"><line x1="2" y1="5" x2="16" y2="5" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="9" x2="16" y2="9" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="13" x2="16" y2="13" stroke="#555" stroke-width="1.5" stroke-linecap="round"/></svg>
-  </button>
-  <div class="step-item">
-    <div class="step-circle active" id="sc1">1</div>
-    <span class="step-label active" id="sl1">証憑をアップロード</span>
+  <!-- ステップ進捗バー -->
+  <div class="step-bar">
+    <button class="hamburger" onclick="toggleSidebar()" aria-label="メニュー" style="margin-right:10px;">
+      <svg viewBox="0 0 18 18" fill="none" width="16" height="16"><line x1="2" y1="5" x2="16" y2="5" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="9" x2="16" y2="9" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="13" x2="16" y2="13" stroke="#555" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <div class="step-item">
+      <div class="step-circle active" id="sc1">1</div>
+      <span class="step-label active" id="sl1">証憑をアップロード</span>
+    </div>
+    <span class="step-arrow">›</span>
+    <div class="step-item">
+      <div class="step-circle pending" id="sc2">2</div>
+      <span class="step-label" id="sl2">仕訳を確認・承認</span>
+    </div>
+    <span class="step-arrow">›</span>
+    <div class="step-item">
+      <div class="step-circle pending" id="sc3">3</div>
+      <span class="step-label" id="sl3">CSVを出力</span>
+    </div>
   </div>
-  <span class="step-arrow">›</span>
-  <div class="step-item">
-    <div class="step-circle pending" id="sc2">2</div>
-    <span class="step-label" id="sl2">仕訳を確認・承認</span>
-  </div>
-  <span class="step-arrow">›</span>
-  <div class="step-item">
-    <div class="step-circle pending" id="sc3">3</div>
-    <span class="step-label" id="sl3">CSVを出力</span>
-  </div>
-</div>
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
     <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>取引先マスタに自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span><span class="sp-pc-only"><br>スマホでスキャンした仕訳はそのままPCと共有されます。</span></p>
