@@ -217,7 +217,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
   .main{padding:16px 12px;}
   .main-subcopy{font-size:11px;}
 }
+
+/* スキャン編集モーダル */
+.scan-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;flex-direction:column;}
+.scan-modal-overlay.show{display:flex;}
+.scan-modal-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#1a1a1a;flex-shrink:0;}
+.scan-modal-title{color:#fff;font-size:14px;font-weight:600;}
+.scan-modal-close{background:none;border:none;color:#aaa;font-size:22px;cursor:pointer;padding:0 4px;line-height:1;}
+.scan-modal-body{flex:1;overflow:hidden;display:flex;flex-direction:column;position:relative;}
+.scan-cropper-wrap{flex:1;overflow:hidden;max-height:calc(100vh - 180px);}
+.scan-cropper-wrap img{max-width:100%;display:block;}
+.scan-modal-tabs{display:flex;background:#111;flex-shrink:0;}
+.scan-tab{flex:1;padding:10px;text-align:center;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent;}
+.scan-tab.active{color:#6fa8fc;border-bottom-color:#6fa8fc;}
+.scan-modal-footer{display:flex;gap:10px;padding:12px 16px;background:#1a1a1a;flex-shrink:0;}
+.scan-footer-btn{flex:1;padding:12px;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;}
+.scan-footer-btn.cancel{background:#333;color:#aaa;}
+.scan-footer-btn.apply{background:#185FA5;color:#fff;}
+
+/* パース補正キャンバス */
+.perspective-wrap{flex:1;position:relative;display:none;align-items:center;justify-content:center;overflow:hidden;}
+.perspective-wrap.show{display:flex;}
+.perspective-canvas{max-width:100%;max-height:calc(100vh - 230px);touch-action:none;}
+.persp-handle{position:absolute;width:24px;height:24px;border-radius:50%;background:#6fa8fc;border:2px solid #fff;cursor:grab;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.5);touch-action:none;}
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 </head>
 <body>
 <button class="hamburger" onclick="toggleSidebar()" aria-label="メニュー">
@@ -389,13 +414,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
         カメラで撮影 / 画像を選択
       </button>
       <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
-      <div class="scan-hint">撮影した画像は自動的に仕訳処理に追加されます<br>JPG / PNG 対応・最大10枚まで</div>
-      <div class="scan-preview-wrap" id="scanPreviewWrap">
-        <img id="scanPreviewImg" src="" alt="プレビュー">
-      </div>
-      <button class="scan-use-btn" id="scanUseBtn" onclick="goToSiwakeWithScan()">この画像で仕訳を生成する →</button>
+      <div class="scan-hint">撮影後にトリミング・パース補正ができます<br>JPG / PNG 対応・最大10枚まで</div>
     </div>
   </div>
+
+<!-- スキャン編集モーダル -->
+<div class="scan-modal-overlay" id="scanModalOverlay">
+  <div class="scan-modal-header">
+    <span class="scan-modal-title" id="scanModalTitle">トリミング</span>
+    <button class="scan-modal-close" onclick="closeScanModal()">×</button>
+  </div>
+  <div class="scan-modal-body">
+    <!-- トリミングモード -->
+    <div class="scan-cropper-wrap" id="cropperWrap">
+      <img id="cropperImg" src="" alt="">
+    </div>
+    <!-- パース補正モード -->
+    <div class="perspective-wrap" id="perspWrap">
+      <canvas class="perspective-canvas" id="perspCanvas"></canvas>
+      <div class="persp-handle" id="ph0"></div>
+      <div class="persp-handle" id="ph1"></div>
+      <div class="persp-handle" id="ph2"></div>
+      <div class="persp-handle" id="ph3"></div>
+    </div>
+  </div>
+  <div class="scan-modal-tabs">
+    <div class="scan-tab active" id="tabCrop" onclick="switchScanTab('crop')">✂ トリミング</div>
+    <div class="scan-tab" id="tabPersp" onclick="switchScanTab('persp')">⬡ パース補正</div>
+  </div>
+  <div class="scan-modal-footer">
+    <button class="scan-footer-btn cancel" onclick="closeScanModal()">キャンセル</button>
+    <button class="scan-footer-btn apply" onclick="applyScanEdit()">この画像で仕訳する →</button>
+  </div>
+</div>
 </div>
 
 <!-- マスタ編集モーダル -->
@@ -456,26 +507,255 @@ function closeSidebar(){
   document.getElementById('sidebarOverlay').classList.remove('show');
 }
 
-let scanFile=null;
+// ========== スキャン編集 ==========
+let cropperInstance=null;
+let scanRawUrl=null;
+let scanRawImg=null;
+let currentScanTab='crop';
+// パース補正用コーナー座標
+let perspCorners=[];
+let dragHandle=null,dragOffX=0,dragOffY=0;
+
 function onScanFile(input){
   const f=input.files[0];
   if(!f)return;
-  scanFile=f;
-  const url=URL.createObjectURL(f);
-  document.getElementById('scanPreviewImg').src=url;
-  document.getElementById('scanPreviewWrap').className='scan-preview-wrap show';
-  document.getElementById('scanUseBtn').className='scan-use-btn show';
+  scanRawUrl=URL.createObjectURL(f);
+  openScanModal(scanRawUrl);
 }
-function goToSiwakeWithScan(){
-  if(!scanFile)return;
-  // ファイルを仕訳処理に追加してタブ切替
-  addFiles([scanFile]);
-  scanFile=null;
-  document.getElementById('scanPreviewWrap').className='scan-preview-wrap';
-  document.getElementById('scanUseBtn').className='scan-use-btn';
-  document.getElementById('scanPreviewImg').src='';
+
+function openScanModal(url){
+  document.getElementById('scanModalOverlay').className='scan-modal-overlay show';
+  switchScanTab('crop');
+  // cropperを初期化
+  setTimeout(()=>{
+    const img=document.getElementById('cropperImg');
+    img.src=url;
+    img.onload=()=>{
+      if(cropperInstance){cropperInstance.destroy();cropperInstance=null;}
+      cropperInstance=new Cropper(img,{
+        viewMode:1,autoCropArea:0.9,
+        aspectRatio:NaN,
+        background:true,
+        movable:true,scalable:true,zoomable:true,
+      });
+    };
+  },50);
+}
+
+function closeScanModal(){
+  document.getElementById('scanModalOverlay').className='scan-modal-overlay';
+  if(cropperInstance){cropperInstance.destroy();cropperInstance=null;}
   document.getElementById('scanInput').value='';
-  switchTab('siwake');
+  scanRawUrl=null;
+}
+
+function switchScanTab(tab){
+  currentScanTab=tab;
+  document.getElementById('tabCrop').className='scan-tab'+(tab==='crop'?' active':'');
+  document.getElementById('tabPersp').className='scan-tab'+(tab==='persp'?' active':'');
+  document.getElementById('scanModalTitle').textContent=tab==='crop'?'トリミング':'パース補正';
+  if(tab==='crop'){
+    document.getElementById('cropperWrap').style.display='';
+    document.getElementById('perspWrap').className='perspective-wrap';
+  } else {
+    document.getElementById('cropperWrap').style.display='none';
+    document.getElementById('perspWrap').className='perspective-wrap show';
+    initPerspective();
+  }
+}
+
+function initPerspective(){
+  const img=new Image();
+  img.onload=()=>{
+    const canvas=document.getElementById('perspCanvas');
+    const wrap=document.getElementById('perspWrap');
+    const maxW=wrap.clientWidth-40;
+    const maxH=wrap.clientHeight-40;
+    const scale=Math.min(maxW/img.width,maxH/img.height,1);
+    canvas.width=img.width*scale;
+    canvas.height=img.height*scale;
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    // キャンバスのDOM上での位置
+    const rect=canvas.getBoundingClientRect();
+    const wrapRect=wrap.getBoundingClientRect();
+    const ox=rect.left-wrapRect.left;
+    const oy=rect.top-wrapRect.top;
+    // 四隅のデフォルト位置（キャンバス内座標）
+    perspCorners=[
+      {x:ox,y:oy},
+      {x:ox+canvas.width,y:oy},
+      {x:ox+canvas.width,y:oy+canvas.height},
+      {x:ox,y:oy+canvas.height}
+    ];
+    updateHandles();
+    drawPerspOverlay(ctx,canvas,ox,oy);
+  };
+  img.src=scanRawUrl;
+}
+
+function updateHandles(){
+  const wrap=document.getElementById('perspWrap');
+  const wrapRect=wrap.getBoundingClientRect();
+  perspCorners.forEach((c,i)=>{
+    const h=document.getElementById('ph'+i);
+    h.style.left=c.x+'px';
+    h.style.top=c.y+'px';
+  });
+}
+
+function drawPerspOverlay(ctx,canvas,ox,oy){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const img=new Image();
+  img.onload=()=>{
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    // 四角形を描画
+    const pts=perspCorners.map(c=>({x:c.x-ox,y:c.y-oy}));
+    ctx.strokeStyle='rgba(111,168,252,0.9)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x,pts[0].y);
+    pts.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.closePath();
+    ctx.stroke();
+    // 半透明塗り
+    ctx.fillStyle='rgba(111,168,252,0.15)';
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x,pts[0].y);
+    pts.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.closePath();
+    ctx.fill();
+  };
+  img.src=scanRawUrl;
+}
+
+// ハンドルのドラッグ
+['ph0','ph1','ph2','ph3'].forEach((id,i)=>{
+  const h=document.getElementById(id);
+  if(!h)return;
+  const startDrag=(cx,cy)=>{
+    dragHandle=i;
+    const rect=h.getBoundingClientRect();
+    dragOffX=cx-rect.left-12;
+    dragOffY=cy-rect.top-12;
+  };
+  h.addEventListener('mousedown',e=>{e.preventDefault();startDrag(e.clientX,e.clientY);});
+  h.addEventListener('touchstart',e=>{e.preventDefault();startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+});
+document.addEventListener('mousemove',e=>{if(dragHandle===null)return;moveHandle(e.clientX,e.clientY);});
+document.addEventListener('touchmove',e=>{if(dragHandle===null)return;e.preventDefault();moveHandle(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+document.addEventListener('mouseup',()=>{dragHandle=null;});
+document.addEventListener('touchend',()=>{dragHandle=null;});
+
+function moveHandle(cx,cy){
+  const wrap=document.getElementById('perspWrap');
+  const rect=wrap.getBoundingClientRect();
+  perspCorners[dragHandle]={x:cx-rect.left-dragOffX,y:cy-rect.top-dragOffY};
+  updateHandles();
+  const canvas=document.getElementById('perspCanvas');
+  const canvasRect=canvas.getBoundingClientRect();
+  const ox=canvasRect.left-rect.left;
+  const oy=canvasRect.top-rect.top;
+  const ctx=canvas.getContext('2d');
+  drawPerspOverlay(ctx,canvas,ox,oy);
+}
+
+async function applyScanEdit(){
+  if(currentScanTab==='crop'){
+    // トリミング結果をBlobに
+    if(!cropperInstance)return;
+    cropperInstance.getCroppedCanvas({maxWidth:2048,maxHeight:2048,imageSmoothingQuality:'high'}).toBlob(blob=>{
+      const file=new File([blob],'scan_cropped.jpg',{type:'image/jpeg'});
+      addFiles([file]);
+      closeScanModal();
+      switchTab('siwake');
+    },'image/jpeg',0.92);
+  } else {
+    // パース補正：四隅からホモグラフィ変換
+    const canvas=document.getElementById('perspCanvas');
+    const canvasRect=canvas.getBoundingClientRect();
+    const wrap=document.getElementById('perspWrap');
+    const wrapRect=wrap.getBoundingClientRect();
+    const ox=canvasRect.left-wrapRect.left;
+    const oy=canvasRect.top-wrapRect.top;
+    const scaleX=canvas.width/canvasRect.width;
+    const scaleY=canvas.height/canvasRect.height;
+    const src=perspCorners.map(c=>[(c.x-ox)*scaleX,(c.y-oy)*scaleY]);
+    // 出力サイズ（左辺・上辺の長さで決定）
+    const w=Math.round(Math.max(dist(src[0],src[1]),dist(src[3],src[2])));
+    const h=Math.round(Math.max(dist(src[0],src[3]),dist(src[1],src[2])));
+    const dst=[[0,0],[w,0],[w,h],[0,h]];
+    const out=document.createElement('canvas');
+    out.width=w;out.height=h;
+    const octx=out.getContext('2d');
+    const img=new Image();
+    img.onload=()=>{
+      // 簡易bilinear変換（CPUのみ）
+      const tmpC=document.createElement('canvas');
+      tmpC.width=canvas.width;tmpC.height=canvas.height;
+      const tmpCtx=tmpC.getContext('2d');
+      tmpCtx.drawImage(img,0,0,canvas.width,canvas.height);
+      const srcData=tmpCtx.getImageData(0,0,canvas.width,canvas.height);
+      const dstData=octx.createImageData(w,h);
+      const H=getPerspMatrix(dst,src);
+      for(let dy=0;dy<h;dy++){
+        for(let dx=0;dx<w;dx++){
+          const [sx,sy]=applyH(H,dx,dy);
+          const sx0=Math.floor(sx),sy0=Math.floor(sy);
+          if(sx0<0||sy0<0||sx0>=canvas.width-1||sy0>=canvas.height-1)continue;
+          const fi=(sy0*canvas.width+sx0)*4;
+          const di=(dy*w+dx)*4;
+          dstData.data[di]=srcData.data[fi];
+          dstData.data[di+1]=srcData.data[fi+1];
+          dstData.data[di+2]=srcData.data[fi+2];
+          dstData.data[di+3]=255;
+        }
+      }
+      octx.putImageData(dstData,0,0);
+      out.toBlob(blob=>{
+        const file=new File([blob],'scan_perspective.jpg',{type:'image/jpeg'});
+        addFiles([file]);
+        closeScanModal();
+        switchTab('siwake');
+      },'image/jpeg',0.92);
+    };
+    img.src=scanRawUrl;
+  }
+}
+
+function dist(a,b){return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2);}
+
+// 逆射影変換行列（4点対応）
+function getPerspMatrix(src,dst){
+  // 8x8線形方程式を解く（ガウス消去）
+  const n=8;
+  const A=[];
+  for(let i=0;i<4;i++){
+    const [sx,sy]=src[i],[dx,dy]=dst[i];
+    A.push([sx,sy,1,0,0,0,-dx*sx,-dx*sy,dx]);
+    A.push([0,0,0,sx,sy,1,-dy*sx,-dy*sy,dy]);
+  }
+  // ガウス消去
+  for(let col=0;col<8;col++){
+    let maxR=col;
+    for(let r=col+1;r<8;r++)if(Math.abs(A[r][col])>Math.abs(A[maxR][col]))maxR=r;
+    [A[col],A[maxR]]=[A[maxR],A[col]];
+    const piv=A[col][col];
+    if(Math.abs(piv)<1e-10)continue;
+    for(let k=col;k<=8;k++)A[col][k]/=piv;
+    for(let r=0;r<8;r++){
+      if(r===col)continue;
+      const f=A[r][col];
+      for(let k=col;k<=8;k++)A[r][k]-=f*A[col][k];
+    }
+  }
+  const h=A.map(r=>r[8]);
+  return [...h,1];
+}
+
+function applyH(H,x,y){
+  const w2=H[6]*x+H[7]*y+H[8];
+  return [(H[0]*x+H[1]*y+H[2])/w2,(H[3]*x+H[4]*y+H[5])/w2];
 }
 
 function updateStepBar(step){
