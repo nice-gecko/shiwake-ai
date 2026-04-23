@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { PDFDocument } = require('pdf-lib');
 const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute } = require('./master');
+const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 
 const PORT = process.env.PORT || 3456;
 
@@ -81,16 +82,13 @@ async function callClaudeOnce(apiKey, content) {
   }
 }
 
-// 最大2回試して件数が多い方を採用
 async function callClaude(apiKey, content) {
   const result1 = await callClaudeOnce(apiKey, content);
   console.log(`  1回目: ${result1.length}件`);
-  // 1回目で十分な件数（25件以上）なら2回目も試して多い方を採用
   const result2 = await callClaudeOnce(apiKey, content);
   console.log(`  2回目: ${result2.length}件`);
   const best = result1.length >= result2.length ? result1 : result2;
   console.log(`  採用: ${best.length}件`);
-  // さらに少ない場合は3回目も試す
   if (best.length < 30) {
     const result3 = await callClaudeOnce(apiKey, content);
     console.log(`  3回目: ${result3.length}件`);
@@ -118,9 +116,15 @@ async function splitPdfToChunks(base64Data, chunkSize = 1) {
   return chunks;
 }
 
+// セッションIDをURLから取得するユーティリティ
+function getSessionIdFromUrl(url) {
+  const u = new URL(url, 'http://localhost');
+  return u.searchParams.get('sessionId') || null;
+}
+
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
@@ -130,6 +134,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== マスタAPI =====
   if (req.method === 'GET' && req.url === '/api/master') { getMasterRoutes(req, res); return; }
   if (req.method === 'POST' && req.url === '/api/master') { updateMasterRoute(req, res); return; }
   if (req.method === 'DELETE' && req.url === '/api/master') { deleteMasterRoute(req, res); return; }
@@ -141,6 +146,80 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== セッションAPI =====
+
+  // GET /api/session?sessionId=xxx → 仕訳一覧取得
+  if (req.method === 'GET' && req.url.startsWith('/api/session')) {
+    const sessionId = getSessionIdFromUrl(req.url);
+    if (!sessionId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'sessionId required' }));
+      return;
+    }
+    const session = getSession(sessionId);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ items: session ? session.items : [] }));
+    return;
+  }
+
+  // POST /api/session/append → 仕訳を追記（スマホでスキャン後に呼ぶ）
+  if (req.method === 'POST' && req.url === '/api/session/append') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { sessionId, items } = JSON.parse(body);
+        if (!sessionId || !items) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'sessionId and items required' }));
+          return;
+        }
+        const session = appendToSession(sessionId, items);
+        console.log(`セッション追記 [${sessionId}]: ${items.length}件追加 → 合計${session.items.length}件`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, total: session.items.length }));
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/session/save → 仕訳全体を上書き保存（承認状態の同期用）
+  if (req.method === 'POST' && req.url === '/api/session/save') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { sessionId, items } = JSON.parse(body);
+        if (!sessionId || !items) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'sessionId and items required' }));
+          return;
+        }
+        saveSession(sessionId, items);
+        console.log(`セッション保存 [${sessionId}]: ${items.length}件`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // DELETE /api/session?sessionId=xxx → セッション削除
+  if (req.method === 'DELETE' && req.url.startsWith('/api/session')) {
+    const sessionId = getSessionIdFromUrl(req.url);
+    if (sessionId) deleteSession(sessionId);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  // ===== 既存API =====
   if (req.method === 'POST' && req.url === '/api/split-pdf') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -182,7 +261,6 @@ const server = http.createServer(async (req, res) => {
         const rawItems = await callClaude(apiKey, content);
         const master = loadMaster();
 
-        // 日付不明・集計行を除外 + マスタ適用
         const EXCLUDE_TITLES = ['ETC', 'ETCカード', 'ETCカード利用分', 'ETC利用分'];
         const EXCLUDE_MEMOS = ['ETCカード利用分', 'ETC利用分', 'カード利用分'];
         const items = rawItems
@@ -190,10 +268,8 @@ const server = http.createServer(async (req, res) => {
             const date = item.date || '';
             if (date === '不明' || date === '' || date === 'YYYY/MM/DD') return false;
             if (!/\d{4}\/\d{2}\/\d{2}/.test(date)) return false;
-            // タイトルが集計行パターンなら除外
             const title = (item.title || '').trim();
             if (EXCLUDE_TITLES.includes(title)) return false;
-            // 摘要が集計行パターンで金額が合計っぽければ除外
             const memo = (item.memo || '');
             if (EXCLUDE_MEMOS.some(m => memo.includes(m)) && !item.title.match(/[ぁ-ん]/)) return false;
             return true;

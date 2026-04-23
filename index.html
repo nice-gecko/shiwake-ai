@@ -440,7 +440,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
         カメラで撮影 / 画像を選択
       </button>
       <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
-      <div class="scan-hint">撮影後にトリミング・パース補正ができます<br>JPG / PNG 対応・最大10枚まで</div>
+      <div class="scan-hint">撮影後にパース補正できます。PCと仕訳が自動共有されます<br>JPG / PNG 対応・最大10枚まで</div>
+      <div style="margin-top:8px;padding:10px 14px;background:#fff;border-radius:10px;border:1px solid #e5e5e5;text-align:center;width:100%;max-width:320px;">
+        <div style="font-size:11px;color:#888;margin-bottom:6px;">このセッションをPCで開く</div>
+        <div id="sessionUrlText" style="font-size:10px;color:#185FA5;word-break:break-all;line-height:1.5;"></div>
+        <button onclick="copySessionUrl()" style="margin-top:8px;padding:5px 14px;border:1px solid #ddd;border-radius:6px;font-size:11px;background:#f5f5f5;cursor:pointer;color:#555;">URLをコピー</button>
+      </div>
     </div>
   </div>
 
@@ -488,12 +493,68 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 const ACCTS=["現金","普通預金","当座預金","売掛金","買掛金","仕入高","売上高","給与手当","役員報酬","会議費","交際費","旅費交通費","消耗品費","地代家賃","水道光熱費","通信費","広告宣伝費","支払手数料","未払金","前払費用","仮払金","雑費","雑収入"];
 const TAXES=["課税仕入(10%)","課税仕入(8%軽減)","非課税","不課税"];
 let files=[],results=[],approved=new Set(),deleted=new Set();
+
+// ===== セッション管理 =====
+function getOrCreateSessionId(){
+  let sid=localStorage.getItem('shiwake_session_id');
+  if(!sid){sid='sess_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);localStorage.setItem('shiwake_session_id',sid);}
+  return sid;
+}
+const SESSION_ID=getOrCreateSessionId();
+
+// セッションURLを生成（スマホ→PC共有用）
+function getSessionUrl(){
+  return location.origin+'?sid='+SESSION_ID;
+}
+
+// 起動時：URLにsidパラメータがあれば引き継ぐ
+(function(){
+  const params=new URLSearchParams(location.search);
+  const sid=params.get('sid');
+  if(sid){localStorage.setItem('shiwake_session_id',sid);location.replace(location.pathname);}
+})();
+
+// サーバーにセッションデータを追記保存
+async function syncSessionAppend(items){
+  try{
+    await fetch('/api/session/append',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sessionId:SESSION_ID,items})});
+  }catch(e){console.warn('セッション同期失敗:',e);}
+}
+
+// サーバーからセッションデータを読み込む
+async function loadSessionFromServer(){
+  try{
+    const res=await fetch('/api/session?sessionId='+SESSION_ID);
+    const data=await res.json();
+    return data.items||[];
+  }catch(e){return [];}
+}
+
+// セッション全体を保存（承認状態など）
+async function syncSessionSave(){
+  try{
+    const items=results.map((r,i)=>({...r,_approved:approved.has(i),_deleted:deleted.has(i)}));
+    await fetch('/api/session/save',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sessionId:SESSION_ID,items})});
+  }catch(e){console.warn('セッション保存失敗:',e);}
+}
 let currentFile=null,currentKey=null,allChunks=[],totalChunks=0;
 let masterData={};
 let editingTitle=null;
 
 // 起動時にマスタとセレクトを初期化
+function copySessionUrl(){
+  const url=getSessionUrl();
+  navigator.clipboard.writeText(url).then(()=>alert('コピーしました！\nPCのブラウザに貼り付けてください')).catch(()=>{
+    prompt('このURLをPCで開いてください',url);
+  });
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
+  // セッションURLを表示
+  const el=document.getElementById('sessionUrlText');
+  if(el)el.textContent=getSessionUrl();
   ACCTS.forEach(a=>{
     document.getElementById('mDebit').innerHTML+=`<option>${a}</option>`;
     document.getElementById('mCredit').innerHTML+=`<option>${a}</option>`;
@@ -995,6 +1056,8 @@ async function startProcess(resume){
           if(data.error)throw new Error(data.error);
           results.push(...data.items);
           saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
+          // サーバーにも同期
+          syncSessionAppend(items);
           renderCards();updateBottom();
         }catch(e){
           showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}\n${results.length}件読み込み済み。同じPDFを再アップロードすると続きから再開できます。`);
@@ -1096,6 +1159,7 @@ async function approve(i){
   document.getElementById('ep'+i).classList.remove('show');
   const b=document.getElementById('ok'+i);b.textContent='✓ 承認済み';b.classList.add('done');
   await autoLearn(results[i]);
+  syncSessionSave();
   // 同じ取引先の未承認カードにマスタを即時適用（借方・貸方・税区分・摘要すべて）
   const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
   results.forEach((r,j)=>{
