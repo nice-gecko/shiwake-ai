@@ -254,6 +254,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .perspective-canvas{max-width:100%;max-height:calc(100vh - 230px);touch-action:none;}
 .persp-handle{position:absolute;width:24px;height:24px;border-radius:50%;background:#6fa8fc;border:2px solid #fff;cursor:grab;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.5);touch-action:none;}
 
+
+/* スマホ専用カメラボタン（仕訳パネル内） */
+.mobile-scan-btn{display:none;width:100%;padding:16px;background:#185FA5;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:12px;align-items:center;justify-content:center;gap:10px;}
+.mobile-scan-btn svg{width:20px;height:20px;flex-shrink:0;}
+.mobile-scan-link{display:none;text-align:center;margin-bottom:16px;}
+.mobile-scan-link a{font-size:12px;color:#888;text-decoration:underline;cursor:pointer;}
+@media(max-width:640px){
+  .mobile-scan-btn{display:flex;}
+  .mobile-scan-link{display:block;}
+  .drop{display:none;}
+  .main-subcopy .sp-mobile{display:inline;}
+}
+.sp-mobile{display:none;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
@@ -341,7 +354,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <div class="main">
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
-    <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>取引先マスタに自動登録され、使うほどに賢くなります。</p>
+    <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>取引先マスタに自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span></p>
+    <button class="mobile-scan-btn" onclick="document.getElementById('scanInput').click()">
+      <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
+      カメラで撮影する
+    </button>
+    <div class="mobile-scan-link"><a onclick="document.getElementById('fi').click()">またはファイルを選択</a></div>
     <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
       <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
