@@ -187,9 +187,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .modal-btns{display:flex;gap:8px;margin-top:16px;}
 .btn-modal-ok{flex:1;padding:9px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
 .btn-modal-cancel{flex:1;padding:9px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#555;cursor:pointer;}
+
+/* ハンバーガーボタン（スマホのみ表示） */
+.hamburger{display:none;position:fixed;top:12px;left:12px;z-index:300;width:40px;height:40px;background:#fff;border:1px solid #e0dfd8;border-radius:9px;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.08);}
+.hamburger svg{width:18px;height:18px;color:#555;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:200;}
+.sidebar-overlay.show{display:block;}
+
+/* スキャンパネル */
+.scan-area{display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 0;}
+.scan-btn{width:100%;max-width:320px;padding:18px;background:#185FA5;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;}
+.scan-btn:hover{background:#0C447C;}
+.scan-btn svg{width:22px;height:22px;}
+.scan-hint{font-size:12px;color:#aaa;text-align:center;line-height:1.6;}
+.scan-preview-wrap{width:100%;max-width:320px;border-radius:12px;overflow:hidden;border:1px solid #eee;display:none;}
+.scan-preview-wrap.show{display:block;}
+.scan-preview-wrap img{width:100%;display:block;}
+.scan-use-btn{width:100%;max-width:320px;padding:14px;background:#1D9E75;color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;display:none;}
+.scan-use-btn.show{display:block;}
+
+/* レスポンシブ */
+@media(max-width:640px){
+  .hamburger{display:flex;}
+  .sidebar{position:fixed;top:0;left:-240px;height:100%;z-index:250;transition:left 0.25s ease;width:240px;}
+  .sidebar.open{left:0;}
+  .main-area{width:100%;}
+  .step-bar{padding:10px 16px;overflow-x:auto;}
+  .step-label{font-size:11px;}
+  .main{padding:16px 12px;}
+  .main-subcopy{font-size:11px;}
+}
 </style>
 </head>
 <body>
+<button class="hamburger" onclick="toggleSidebar()" aria-label="メニュー">
+  <svg viewBox="0 0 18 18" fill="none"><line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+</button>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <div class="layout">
 
 <!-- サイドバー -->
@@ -210,6 +244,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
     <div class="sidebar-nav-item active" onclick="switchTab('siwake')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="11" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="8" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
       仕訳処理
+    </div>
+    <div class="sidebar-nav-item" onclick="switchTab('scan')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>
+      スキャン
     </div>
     <div class="sidebar-nav-item" onclick="switchTab('master')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -341,6 +379,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
     </table>
   </div>
+
+  <!-- スキャンパネル -->
+  <div class="panel" id="panel-scan">
+    <p class="main-subcopy">スマホのカメラで領収書を撮影し、そのまま仕訳処理へ送れます。</p>
+    <div class="scan-area">
+      <button class="scan-btn" onclick="document.getElementById('scanInput').click()">
+        <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
+        カメラで撮影 / 画像を選択
+      </button>
+      <input type="file" id="scanInput" accept="image/*" capture="environment" style="display:none" onchange="onScanFile(this)">
+      <div class="scan-hint">撮影した画像は自動的に仕訳処理に追加されます<br>JPG / PNG 対応・最大10枚まで</div>
+      <div class="scan-preview-wrap" id="scanPreviewWrap">
+        <img id="scanPreviewImg" src="" alt="プレビュー">
+      </div>
+      <button class="scan-use-btn" id="scanUseBtn" onclick="goToSiwakeWithScan()">この画像で仕訳を生成する →</button>
+    </div>
+  </div>
 </div>
 
 <!-- マスタ編集モーダル -->
@@ -381,10 +436,46 @@ function switchTab(tab){
   document.querySelectorAll('.sidebar-nav-item').forEach(el=>el.classList.remove('active'));
   const items=document.querySelectorAll('.sidebar-nav-item');
   if(tab==='siwake')items[0].classList.add('active');
-  if(tab==='master')items[1].classList.add('active');
+  if(tab==='scan')items[1].classList.add('active');
+  if(tab==='master')items[2].classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.className='panel');
   document.getElementById('panel-'+tab).className='panel active';
   if(tab==='master')loadMasterFromServer();
+  // スマホ：タブ切替でサイドバーを閉じる
+  closeSidebar();
+}
+
+function toggleSidebar(){
+  const sb=document.querySelector('.sidebar');
+  const ov=document.getElementById('sidebarOverlay');
+  sb.classList.toggle('open');
+  ov.classList.toggle('show');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+let scanFile=null;
+function onScanFile(input){
+  const f=input.files[0];
+  if(!f)return;
+  scanFile=f;
+  const url=URL.createObjectURL(f);
+  document.getElementById('scanPreviewImg').src=url;
+  document.getElementById('scanPreviewWrap').className='scan-preview-wrap show';
+  document.getElementById('scanUseBtn').className='scan-use-btn show';
+}
+function goToSiwakeWithScan(){
+  if(!scanFile)return;
+  // ファイルを仕訳処理に追加してタブ切替
+  addFiles([scanFile]);
+  scanFile=null;
+  document.getElementById('scanPreviewWrap').className='scan-preview-wrap';
+  document.getElementById('scanUseBtn').className='scan-use-btn';
+  document.getElementById('scanPreviewImg').src='';
+  document.getElementById('scanInput').value='';
+  switchTab('siwake');
 }
 
 function updateStepBar(step){
