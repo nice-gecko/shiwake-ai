@@ -283,6 +283,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 @media(max-width:640px){
   .mobile-pc-bar{display:block;}
 }
+
+.ai-stats{display:flex;gap:10px;margin-bottom:14px;}
+.ai-stat-card{flex:1;background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.ai-stat-value{font-size:20px;font-weight:700;color:#185FA5;line-height:1.2;}
+.ai-stat-label{font-size:11px;color:#888;margin-top:3px;line-height:1.4;}
+.ai-stat-value span{font-size:12px;font-weight:500;color:#185FA5;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -397,6 +403,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       カメラで撮影する
     </button>
     <div class="mobile-scan-link"><a onclick="document.getElementById('fi').click()">またはファイルを選択</a></div>
+    <div class="ai-stats" id="aiStats">
+      <div class="ai-stat-card">
+        <div class="ai-stat-value" id="statSaved">0 <span>分</span></div>
+        <div class="ai-stat-label">今月の節約時間<br>（手作業換算）</div>
+      </div>
+      <div class="ai-stat-card">
+        <div class="ai-stat-value" id="statProcessed">0 <span>件</span></div>
+        <div class="ai-stat-label">今月の自動処理</div>
+      </div>
+      <div class="ai-stat-card">
+        <div class="ai-stat-value" id="statMasterCount">0 <span>社</span></div>
+        <div class="ai-stat-label">学習済みの取引先<br>（カウントアップ中）</div>
+      </div>
+    </div>
     <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
       <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
@@ -933,11 +953,35 @@ async function clearAllMaster(){
   await loadMasterFromServer();
 }
 
+function updateAiStats(){
+  // 今月処理件数をlocalStorageから集計
+  const monthKey = new Date().toISOString().slice(0,7); // "2025-06"
+  const processed = parseInt(localStorage.getItem('shiwake_month_count_'+monthKey)||'0');
+  const saved = processed * 3; // 1件3分換算
+  const masterCount = Object.keys(masterData||{}).length;
+
+  const elSaved = document.getElementById('statSaved');
+  const elProcessed = document.getElementById('statProcessed');
+  const elMaster = document.getElementById('statMasterCount');
+  if(elSaved) elSaved.innerHTML = saved+'<span> 分</span>';
+  if(elProcessed) elProcessed.innerHTML = processed+'<span> 件</span>';
+  if(elMaster) elMaster.innerHTML = masterCount+'<span> 社</span>';
+}
+
+function addMonthlyCount(n){
+  const monthKey = new Date().toISOString().slice(0,7);
+  const key = 'shiwake_month_count_'+monthKey;
+  const cur = parseInt(localStorage.getItem(key)||'0');
+  localStorage.setItem(key, cur+n);
+  updateAiStats();
+}
+
 async function loadMasterFromServer(){
   const res=await fetch('/api/master');
   masterData=await res.json();
   renderMaster();
   document.getElementById('masterCount').textContent=Object.keys(masterData).length;
+  updateAiStats();
 }
 
 function renderMaster(){
@@ -1129,6 +1173,7 @@ async function startProcess(resume){
           saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
           // サーバーにも同期
           syncSessionAppend(items);
+          addMonthlyCount(items.length);
           renderCards();updateBottom();
         }catch(e){
           showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}\n${results.length}件読み込み済み。同じPDFを再アップロードすると続きから再開できます。`);
