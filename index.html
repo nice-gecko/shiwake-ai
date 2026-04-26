@@ -289,6 +289,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ai-stat-value{font-size:20px;font-weight:700;color:#185FA5;line-height:1.2;}
 .ai-stat-label{font-size:11px;color:#888;margin-top:3px;line-height:1.4;}
 .ai-stat-value span{font-size:12px;font-weight:500;color:#185FA5;}
+
+/* 承認アニメーション */
+@keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
+.card.approving{animation:approveSlide 0.5s ease forwards;}
+
+/* トースト通知 */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;}
+.toast.show{opacity:1;}
+
+/* 前回と同じ取引先バッジ */
+.badge-repeat{background:#EBF4FD;color:#185FA5;border:1px solid #B8D8F5;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:6px;font-weight:500;}
+
+/* 全件完了モーダル */
+.complete-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:500;align-items:center;justify-content:center;}
+.complete-modal.show{display:flex;}
+.complete-modal-inner{background:#fff;border-radius:16px;padding:32px 28px;text-align:center;max-width:320px;width:90%;}
+.complete-emoji{font-size:48px;margin-bottom:12px;}
+.complete-title{font-size:18px;font-weight:700;margin-bottom:6px;}
+.complete-sub{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
+.complete-btn{padding:12px 32px;background:#185FA5;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -1229,7 +1249,10 @@ function renderCards(){
   Object.values(dupCheck).forEach(idxs=>{
     if(idxs.length>1)idxs.forEach(i=>dupSet.add(i));
   });
+  // 承認済み取引先セット（前回と同じバッジ用）
+  const approvedTitles=new Set([...approved].map(i=>results[i]?.title).filter(Boolean));
   results.forEach((r,i)=>{
+    const isRepeat=approvedTitles.has(r.title)&&!approved.has(i);
     const conf=r.confidence==='high'?'高信頼':r.confidence==='mid'?'要確認':'低信頼';
     const bc=r.confidence==='high'?'bh':r.confidence==='mid'?'bm':'bl';
     const isApproved=approved.has(i),isDeleted=deleted.has(i);
@@ -1238,7 +1261,10 @@ function renderCards(){
     d.innerHTML=`
 <div class="card-head">
   <div class="card-pdf"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg></div>
-  <div class="card-info"><div class="card-name">${esc(r.title)}</div><div class="card-meta">${esc(r.date)} · ${esc(r.amount)}</div></div>
+  <div class="card-info">
+    <div class="card-name">${esc(r.title)}${isRepeat?'<span class=\"badge-repeat\">📌 前回と同じ</span>':''}</div>
+    <div class="card-meta">${esc(r.date)} · ${esc(r.amount)}</div>
+  </div>
   ${r.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${bc}">${conf}</span>`}
   ${dupSet.has(i)&&!approved.has(i)?'<span class="badge-dup">⚠ 重複の可能性</span>':''}
 </div>
@@ -1267,15 +1293,51 @@ function renderCards(){
   });
 }
 
+function showToast(msg, duration=2200){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast show';
+  setTimeout(()=>t.className='toast',duration);
+}
+
+function checkAllApproved(){
+  const active=results.filter((_,i)=>!deleted.has(i));
+  const allDone=active.length>0&&active.every((_,i)=>approved.has(results.indexOf(_)));
+  if(!allDone)return;
+  const count=active.length;
+  const mins=count*3;
+  const masterCount=Object.keys(masterData||{}).length;
+  document.getElementById('completeSubText').innerHTML=
+    `${count}件を処理しました。<br>手作業換算で約${mins}分の節約。<br>学習済み取引先：${masterCount}社`;
+  document.getElementById('completeModal').className='complete-modal show';
+}
+
 async function approve(i){
   approved.add(i);deleted.delete(i);
-  document.getElementById('c'+i).className='card approved';
-  document.getElementById('c'+i).style.opacity='';
+  const card=document.getElementById('c'+i);
+  card.className='card approved';
+  card.style.opacity='';
   document.getElementById('foot'+i).style.display='';
   document.getElementById('ep'+i).classList.remove('show');
   const b=document.getElementById('ok'+i);b.textContent='✓ 承認済み';b.classList.add('done');
+  // 承認アニメ：✓が出てカードがスッと縮む
+  setTimeout(()=>{
+    card.style.transition='all 0.4s ease';
+    card.style.maxHeight=card.offsetHeight+'px';
+    requestAnimationFrame(()=>{
+      card.style.maxHeight='0';
+      card.style.opacity='0';
+      card.style.marginBottom='0';
+      card.style.padding='0';
+      card.style.overflow='hidden';
+    });
+  }, 600);
   await autoLearn(results[i]);
   syncSessionSave();
+  // マスタ学習トースト
+  const masterCount=Object.keys(masterData||{}).length;
+  showToast(`✓ 承認完了 · 学習済み取引先 ${masterCount}社`);
+  // 全件完了チェック
+  setTimeout(()=>checkAllApproved(), 800);
   // 同じ取引先の未承認カードにマスタを即時適用（借方・貸方・税区分・摘要すべて）
   const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
   results.forEach((r,j)=>{
@@ -1383,5 +1445,14 @@ function exportCSV(mode){
 </script>
 </div><!-- /main-area -->
 </div><!-- /layout -->
+<div class="toast" id="toast"></div>
+<div class="complete-modal" id="completeModal">
+  <div class="complete-modal-inner">
+    <div class="complete-emoji">🎉</div>
+    <div class="complete-title">今月の仕訳、完了！</div>
+    <div class="complete-sub" id="completeSubText"></div>
+    <button class="complete-btn" onclick="document.getElementById('completeModal').className='complete-modal'">閉じる</button>
+  </div>
+</div>
 </body>
 </html>
