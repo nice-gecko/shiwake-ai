@@ -12,7 +12,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .layout{display:flex;flex:1;}
 
 /* サイドバー */
-.sidebar{width:220px;flex-shrink:0;background:#f0efe9;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:0;}
+.sidebar{width:220px;flex-shrink:0;background:#f0efe9;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:0;min-height:100vh;}
 .sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid #e0dfd8;}
 .sidebar-logo-mark{display:flex;align-items:center;gap:8px;}
 .sidebar-logo-icon{width:26px;height:26px;background:#185FA5;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -107,6 +107,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .prog-bar-pulse{position:absolute;top:0;right:0;width:6px;height:6px;border-radius:50%;background:#185FA5;box-shadow:0 0 6px 2px rgba(24,95,165,0.5);animation:pulse 1.2s ease-in-out infinite;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.7);}}
 .prog-status{font-size:12px;color:#888;}
+.btn-cancel-proc{margin-top:10px;padding:6px 16px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:12px;color:#888;cursor:pointer;}
+.btn-cancel-proc:hover{border-color:#dc2626;color:#dc2626;}
 .err{background:#FFF0F0;border:1px solid #F7C1C1;border-radius:8px;padding:12px 14px;font-size:13px;color:#A32D2D;margin-bottom:14px;display:none;}
 .err.show{display:block;}
 
@@ -630,6 +632,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       <div class="prog-title"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
       <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"><div class="prog-bar-pulse" id="progPulse"></div></div></div>
       <div class="prog-status" id="progStatus"></div>
+      <button class="btn-cancel-proc" id="cancelBtn" onclick="cancelProcess()" style="display:none;">処理をキャンセル</button>
     </div>
     <div id="cards"></div>
     <div class="bottom-panel" id="bottomPanel">
@@ -753,6 +756,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 const ACCTS=["現金","普通預金","当座預金","売掛金","買掛金","仕入高","売上高","給与手当","役員報酬","会議費","交際費","旅費交通費","消耗品費","地代家賃","水道光熱費","通信費","広告宣伝費","支払手数料","未払金","前払費用","仮払金","雑費","雑収入"];
 const TAXES=["課税仕入(10%)","課税仕入(8%軽減)","非課税","不課税"];
 let files=[],results=[],approved=new Set(),deleted=new Set();
+let abortController=null;
 
 // ===== セッション管理 =====
 function getOrCreateSessionId(){
@@ -1356,12 +1360,24 @@ function setProgress(pct,title,status){
 function showErr(msg){const b=document.getElementById('errBox');b.textContent=msg;b.className='err show';}
 function hideErr(){document.getElementById('errBox').className='err';}
 function onRunClick(){startProcess(false);}
+function cancelProcess(){
+  if(abortController){abortController.abort();}
+  document.getElementById('cancelBtn').style.display='none';
+  document.getElementById('prog').className='prog';
+  document.getElementById('runBtn').disabled=false;
+  document.getElementById('runBtn').style.display='';
+  showToast('処理をキャンセルしました');
+  if(results.length>0){renderCards();updateBottom();}
+}
 
 async function startProcess(resume){
   hideErr();
+  abortController=new AbortController();
+  const signal=abortController.signal;
   document.getElementById('statusPanel').className='status-panel';
   document.getElementById('runBtn').style.display='';
   document.getElementById('runBtn').disabled=true;
+  document.getElementById('cancelBtn').style.display='';
   document.getElementById('prog').className='prog show';
   document.getElementById('bottomPanel').className='bottom-panel show';document.getElementById('btnContinueScan').className='btn-continue-scan show';
   updateStepBar(2);
@@ -1377,7 +1393,7 @@ async function startProcess(resume){
       if(saved&&saved.items&&resume){results=[...saved.items];}
       setProgress(2,'PDFを分割中...',f.name);
       const b64=await toB64(f);
-      const splitRes=await fetch('/api/split-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:b64,fileName:f.name})});
+      const splitRes=await fetch('/api/split-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:b64,fileName:f.name}),signal});
       const sd=await splitRes.json();
       if(sd.error){showErr(sd.error);done();return;}
       allChunks=sd.chunks;totalChunks=sd.chunks.length;
@@ -1387,7 +1403,7 @@ async function startProcess(resume){
         setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
         try{
           const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks})});
+            body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks}),signal});
           const data=await resp.json();
           if(data.error)throw new Error(data.error);
           results.push(...data.items);
@@ -1397,6 +1413,7 @@ async function startProcess(resume){
           addMonthlyCount(items.length);
           renderCards();updateBottom();
         }catch(e){
+          if(e.name==='AbortError'){done();return;}
           showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}\n${results.length}件読み込み済み。同じPDFを再アップロードすると続きから再開できます。`);
           done();return;
         }
@@ -1406,7 +1423,7 @@ async function startProcess(resume){
     } else {
       setProgress(50,'画像を解析中...',f.name);
       const b64=await toB64(f);
-      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1})});
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1}),signal});
       const data=await resp.json();
       if(data.error){showErr(data.error);done();return;}
       results.push(...data.items);
@@ -1418,6 +1435,8 @@ async function startProcess(resume){
   done();
 }
 function done(){
+  document.getElementById('cancelBtn').style.display='none';
+  abortController=null;
   document.getElementById('runBtn').disabled=false;
   // ファイルをリセットして次のアップロードを受け付ける
   files=[];
