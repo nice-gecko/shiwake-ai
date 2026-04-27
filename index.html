@@ -671,7 +671,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </nav>
   <div class="sidebar-compatible">
-    <button onclick="switchTab('pricing')" style="width:100%;margin-bottom:10px;padding:8px 12px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;text-align:left;">💳 料金プランを見る</button>
+    <div class="sidebar-compat-label">料金プラン</div>
+    <div class="sidebar-compat-items" style="margin-bottom:8px;">
+      <div class="compat-item" onclick="switchTab('pricing')" style="cursor:pointer;color:#888;">料金プランを確認する →</div>
+    </div>
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
       <div class="compat-item"><span class="compat-dot"></span>弥生会計</div>
