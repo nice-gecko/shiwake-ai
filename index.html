@@ -327,6 +327,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .user-name{font-size:11px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .btn-logout{font-size:10px;color:#aaa;background:none;border:none;cursor:pointer;padding:2px 4px;}
 .btn-logout:hover{color:#555;}
+
+.login-divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:#ccc;font-size:12px;}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:#eee;}
+.login-tabs{display:flex;margin-bottom:16px;border:1px solid #eee;border-radius:8px;overflow:hidden;}
+.login-tab{flex:1;padding:8px;font-size:13px;font-weight:500;cursor:pointer;background:#fff;border:none;color:#888;transition:background 0.15s;}
+.login-tab.active{background:#185FA5;color:#fff;}
+.login-input{width:100%;padding:11px 14px;border:1.5px solid #ddd;border-radius:9px;font-size:14px;margin-bottom:10px;outline:none;transition:border 0.15s;box-sizing:border-box;}
+.login-input:focus{border-color:#185FA5;}
+.btn-email-submit{width:100%;padding:13px;background:#185FA5;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px;}
+.btn-email-submit:hover{background:#0C447C;}
+.auth-error{font-size:12px;color:#dc2626;min-height:18px;margin-bottom:6px;}
+.btn-reset-pw{font-size:11px;color:#888;background:none;border:none;cursor:pointer;text-decoration:underline;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -335,7 +347,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+    createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -353,6 +366,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 
   // グローバルに公開
   window.firebaseAuth = auth;
+  // メール新規登録
+  window.emailSignup = async (email, password) => {
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch(e) {
+      const msg = {
+        'auth/email-already-in-use': 'このメールアドレスはすでに登録されています',
+        'auth/invalid-email': 'メールアドレスの形式が正しくありません',
+        'auth/weak-password': 'パスワードは6文字以上にしてください',
+      }[e.code] || 'エラーが発生しました: ' + e.message;
+      document.getElementById('authError').textContent = msg;
+    }
+  };
+
+  // メールログイン
+  window.emailLogin = async (email, password) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch(e) {
+      const msg = {
+        'auth/invalid-credential': 'メールアドレスまたはパスワードが違います',
+        'auth/user-not-found': 'アカウントが見つかりません',
+        'auth/wrong-password': 'パスワードが違います',
+      }[e.code] || 'エラーが発生しました: ' + e.message;
+      document.getElementById('authError').textContent = msg;
+    }
+  };
+
+  // パスワードリセット
+  window.resetPassword = async (email) => {
+    if (!email) { document.getElementById('authError').textContent = 'メールアドレスを入力してください'; return; }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      document.getElementById('authError').style.color = '#1D9E75';
+      document.getElementById('authError').textContent = 'リセットメールを送信しました';
+    } catch(e) {
+      document.getElementById('authError').textContent = 'メールアドレスを確認してください';
+    }
+  };
+
   window.googleLogin = async () => {
     try {
       await signInWithPopup(auth, provider);
@@ -395,11 +448,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
     <div class="login-title">証憑仕訳AI</div>
     <div class="login-sub">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
     <div class="login-free">🎉 今なら無料期間中</div>
+
+    <!-- Googleログイン -->
     <button class="btn-google-login" onclick="googleLogin()">
       <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
       Googleでログイン
     </button>
-    <div class="login-note">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
+
+    <div class="login-divider">または</div>
+
+    <!-- メール/パスワード タブ -->
+    <div class="login-tabs">
+      <button class="login-tab active" id="tabLogin" onclick="switchAuthTab('login')">ログイン</button>
+      <button class="login-tab" id="tabSignup" onclick="switchAuthTab('signup')">新規登録</button>
+    </div>
+
+    <div id="authError" class="auth-error"></div>
+    <input class="login-input" id="authEmail" type="email" placeholder="メールアドレス">
+    <input class="login-input" id="authPassword" type="password" placeholder="パスワード（6文字以上）">
+    <div id="authPasswordConfirmWrap" style="display:none;">
+      <input class="login-input" id="authPasswordConfirm" type="password" placeholder="パスワード（確認）">
+    </div>
+
+    <button class="btn-email-submit" id="authSubmitBtn" onclick="handleAuthSubmit()">ログイン</button>
+    <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
+
+    <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
   </div>
 </div>
 
@@ -750,6 +824,38 @@ function shareSessionUrl(){
     navigator.clipboard.writeText(url).then(()=>alert('URLをコピーしました')).catch(()=>prompt('PCで開くURL',url));
   }
 }
+// 認証タブ切替
+let currentAuthTab = 'login';
+function switchAuthTab(tab) {
+  currentAuthTab = tab;
+  document.getElementById('tabLogin').className  = 'login-tab' + (tab==='login'  ? ' active' : '');
+  document.getElementById('tabSignup').className = 'login-tab' + (tab==='signup' ? ' active' : '');
+  document.getElementById('authSubmitBtn').textContent = tab === 'login' ? 'ログイン' : 'アカウントを作成';
+  document.getElementById('authPasswordConfirmWrap').style.display = tab === 'signup' ? '' : 'none';
+  document.getElementById('authError').textContent = '';
+}
+
+function handleAuthSubmit() {
+  const email    = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  document.getElementById('authError').style.color = '#dc2626';
+  document.getElementById('authError').textContent = '';
+  if (!email || !password) {
+    document.getElementById('authError').textContent = 'メールアドレスとパスワードを入力してください';
+    return;
+  }
+  if (currentAuthTab === 'signup') {
+    const confirm = document.getElementById('authPasswordConfirm').value;
+    if (password !== confirm) {
+      document.getElementById('authError').textContent = 'パスワードが一致しません';
+      return;
+    }
+    emailSignup(email, password);
+  } else {
+    emailLogin(email, password);
+  }
+}
+
 function copySessionUrl(){
   const url=getSessionUrl();
   navigator.clipboard.writeText(url).then(()=>alert('コピーしました！\nPCのブラウザに貼り付けてください')).catch(()=>{
