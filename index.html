@@ -324,7 +324,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .login-note{font-size:11px;color:#bbb;margin-top:16px;line-height:1.6;}
 
 /* ユーザー情報（サイドバー下部） */
-.user-info{padding:10px 12px;border-top:1px solid #e0dfd8;display:flex;align-items:center;gap:8px;}
+.user-info{padding:10px 12px;border-top:1px solid #e0dfd8;display:flex;flex-direction:column;gap:6px;}
+.user-info-row{display:flex;align-items:center;gap:8px;}
+.btn-upgrade{width:100%;padding:7px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;text-align:center;}
+.btn-upgrade:hover{background:#0C447C;}
+.badge-free-trial{font-size:10px;color:#1D9E75;background:#E8F8F2;padding:2px 8px;border-radius:10px;font-weight:500;}
 .user-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;background:#ddd;}
 .user-name{font-size:11px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .btn-logout{font-size:10px;color:#aaa;background:none;border:none;cursor:pointer;padding:2px 4px;}
@@ -341,11 +345,83 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-email-submit:hover{background:#0C447C;}
 .auth-error{font-size:12px;color:#dc2626;min-height:18px;margin-bottom:6px;}
 .btn-reset-pw{font-size:11px;color:#888;background:none;border:none;cursor:pointer;text-decoration:underline;}
+
+/* 料金ページ */
+.pricing-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.pricing-card{background:#fff;border:1.5px solid #e5e5e5;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;}
+.pricing-card:hover{border-color:#185FA5;box-shadow:0 2px 8px rgba(24,95,165,0.1);}
+.pricing-card.popular{border-color:#185FA5;position:relative;}
+.pricing-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#185FA5;color:#fff;font-size:10px;font-weight:600;padding:2px 10px;border-radius:10px;white-space:nowrap;}
+.pricing-name{font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:4px;}
+.pricing-price{font-size:20px;font-weight:700;color:#185FA5;}
+.pricing-price span{font-size:12px;font-weight:400;color:#888;}
+.pricing-limit{font-size:11px;color:#888;margin-top:4px;}
+.pricing-section-title{font-size:12px;font-weight:600;color:#888;margin:16px 0 8px;text-transform:uppercase;letter-spacing:0.05em;}
+.pricing-agency-grid{display:grid;grid-template-columns:1fr;gap:8px;}
+.pricing-agency-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:border-color 0.15s;}
+.pricing-agency-card:hover{border-color:#185FA5;}
+.pricing-agency-left{}
+.pricing-agency-name{font-size:13px;font-weight:600;color:#1a1a1a;}
+.pricing-agency-seats{font-size:11px;color:#888;margin-top:2px;}
+.pricing-agency-price{font-size:14px;font-weight:700;color:#185FA5;white-space:nowrap;}
+.pricing-note{font-size:11px;color:#aaa;text-align:center;margin-top:8px;line-height:1.6;}
+
+/* 料金ページ */
+.pricing-wrap{padding:8px 0;}
+.pricing-section-title{font-size:12px;font-weight:600;color:#888;letter-spacing:0.05em;text-transform:uppercase;margin:16px 0 8px;}
+.pricing-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;}
+.pricing-card:hover{border-color:#185FA5;box-shadow:0 2px 8px rgba(24,95,165,0.1);}
+.pricing-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.pricing-card-name{font-size:14px;font-weight:600;color:#1a1a1a;}
+.pricing-card-price{font-size:14px;font-weight:700;color:#185FA5;}
+.pricing-card-price span{font-size:11px;font-weight:400;color:#888;}
+.pricing-card-desc{font-size:11px;color:#888;line-height:1.5;}
+.pricing-card-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500;}
+.badge-popular{background:#FEF3C7;color:#B45309;}
+.pricing-agency-note{font-size:11px;color:#888;background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-top:8px;line-height:1.6;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 
+
+<!-- Stripe -->
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const STRIPE_PUBLIC_KEY = 'pk_test_51TQjjh2ZetSuudnLxv7ntzZmcBi1ivo6iJmSx2PcHRPXSGlFXGlemmLKEZ9qMtgpuqnxt9x9Z95NMYnAw8zxSkSj00PWiKxbyp';
+
+// Stripe Checkoutへリダイレクト
+window.startCheckout = async (plan_key) => {
+  const user = window._firebaseUser;
+  if (!user) { alert('ログインが必要です'); return; }
+  try {
+    const res = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: user.uid, email: user.email, plan_key: plan_key || 'light' })
+    });
+    const data = await res.json();
+    if (data.free_trial) {
+      showToast('現在無料期間中です。すべての機能をご利用いただけます。');
+      return;
+    }
+    if (data.url) window.location.href = data.url;
+  } catch(e) {
+    console.error('Checkout error:', e);
+  }
+};
+
+// 決済完了後の処理
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.get('payment') === 'success') {
+  setTimeout(() => showToast('🎉 お支払いありがとうございます！有料プランが有効になりました。'), 1000);
+  history.replaceState({}, '', '/');
+}
+if (urlParams.get('payment') === 'cancel') {
+  setTimeout(() => showToast('決済がキャンセルされました。'), 1000);
+  history.replaceState({}, '', '/');
+}
+</script>
 
 <!-- Supabase連携（サーバー経由） -->
 <script>
@@ -588,10 +664,18 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>
       スキャン
     </div>
+    <div class="sidebar-nav-item" onclick="switchTab('pricing')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7.5 4.5v6M5.5 6.5c0-.8.9-1.5 2-1.5s2 .7 2 1.5-2 1.5-2 1.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+      料金プラン
+    </div>
     <div class="sidebar-nav-item" onclick="switchTab('master')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       取引先マスタ
       <span class="sidebar-master-count" id="masterCount">0</span>
+    </div>
+    <div class="sidebar-nav-item" onclick="switchTab('pricing')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="1.5" y1="6" x2="13.5" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="9" x2="7" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+      料金プラン
     </div>
   </nav>
   <div class="sidebar-compatible">
@@ -605,9 +689,13 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </div>
   <div class="user-info">
-    <img class="user-avatar" id="userAvatar" src="" alt="">
-    <span class="user-name" id="userName"></span>
-    <button class="btn-logout" onclick="googleLogout()">ログアウト</button>
+    <div class="user-info-row">
+      <img class="user-avatar" id="userAvatar" src="" alt="">
+      <span class="user-name" id="userName"></span>
+      <button class="btn-logout" onclick="googleLogout()">ログアウト</button>
+    </div>
+    <span class="badge-free-trial" id="freeTrialBadge">🎉 無料期間中</span>
+    <button class="btn-upgrade" id="upgradeBtn" onclick="startCheckout()" style="display:none;">有料プランにアップグレード</button>
   </div>
 </aside>
 
@@ -745,6 +833,95 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
       <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
     </table>
+  </div>
+
+  <!-- 料金プランパネル -->
+  <div class="panel" id="panel-pricing">
+    <p class="main-subcopy">現在は<strong>無料期間中</strong>です。すべての機能をご利用いただけます。</p>
+    <div class="pricing-section-title">個人・法人向け</div>
+    <div class="pricing-grid">
+      <div class="pricing-card" onclick="startCheckout('light')">
+        <div class="pricing-name">ライト</div>
+        <div class="pricing-price">¥980<span>/月</span></div>
+        <div class="pricing-limit">月100件まで</div>
+      </div>
+      <div class="pricing-card popular" onclick="startCheckout('unlimited')">
+        <div class="pricing-badge">おすすめ</div>
+        <div class="pricing-name">アンリミテッド</div>
+        <div class="pricing-price">¥5,800<span>/月</span></div>
+        <div class="pricing-limit">処理件数無制限</div>
+      </div>
+    </div>
+    <div class="pricing-section-title">税理士・代理店向け</div>
+    <div class="pricing-agency-grid">
+      <div class="pricing-agency-card" onclick="startCheckout('agency_light')">
+        <div class="pricing-agency-left">
+          <div class="pricing-agency-name">代理店ライト</div>
+          <div class="pricing-agency-seats">10IDまで利用可能</div>
+        </div>
+        <div class="pricing-agency-price">¥35,000<span style="font-size:11px;color:#888;">/月</span></div>
+      </div>
+      <div class="pricing-agency-card" onclick="startCheckout('agency_std')">
+        <div class="pricing-agency-left">
+          <div class="pricing-agency-name">代理店スタンダード</div>
+          <div class="pricing-agency-seats">30IDまで利用可能</div>
+        </div>
+        <div class="pricing-agency-price">¥100,000<span style="font-size:11px;color:#888;">/月</span></div>
+      </div>
+      <div class="pricing-agency-card" onclick="startCheckout('agency_prem')">
+        <div class="pricing-agency-left">
+          <div class="pricing-agency-name">代理店プレミアム</div>
+          <div class="pricing-agency-seats">60IDまで利用可能</div>
+        </div>
+        <div class="pricing-agency-price">¥200,000<span style="font-size:11px;color:#888;">/月</span></div>
+      </div>
+    </div>
+    <div class="pricing-note">現在は無料期間中のため課金は発生しません。<br>プランをクリックすると決済フローを確認できます。</div>
+  </div>
+
+  <!-- 料金プランパネル -->
+  <div class="panel" id="panel-pricing">
+    <p class="main-subcopy">プランを選んでアップグレードしてください。現在は無料期間中で全機能をご利用いただけます。</p>
+    <div class="pricing-wrap">
+      <div class="pricing-section-title">個人・法人向け</div>
+      <div class="pricing-card" onclick="startCheckout('lite')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">ライト</span>
+          <span class="pricing-card-price">¥980<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">月100件まで処理可能。個人事業主・フリーランス向け。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('unlimited')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">アンリミテッド <span class="pricing-card-badge badge-popular">人気</span></span>
+          <span class="pricing-card-price">¥5,800<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">処理件数無制限。法人・ヘビーユーザー向け。</div>
+      </div>
+      <div class="pricing-section-title">税理士・代理店向け</div>
+      <div class="pricing-card" onclick="startCheckout('agency_lite')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">代理店ライト</span>
+          <span class="pricing-card-price">¥35,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">10IDまで利用可能。小規模事務所向け。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('agency_std')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">代理店スタンダード</span>
+          <span class="pricing-card-price">¥100,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">30IDまで利用可能。中規模事務所向け。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('agency_prem')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">代理店プレミアム</span>
+          <span class="pricing-card-price">¥200,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">60IDまで利用可能。大規模事務所・税理士法人向け。</div>
+      </div>
+      <div class="pricing-agency-note">💼 代理店プランのお問い合わせ・請求書払いは<br>easy.you.me@gmail.com までご連絡ください。</div>
+    </div>
   </div>
 
   <!-- スキャンパネル -->
@@ -932,7 +1109,8 @@ function switchTab(tab){
   const items=document.querySelectorAll('.sidebar-nav-item');
   if(tab==='siwake')items[0].classList.add('active');
   if(tab==='scan')items[1].classList.add('active');
-  if(tab==='master')items[2].classList.add('active');
+  if(tab==='pricing')items[2].classList.add('active');
+  if(tab==='master')items[3].classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.className='panel');
   document.getElementById('panel-'+tab).className='panel active';
   if(tab==='master')loadMasterFromServer();

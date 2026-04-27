@@ -5,6 +5,34 @@ const { PDFDocument } = require('pdf-lib');
 const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute } = require('./master');
 const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 
+// Stripe設定
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+const STRIPE_PLANS = {
+  light:        { price_id: 'price_1TQjqc2ZetSuudnL00xEQgQs', name: 'ライト',             limit: 100 },
+  unlimited:    { price_id: 'price_1TQlsh2ZetSuudnLlgDUN35b', name: 'アンリミテッド',     limit: null },
+  agency_light: { price_id: 'price_1TQlwT2ZetSuudnL4cxHabfQ', name: '代理店ライト',       limit: null, seats: 10 },
+  agency_std:   { price_id: 'price_1TQlxt2ZetSuudnLIzU5Auw7', name: '代理店スタンダード', limit: null, seats: 30 },
+  agency_prem:  { price_id: 'price_1TQlzN2ZetSuudnLbtzI77fc', name: '代理店プレミアム',   limit: null, seats: 60 },
+};
+const STRIPE_SUCCESS_URL = 'https://shiwake-ai.onrender.com/?payment=success';
+const STRIPE_CANCEL_URL = 'https://shiwake-ai.onrender.com/?payment=cancel';
+
+async function stripeRequest(path, method='GET', body=null) {
+  const opts = {
+    method,
+    headers: {
+      'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+  };
+  if (body) opts.body = new URLSearchParams(body).toString();
+  const res = await fetch(`https://api.stripe.com/v1${path}`, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || res.statusText);
+  return data;
+}
+
 // Supabase設定（サーバー側はSecret keyを使用）
 const SUPABASE_URL = 'https://tmddairlgpyinqfekkfg.supabase.co';
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || '';
@@ -231,6 +259,90 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: true, monthly_count: cur + (amount || 1) }));
       } catch(e) {
         res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // ===== Stripe決済API =====
+
+  // POST /api/stripe/checkout → Stripe Checkoutセッション作成
+  if (req.method === 'POST' && req.url === '/api/stripe/checkout') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, email, plan_key } = JSON.parse(body);
+        const plan = STRIPE_PLANS[plan_key] || STRIPE_PLANS.light;
+        if (!STRIPE_SECRET_KEY) {
+          // 無料期間中：課金スキップ
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ free_trial: true }));
+          return;
+        }
+        // Stripeカスタマー作成 or 取得
+        const customers = await stripeRequest(`/customers?email=${encodeURIComponent(email)}&limit=1`);
+        let customerId;
+        if (customers.data.length > 0) {
+          customerId = customers.data[0].id;
+        } else {
+          const customer = await stripeRequest('/customers', 'POST', { email, metadata: { firebase_uid: uid } });
+          customerId = customer.id;
+        }
+        // Checkout セッション作成
+        const session = await stripeRequest('/checkout/sessions', 'POST', {
+          customer: customerId,
+          mode: 'subscription',
+          'line_items[0][price]': plan.price_id,
+          'line_items[0][quantity]': '1',
+          success_url: STRIPE_SUCCESS_URL,
+          cancel_url: STRIPE_CANCEL_URL,
+          'metadata[firebase_uid]': uid,
+          'metadata[plan_key]': plan_key || 'light',
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ url: session.url }));
+      } catch(e) {
+        console.error('Stripe checkout error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/stripe/webhook → Stripe Webhook処理
+  if (req.method === 'POST' && req.url === '/api/stripe/webhook') {
+    let rawBody = '';
+    req.on('data', chunk => rawBody += chunk);
+    req.on('end', async () => {
+      try {
+        const event = JSON.parse(rawBody);
+        if (event.type === 'checkout.session.completed') {
+          const session = event.data.object;
+          const uid = session.metadata?.firebase_uid;
+          const customerId = session.customer;
+          if (uid) {
+            await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
+              is_paid: true,
+              is_free_trial: false,
+              stripe_customer_id: customerId,
+              paid_at: new Date().toISOString()
+            });
+            console.log(`有料会員に更新: ${uid}`);
+          }
+        }
+        if (event.type === 'customer.subscription.deleted') {
+          const customerId = event.data.object.customer;
+          await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
+            is_paid: false
+          });
+          console.log(`サブスク解約: ${customerId}`);
+        }
+        res.writeHead(200); res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        console.error('Webhook error:', e.message);
+        res.writeHead(400); res.end(JSON.stringify({ error: e.message }));
       }
     });
     return;
