@@ -466,7 +466,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   };
 
   // 認証状態の監視
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     const loginScreen = document.getElementById('loginScreen');
     const appContent  = document.getElementById('appContent');
     const userAvatar  = document.getElementById('userAvatar');
