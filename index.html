@@ -309,12 +309,102 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .complete-title{font-size:18px;font-weight:700;margin-bottom:6px;}
 .complete-sub{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
 .complete-btn{padding:12px 32px;background:#185FA5;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;}
+
+/* ログイン画面 */
+.login-screen{position:fixed;inset:0;background:#F5F4F0;display:flex;align-items:center;justify-content:center;z-index:1000;}
+.login-card{background:#fff;border-radius:16px;padding:40px 36px;text-align:center;max-width:360px;width:90%;box-shadow:0 4px 24px rgba(0,0,0,0.08);}
+.login-logo{width:48px;height:48px;background:#185FA5;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+.login-title{font-size:20px;font-weight:700;margin-bottom:6px;}
+.login-sub{font-size:13px;color:#888;margin-bottom:8px;line-height:1.6;}
+.login-free{font-size:12px;color:#1D9E75;font-weight:600;background:#E8F8F2;padding:6px 14px;border-radius:20px;display:inline-block;margin-bottom:24px;}
+.btn-google-login{width:100%;padding:13px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 0.15s;}
+.btn-google-login:hover{background:#f5f5f5;}
+.login-note{font-size:11px;color:#bbb;margin-top:16px;line-height:1.6;}
+
+/* ユーザー情報（サイドバー下部） */
+.user-info{padding:10px 12px;border-top:1px solid #e0dfd8;display:flex;align-items:center;gap:8px;}
+.user-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;background:#ddd;}
+.user-name{font-size:11px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn-logout{font-size:10px;color:#aaa;background:none;border:none;cursor:pointer;padding:2px 4px;}
+.btn-logout:hover{color:#555;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC6DWk8lbFRkSn0XNdHE6pU_7_veJQpFEc",
+    authDomain: "shiwake-ai-59afe.firebaseapp.com",
+    projectId: "shiwake-ai-59afe",
+    storageBucket: "shiwake-ai-59afe.firebasestorage.app",
+    messagingSenderId: "5555709582",
+    appId: "1:5555709582:web:220d5f4d61e1a5a483cbdf"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  // グローバルに公開
+  window.firebaseAuth = auth;
+  window.googleLogin = async () => {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch(e) {
+      console.error('ログインエラー:', e);
+    }
+  };
+  window.googleLogout = async () => {
+    await signOut(auth);
+  };
+
+  // 認証状態の監視
+  onAuthStateChanged(auth, (user) => {
+    const loginScreen = document.getElementById('loginScreen');
+    const appContent  = document.getElementById('appContent');
+    const userAvatar  = document.getElementById('userAvatar');
+    const userName    = document.getElementById('userName');
+    if (user) {
+      // ログイン済み → アプリ表示
+      if (loginScreen) loginScreen.style.display = 'none';
+      if (appContent)  appContent.style.display  = '';
+      if (userAvatar)  userAvatar.src = user.photoURL || '';
+      if (userName)    userName.textContent = user.displayName || user.email;
+    } else {
+      // 未ログイン → ログイン画面
+      if (loginScreen) loginScreen.style.display = '';
+      if (appContent)  appContent.style.display  = 'none';
+    }
+  });
+</script>
 </head>
 <body>
+
+<!-- ログイン画面 -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 16 16" fill="none" width="26" height="26"><rect x="2" y="1" width="12" height="14" rx="2" stroke="white" stroke-width="1.3"/><line x1="5" y1="5" x2="11" y2="5" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="11" x2="8.5" y2="11" stroke="white" stroke-width="1.1" stroke-linecap="round"/></svg>
+    </div>
+    <div class="login-title">証憑仕訳AI</div>
+    <div class="login-sub">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
+    <div class="login-free">🎉 今なら無料期間中</div>
+    <button class="btn-google-login" onclick="googleLogin()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"/></svg>
+      Googleでログイン
+    </button>
+    <div class="login-note">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
+  </div>
+</div>
+
+<!-- アプリ本体 -->
+<div id="appContent" style="display:none;flex:1;flex-direction:column;">
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <div class="mobile-header">
   <div class="mobile-header-top">
@@ -388,6 +478,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       <div class="compat-item"><span class="compat-dot"></span>勘定奉行</div>
       <div class="compat-item"><span class="compat-dot"></span>汎用CSV</div>
     </div>
+  </div>
+  <div class="user-info">
+    <img class="user-avatar" id="userAvatar" src="" alt="">
+    <span class="user-name" id="userName"></span>
+    <button class="btn-logout" onclick="googleLogout()">ログアウト</button>
   </div>
 </aside>
 
@@ -1445,6 +1540,7 @@ function exportCSV(mode){
 </script>
 </div><!-- /main-area -->
 </div><!-- /layout -->
+</div><!-- /appContent -->
 <div class="toast" id="toast"></div>
 <div class="complete-modal" id="completeModal">
   <div class="complete-modal-inner">
