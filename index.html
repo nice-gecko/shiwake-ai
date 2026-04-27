@@ -664,21 +664,14 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>
       スキャン
     </div>
-    <div class="sidebar-nav-item" onclick="switchTab('pricing')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7.5 4.5v6M5.5 6.5c0-.8.9-1.5 2-1.5s2 .7 2 1.5-2 1.5-2 1.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-      料金プラン
-    </div>
     <div class="sidebar-nav-item" onclick="switchTab('master')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       取引先マスタ
       <span class="sidebar-master-count" id="masterCount">0</span>
     </div>
-    <div class="sidebar-nav-item" onclick="switchTab('pricing')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="1.5" y1="6" x2="13.5" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="9" x2="7" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
-      料金プラン
-    </div>
   </nav>
   <div class="sidebar-compatible">
+    <button onclick="switchTab('pricing')" style="width:100%;margin-bottom:10px;padding:8px 12px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;text-align:left;">💳 料金プランを見る</button>
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
       <div class="compat-item"><span class="compat-dot"></span>弥生会計</div>
@@ -833,50 +826,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
       <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
     </table>
-  </div>
-
-  <!-- 料金プランパネル -->
-  <div class="panel" id="panel-pricing">
-    <p class="main-subcopy">現在は<strong>無料期間中</strong>です。すべての機能をご利用いただけます。</p>
-    <div class="pricing-section-title">個人・法人向け</div>
-    <div class="pricing-grid">
-      <div class="pricing-card" onclick="startCheckout('light')">
-        <div class="pricing-name">ライト</div>
-        <div class="pricing-price">¥980<span>/月</span></div>
-        <div class="pricing-limit">月100件まで</div>
-      </div>
-      <div class="pricing-card popular" onclick="startCheckout('unlimited')">
-        <div class="pricing-badge">おすすめ</div>
-        <div class="pricing-name">アンリミテッド</div>
-        <div class="pricing-price">¥5,800<span>/月</span></div>
-        <div class="pricing-limit">処理件数無制限</div>
-      </div>
-    </div>
-    <div class="pricing-section-title">税理士・代理店向け</div>
-    <div class="pricing-agency-grid">
-      <div class="pricing-agency-card" onclick="startCheckout('agency_light')">
-        <div class="pricing-agency-left">
-          <div class="pricing-agency-name">代理店ライト</div>
-          <div class="pricing-agency-seats">10IDまで利用可能</div>
-        </div>
-        <div class="pricing-agency-price">¥35,000<span style="font-size:11px;color:#888;">/月</span></div>
-      </div>
-      <div class="pricing-agency-card" onclick="startCheckout('agency_std')">
-        <div class="pricing-agency-left">
-          <div class="pricing-agency-name">代理店スタンダード</div>
-          <div class="pricing-agency-seats">30IDまで利用可能</div>
-        </div>
-        <div class="pricing-agency-price">¥100,000<span style="font-size:11px;color:#888;">/月</span></div>
-      </div>
-      <div class="pricing-agency-card" onclick="startCheckout('agency_prem')">
-        <div class="pricing-agency-left">
-          <div class="pricing-agency-name">代理店プレミアム</div>
-          <div class="pricing-agency-seats">60IDまで利用可能</div>
-        </div>
-        <div class="pricing-agency-price">¥200,000<span style="font-size:11px;color:#888;">/月</span></div>
-      </div>
-    </div>
-    <div class="pricing-note">現在は無料期間中のため課金は発生しません。<br>プランをクリックすると決済フローを確認できます。</div>
   </div>
 
   <!-- 料金プランパネル -->
