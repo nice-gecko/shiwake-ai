@@ -346,6 +346,52 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 
+
+<!-- Supabase連携（サーバー経由） -->
+<script>
+// ユーザーをサーバー経由でSupabaseに登録
+async function upsertUser(firebaseUser) {
+  try {
+    const res = await fetch('/api/user/upsert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        display_name: firebaseUser.displayName || firebaseUser.email
+      })
+    });
+    const data = await res.json();
+    return data.user;
+  } catch(e) { console.warn('upsertUser failed:', e); return null; }
+}
+
+// ユーザー情報をサーバー経由で取得
+async function getUser(uid) {
+  try {
+    const res = await fetch('/api/user?uid=' + uid);
+    const data = await res.json();
+    return data.user;
+  } catch(e) { return null; }
+}
+
+// 月次処理件数をサーバー経由でインクリメント
+async function incrementMonthlyCount(uid, n) {
+  try {
+    await fetch('/api/user/count', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, amount: n })
+    });
+  } catch(e) { console.warn('incrementMonthlyCount failed:', e); }
+}
+
+window._supabaseUser = null;
+window.getSupabaseUser = getUser;
+window.upsertSupabaseUser = upsertUser;
+window.incrementSupabaseCount = incrementMonthlyCount;
+</script>
+
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -431,6 +477,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       if (appContent)  appContent.style.display  = '';
       if (userAvatar)  userAvatar.src = user.photoURL || '';
       if (userName)    userName.textContent = user.displayName || user.email;
+      // Supabaseにユーザー登録・取得
+      window._supabaseUser = await upsertUser(user);
+      window._firebaseUser = user;
     } else {
       // 未ログイン → ログイン画面
       if (loginScreen) loginScreen.style.display = '';
@@ -1199,6 +1248,10 @@ function addMonthlyCount(n){
   const cur = parseInt(localStorage.getItem(key)||'0');
   localStorage.setItem(key, cur+n);
   updateAiStats();
+  // Supabaseにも同期
+  if(window._firebaseUser){
+    incrementSupabaseCount(window._firebaseUser.uid, n).catch(e=>console.warn('Supabase count sync failed:', e));
+  }
 }
 
 async function loadMasterFromServer(){

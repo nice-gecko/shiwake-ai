@@ -5,6 +5,30 @@ const { PDFDocument } = require('pdf-lib');
 const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute } = require('./master');
 const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 
+// Supabase設定（サーバー側はSecret keyを使用）
+const SUPABASE_URL = 'https://tmddairlgpyinqfekkfg.supabase.co';
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || '';
+
+async function supabaseQuery(path, method='GET', body=null) {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_SECRET_KEY,
+      'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+      'Prefer': 'return=representation'
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, opts);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Supabase error: ${err}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 const PORT = process.env.PORT || 3456;
 
 const envPath = path.join(__dirname, '.env');
@@ -143,6 +167,72 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
     console.log('マスタをクリアしました');
+    return;
+  }
+
+  // ===== ユーザー管理API =====
+
+  // POST /api/user/upsert → ログイン時にユーザーをDB登録・更新
+  if (req.method === 'POST' && req.url === '/api/user/upsert') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, email, display_name } = JSON.parse(body);
+        if (!uid || !email) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'uid and email required' }));
+          return;
+        }
+        // upsert（存在すれば更新、なければ挿入）
+        const data = await supabaseQuery(
+          '/users?on_conflict=id',
+          'POST',
+          { id: uid, email, display_name: display_name || email }
+        );
+        console.log(`ユーザーupsert: ${email}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, user: data?.[0] || null }));
+      } catch(e) {
+        console.error('User upsert error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/user?uid=xxx → ユーザー情報取得
+  if (req.method === 'GET' && req.url.startsWith('/api/user?')) {
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const data = await supabaseQuery(`/users?id=eq.${uid}&select=*`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ user: data?.[0] || null }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // POST /api/user/count → 月次処理件数を加算
+  if (req.method === 'POST' && req.url === '/api/user/count') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, amount } = JSON.parse(body);
+        // 現在の件数を取得してから加算
+        const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count`);
+        const cur = current?.[0]?.monthly_count || 0;
+        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { monthly_count: cur + (amount || 1) });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, monthly_count: cur + (amount || 1) }));
+      } catch(e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
     return;
   }
 
