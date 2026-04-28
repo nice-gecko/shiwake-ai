@@ -379,6 +379,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .pricing-card-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500;}
 .badge-popular{background:#FEF3C7;color:#B45309;}
 .pricing-agency-note{font-size:11px;color:#888;background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-top:8px;line-height:1.6;}
+.pricing-nav-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:#f0efe9;border:1px solid #e0dfd8;border-radius:20px;font-size:13px;color:#555;cursor:pointer;box-sizing:border-box;font-family:inherit;}
+.pricing-nav-btn:hover{background:#fff;color:#185FA5;border-color:#185FA5;}
+.pricing-nav-btn:hover svg{stroke:#185FA5;}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -680,11 +683,11 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <div class="compat-item"><span class="compat-dot"></span>汎用CSV</div>
     </div>
   </div>
-  <div style="padding:4px 8px 8px;border-top:1px solid #e0dfd8;background:#e8e7e1;">
-    <div class="sidebar-nav-item" onclick="switchTab('pricing')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="1.5" y1="6" x2="13.5" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="9" x2="7" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+  <div style="padding:6px 10px 8px;border-top:1px solid #e0dfd8;">
+    <button onclick="switchTab('pricing')" class="pricing-nav-btn">
+      <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="1.5" y1="6" x2="13.5" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="9" x2="7" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
       料金プラン
-    </div>
+    </button>
   </div>
   <div class="user-info">
     <div class="user-info-row">
