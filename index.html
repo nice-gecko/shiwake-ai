@@ -64,6 +64,66 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .main-subcopy{font-size:12px;color:#888;line-height:1.6;margin-bottom:14px;padding:0 2px;}
 .panel{display:none;}.panel.active{display:block;}
 
+/* ===== CSV統合・変換パネル ===== */
+.csv-merge-subcopy{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
+.csv-drop-zone{border:2px dashed #ccc;border-radius:12px;padding:32px 24px;text-align:center;background:#fff;cursor:pointer;transition:all 0.2s;margin-bottom:16px;}
+.csv-drop-zone:hover,.csv-drop-zone.dragover{border-color:#185FA5;background:#EBF4FD;}
+.csv-drop-icon{width:36px;height:36px;margin:0 auto 10px;color:#bbb;}
+.csv-drop-zone p{font-size:14px;color:#555;}.csv-drop-zone p strong{color:#222;}
+.csv-drop-zone small{font-size:12px;color:#aaa;margin-top:4px;display:block;}
+.csv-file-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.csv-file-row{background:#fff;border:1px solid #e5e5e5;border-radius:9px;padding:10px 14px;display:flex;align-items:center;gap:10px;}
+.csv-file-row.unknown{border-color:#FAC775;background:#FFFCF5;}
+.csv-file-icon-wrap{width:32px;height:32px;background:#EBF4FD;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.csv-file-icon-wrap.err{background:#FEF0F0;}
+.csv-file-info{flex:1;min-width:0;}
+.csv-file-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.csv-file-meta{font-size:11px;color:#888;margin-top:2px;display:flex;align-items:center;gap:6px;}
+.csv-fmt-badge{background:#E6F1FB;color:#185FA5;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:500;}
+.csv-fmt-badge.unknown{background:#FEF0F0;color:#A32D2D;}
+.csv-row-count{color:#aaa;}
+.csv-file-remove{width:22px;height:22px;border-radius:50%;background:#f0f0f0;border:none;color:#aaa;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
+.csv-file-remove:hover{background:#FCEBEB;color:#A32D2D;}
+.csv-mapping-box{background:#FFF8E6;border:1px solid #FAC775;border-radius:10px;padding:14px 16px;margin-bottom:16px;}
+.csv-mapping-title{font-size:13px;font-weight:600;color:#633806;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.csv-mapping-desc{font-size:12px;color:#854F0B;margin-bottom:12px;line-height:1.6;}
+.csv-mapping-row{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;gap:8px;margin-bottom:7px;}
+.csv-mapping-col{font-size:12px;background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:5px 9px;color:#555;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.csv-mapping-arrow{color:#ccc;font-size:11px;text-align:center;}
+.csv-mapping-select{font-size:12px;background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:5px 8px;color:#1a1a1a;width:100%;cursor:pointer;}
+.csv-mapping-select.mapped{border-color:#1D9E75;color:#1D9E75;}
+.csv-mapping-actions{display:flex;gap:8px;margin-top:8px;}
+.btn-mapping-ok{padding:7px 16px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;}
+.btn-mapping-skip{padding:7px 14px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:12px;color:#888;cursor:pointer;}
+.csv-action-bar{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;}
+.csv-stats{display:flex;gap:16px;flex:1;}
+.csv-stat{text-align:center;}
+.csv-stat-n{font-size:18px;font-weight:700;line-height:1;}
+.csv-stat-l{font-size:10px;color:#888;margin-top:2px;}
+.btn-approve-all-csv{padding:9px 16px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-approve-all-csv:hover{background:#168a64;}
+.csv-section-label{font-size:11px;font-weight:600;color:#888;letter-spacing:0.05em;text-transform:uppercase;margin:18px 0 8px;}
+.csv-card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:10px;}
+.csv-card.approved{border-color:#1D9E75;}
+.csv-card-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fafafa;border-bottom:1px solid #f0f0f0;}
+.csv-card-file-tag{font-size:10px;background:#f0efe9;color:#888;padding:2px 8px;border-radius:6px;border:1px solid #e0dfd8;flex-shrink:0;}
+.csv-card-info{flex:1;min-width:0;}
+.csv-card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.csv-card-meta{font-size:11px;color:#888;margin-top:2px;}
+.csv-card-body{padding:12px 14px;}
+.csv-card-rows{display:grid;grid-template-columns:64px 1fr;}
+.csv-card-key{font-size:11px;color:#999;padding:5px 0;border-top:1px solid #f5f5f5;}
+.csv-card-val{font-size:13px;padding:5px 0;border-top:1px solid #f5f5f5;}
+.csv-card-rows .csv-card-key:first-child,.csv-card-rows .csv-card-val:nth-child(2){border-top:none;}
+.csv-card-foot{padding:10px 14px;border-top:1px solid #f5f5f5;display:flex;gap:8px;}
+.csv-out-bar{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.csv-out-label{font-size:13px;font-weight:600;flex:1;min-width:120px;}
+.csv-format-sel{font-size:13px;border:1px solid #ddd;border-radius:7px;padding:7px 10px;background:#fff;color:#1a1a1a;cursor:pointer;}
+.btn-csv-export-merge{padding:9px 18px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-csv-export-merge:disabled{background:#ccc;cursor:not-allowed;}
+.csv-empty-state{text-align:center;padding:48px 24px;color:#aaa;font-size:13px;}
+.csv-empty-state svg{margin:0 auto 12px;display:block;opacity:0.3;}
+
 .drop{border:2px dashed #ccc;border-radius:12px;padding:40px 24px;text-align:center;background:#fff;cursor:pointer;transition:all 0.2s;margin-bottom:16px;}
 .drop:hover,.drop.over{border-color:#378ADD;background:#EBF4FD;}
 .drop-icon{width:40px;height:40px;margin:0 auto 12px;color:#bbb;}
@@ -672,6 +732,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       取引先マスタ
       <span class="sidebar-master-count" id="masterCount">0</span>
     </div>
+    <div class="sidebar-nav-item" onclick="switchTab('csvmerge')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="5.5" x2="13" y2="5.5" stroke="currentColor" stroke-width="1"/><line x1="5.5" y1="2" x2="5.5" y2="13" stroke="currentColor" stroke-width="1"/></svg>
+      CSV統合・変換
+    </div>
   </nav>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
@@ -881,6 +945,83 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </div>
 
+  <!-- CSV統合・変換パネル -->
+  <div class="panel" id="panel-csvmerge">
+    <p class="csv-merge-subcopy">複数のCSVをまとめて読み込み、好きなフォーマットで再出力できます。<br>弥生・freee・マネーフォワード・勘定奉行・汎用CSVに対応。</p>
+
+    <!-- ドロップゾーン -->
+    <div class="csv-drop-zone" id="csvDropZone" onclick="document.getElementById('csvFileInput').click()">
+      <div class="csv-drop-icon">
+        <svg viewBox="0 0 36 36" fill="none" width="36" height="36">
+          <rect x="4" y="4" width="28" height="28" rx="4" stroke="#ccc" stroke-width="1.5"/>
+          <line x1="4" y1="13" x2="32" y2="13" stroke="#ccc" stroke-width="1.2"/>
+          <line x1="13" y1="4" x2="13" y2="32" stroke="#ccc" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <p><strong>CSVファイルをドロップ</strong>またはクリックして選択</p>
+      <small>複数ファイル同時OK・弥生 / freee / マネーフォワード / 勘定奉行 / 汎用CSV 対応</small>
+    </div>
+    <input type="file" id="csvFileInput" accept=".csv" multiple style="display:none" onchange="onCsvFilesSelected(this.files)">
+
+    <!-- ファイル一覧 -->
+    <div class="csv-file-list" id="csvFileList"></div>
+
+    <!-- 手動マッピングボックス（不明フォーマット時のみ表示） -->
+    <div class="csv-mapping-box" id="csvMappingBox" style="display:none">
+      <div class="csv-mapping-title">
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="#633806" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="8" stroke="#633806" stroke-width="1.3" stroke-linecap="round"/><circle cx="7.5" cy="10" r="0.8" fill="#633806"/></svg>
+        列のマッピングが必要です — <span id="csvMappingFileName"></span>
+      </div>
+      <div class="csv-mapping-desc">フォーマットを自動判定できませんでした。各列がどの項目に対応するか選択してください。不要な列は「スキップ」を選んでください。</div>
+      <div id="csvMappingRows"></div>
+      <div class="csv-mapping-actions">
+        <button class="btn-mapping-ok" onclick="applyMapping()">この設定で取り込む</button>
+        <button class="btn-mapping-skip" onclick="skipMappingFile()">このファイルをスキップ</button>
+      </div>
+    </div>
+
+    <!-- 仕訳カード一覧（空のとき） -->
+    <div class="csv-empty-state" id="csvEmptyState">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" rx="3" stroke="#ccc" stroke-width="1.5"/><line x1="12" y1="14" x2="28" y2="14" stroke="#ccc" stroke-width="1.2" stroke-linecap="round"/><line x1="12" y1="20" x2="28" y2="20" stroke="#ccc" stroke-width="1.2" stroke-linecap="round"/><line x1="12" y1="26" x2="20" y2="26" stroke="#ccc" stroke-width="1.2" stroke-linecap="round"/></svg>
+      CSVファイルをアップロードすると、仕訳が表示されます
+    </div>
+
+    <!-- アクションバー -->
+    <div class="csv-action-bar" id="csvActionBar" style="display:none">
+      <div class="csv-stats">
+        <div class="csv-stat">
+          <div class="csv-stat-n" id="csvStatTotal" style="color:#185FA5;">0</div>
+          <div class="csv-stat-l">合計件数</div>
+        </div>
+        <div class="csv-stat">
+          <div class="csv-stat-n" id="csvStatApproved" style="color:#1D9E75;">0</div>
+          <div class="csv-stat-l">承認済み</div>
+        </div>
+        <div class="csv-stat">
+          <div class="csv-stat-n" id="csvStatPending" style="color:#aaa;">0</div>
+          <div class="csv-stat-l">未確認</div>
+        </div>
+      </div>
+      <button class="btn-approve-all-csv" onclick="approveAllCsvCards()">✓ 全件承認</button>
+    </div>
+
+    <!-- 仕訳カード -->
+    <div id="csvCards"></div>
+
+    <!-- 出力バー -->
+    <div class="csv-out-bar" id="csvOutBar" style="display:none">
+      <div class="csv-out-label">承認済みをまとめて出力</div>
+      <select class="csv-format-sel" id="csvExportFormat">
+        <option value="yayoi">弥生会計</option>
+        <option value="freee">freee</option>
+        <option value="mf">マネーフォワード</option>
+        <option value="bugyo">勘定奉行</option>
+        <option value="generic">汎用CSV</option>
+      </select>
+      <button class="btn-csv-export-merge" id="btnCsvExport" onclick="exportMergedCsv()">CSV出力</button>
+    </div>
+  </div>
+
   <!-- スキャンパネル -->
   <div class="panel" id="panel-scan">
     <p class="main-subcopy">スマホのカメラで領収書を撮影し、そのまま仕訳処理へ送れます。</p>
@@ -1069,6 +1210,7 @@ function switchTab(tab){
   if(tab==='siwake')items[0].classList.add('active');
   if(tab==='scan')items[1].classList.add('active');
   if(tab==='master')items[2].classList.add('active');
+  if(tab==='csvmerge')items[3].classList.add('active');
   if(tab==='pricing'&&pricingBtn)pricingBtn.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.className='panel');
   document.getElementById('panel-'+tab).className='panel active';
@@ -1850,6 +1992,307 @@ function exportCSV(mode){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
   a.download=filename;
+  a.click();
+}
+
+// ===== CSV統合・変換 =====
+const CSV_FORMATS = {
+  yayoi:  { detect: ['借方勘定科目','貸方勘定科目','借方税区分','日付'] },
+  freee:  { detect: ['発生日','借方金額(円)','貸方金額(円)'] },
+  mf:     { detect: ['決済日','借方勘定科目','貸方勘定科目'] },
+  bugyo:  { detect: ['伝票日付','借方科目コード','貸方科目コード'] },
+  generic:{ detect: ['debit','credit','amount'] },
+};
+const FIELD_CANDIDATES = {
+  date:   ['日付','発生日','決済日','伝票日付','date','取引日'],
+  debit:  ['借方勘定科目','借方科目名','debit'],
+  credit: ['貸方勘定科目','貸方科目名','credit'],
+  tax:    ['借方税区分','税区分','tax'],
+  amount: ['借方金額','借方金額(円)','金額','amount'],
+  memo:   ['摘要','メモ','memo'],
+};
+let csvMergeFiles = [];
+let csvMappingQueue = [];
+let csvCurrentMapping = null;
+
+function parseCsvText(text) {
+  const lines = text.trim().split(/\r?\n/);
+  return lines.map(line => {
+    const cells=[]; let cur=''; let inQ=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+      else if(c===','&&!inQ){cells.push(cur);cur='';}
+      else cur+=c;
+    }
+    cells.push(cur);
+    return cells;
+  });
+}
+
+function detectFormat(headers) {
+  for(const [fmt,def] of Object.entries(CSV_FORMATS)){
+    if(def.detect.every(h=>headers.includes(h))) return fmt;
+  }
+  return null;
+}
+
+function normalizeRow(row, hMap, fieldMap) {
+  // fieldMap: {field: colIndex} or null (use FIELD_CANDIDATES auto)
+  const get = field => {
+    if(fieldMap && fieldMap[field]!==undefined) return (row[fieldMap[field]]||'').trim();
+    for(const c of FIELD_CANDIDATES[field]){
+      if(hMap[c]!==undefined) return (row[hMap[c]]||'').trim();
+    }
+    return '';
+  };
+  return { date:get('date'), debit:get('debit'), credit:get('credit'), tax:get('tax'), amount:get('amount'), memo:get('memo') };
+}
+
+function onCsvFilesSelected(files) {
+  Array.from(files).forEach(file=>{
+    const r=new FileReader();
+    r.onload=e=>processCsvFile(file.name,e.target.result);
+    r.readAsText(file,'UTF-8');
+  });
+  document.getElementById('csvFileInput').value='';
+}
+
+function processCsvFile(name, text) {
+  const parsed=parseCsvText(text);
+  if(parsed.length<2) return;
+  const headers=parsed[0].map(h=>h.trim());
+  const dataRows=parsed.slice(1).filter(r=>r.some(c=>c.trim()));
+  const fmt=detectFormat(headers);
+  const hMap={};
+  headers.forEach((h,i)=>hMap[h]=i);
+  if(fmt){
+    const rows=dataRows.map(r=>normalizeRow(r,hMap,null)).filter(r=>r.date&&r.amount);
+    addCsvMergeFile(name,fmt,rows,false);
+  } else {
+    csvMappingQueue.push({name,headers,hMap,dataRows});
+    addCsvFileRow(name,null,dataRows.length,true);
+    processNextMapping();
+  }
+}
+
+function processNextMapping() {
+  if(csvMappingQueue.length===0){hideMappingBox();return;}
+  if(csvCurrentMapping) return;
+  csvCurrentMapping=csvMappingQueue.shift();
+  showMappingBox(csvCurrentMapping);
+}
+
+function showMappingBox(info) {
+  document.getElementById('csvMappingFileName').textContent=info.name;
+  const fieldLabels={date:'取引日',debit:'借方勘定科目',credit:'貸方勘定科目',tax:'税区分',amount:'金額',memo:'摘要'};
+  const rows=document.getElementById('csvMappingRows');
+  rows.innerHTML=info.headers.map(h=>{
+    let guessed='skip';
+    for(const [field,cands] of Object.entries(FIELD_CANDIDATES)){
+      if(cands.some(c=>h===c||h.includes(c)||c.includes(h))){guessed=field;break;}
+    }
+    const opts=Object.entries(fieldLabels).map(([f,l])=>`<option value="${f}"${guessed===f?' selected':''}>${l}</option>`).join('');
+    return `<div class="csv-mapping-row">
+      <div class="csv-mapping-col" title="${h}">${h}</div>
+      <div class="csv-mapping-arrow">→</div>
+      <select class="csv-mapping-select${guessed!=='skip'?' mapped':''}" data-col="${h}" onchange="this.className='csv-mapping-select'+(this.value!=='skip'?' mapped':'')">
+        <option value="skip">スキップ</option>${opts}
+      </select></div>`;
+  }).join('');
+  document.getElementById('csvMappingBox').style.display='block';
+}
+
+function hideMappingBox() {
+  document.getElementById('csvMappingBox').style.display='none';
+  csvCurrentMapping=null;
+}
+
+function applyMapping() {
+  if(!csvCurrentMapping) return;
+  const {name,hMap,dataRows}=csvCurrentMapping;
+  const fieldMap={};
+  document.querySelectorAll('#csvMappingRows select').forEach(sel=>{
+    if(sel.value!=='skip') fieldMap[sel.value]=hMap[sel.dataset.col];
+  });
+  const rows=dataRows.map(r=>normalizeRow(r,hMap,fieldMap)).filter(r=>r.date&&r.amount);
+  updateCsvFileRowFormat(name,'manual');
+  addCsvMergeFile(name,'manual',rows,true);
+  hideMappingBox();
+  processNextMapping();
+}
+
+function skipMappingFile() {
+  if(!csvCurrentMapping) return;
+  removeCsvFileRow(csvCurrentMapping.name);
+  hideMappingBox();
+  csvCurrentMapping=null;
+  processNextMapping();
+}
+
+function addCsvMergeFile(name,fmt,rows,alreadyHasRow) {
+  csvMergeFiles.push({name,fmt,rows,approved:rows.map(()=>false)});
+  if(!alreadyHasRow) addCsvFileRow(name,fmt,rows.length,false);
+  renderCsvCards();
+  updateCsvStats();
+}
+
+function fmtLabel(fmt) {
+  return {yayoi:'弥生会計',freee:'freee',mf:'マネーフォワード',bugyo:'勘定奉行',generic:'汎用CSV',manual:'手動設定'}[fmt]||fmt;
+}
+
+function addCsvFileRow(name,fmt,count,isUnknown) {
+  const list=document.getElementById('csvFileList');
+  const div=document.createElement('div');
+  div.className='csv-file-row'+(isUnknown?' unknown':'');
+  div.dataset.filename=name;
+  const ic=isUnknown?'#A32D2D':'#185FA5';
+  div.innerHTML=`
+    <div class="csv-file-icon-wrap${isUnknown?' err':''}">
+      <svg width="16" height="16" viewBox="0 0 15 15" fill="none"><rect x="2" y="1.5" width="11" height="12" rx="1.5" stroke="${ic}" stroke-width="1.2"/><line x1="4.5" y1="5" x2="10.5" y2="5" stroke="${ic}" stroke-width="1" stroke-linecap="round"/><line x1="4.5" y1="7.5" x2="10.5" y2="7.5" stroke="${ic}" stroke-width="1" stroke-linecap="round"/><line x1="4.5" y1="10" x2="7.5" y2="10" stroke="${ic}" stroke-width="1" stroke-linecap="round"/></svg>
+    </div>
+    <div class="csv-file-info">
+      <div class="csv-file-name">${name}</div>
+      <div class="csv-file-meta">
+        <span class="csv-fmt-badge${isUnknown?' unknown':''}" data-badge="${name}">${isUnknown?'フォーマット不明':fmtLabel(fmt)}</span>
+        <span class="csv-row-count">${count}件</span>
+      </div>
+    </div>
+    <button class="csv-file-remove" onclick="removeCsvFile(this.dataset.n)" data-n="${name}">×</button>`;
+  list.appendChild(div);
+  document.getElementById('csvEmptyState').style.display='none';
+}
+
+function updateCsvFileRowFormat(name,fmt) {
+  const badge=document.querySelector(`[data-badge="${name}"]`);
+  if(badge){badge.className='csv-fmt-badge';badge.textContent=fmtLabel(fmt);}
+  const row=document.querySelector(`.csv-file-row[data-filename="${name}"]`);
+  if(row){row.classList.remove('unknown');const icon=row.querySelector('.csv-file-icon-wrap');if(icon)icon.classList.remove('err');}
+}
+
+function removeCsvFileRow(name) {
+  const row=document.querySelector(`.csv-file-row[data-filename="${name}"]`);
+  if(row) row.remove();
+  if(!document.getElementById('csvFileList').children.length)
+    document.getElementById('csvEmptyState').style.display='block';
+}
+
+function removeCsvFile(name) {
+  csvMergeFiles=csvMergeFiles.filter(f=>f.name!==name);
+  removeCsvFileRow(name);
+  renderCsvCards();
+  updateCsvStats();
+  if(csvCurrentMapping&&csvCurrentMapping.name===name){hideMappingBox();processNextMapping();}
+}
+
+function renderCsvCards() {
+  const container=document.getElementById('csvCards');
+  container.innerHTML='';
+  const hasAny=csvMergeFiles.some(f=>f.rows.length>0);
+  csvMergeFiles.forEach(file=>{
+    file.rows.forEach((row,idx)=>{
+      const approved=file.approved[idx];
+      const card=document.createElement('div');
+      card.className='csv-card'+(approved?' approved':'');
+      const amt=row.amount?'¥'+Number(row.amount.replace(/[^\d]/g,'')).toLocaleString():'—';
+      card.innerHTML=`
+        <div class="csv-card-head">
+          <div class="csv-card-info">
+            <div class="csv-card-name">${row.debit||'—'} / ${row.credit||'—'}</div>
+            <div class="csv-card-meta" style="display:flex;align-items:center;gap:6px;">
+              <span class="csv-card-file-tag">${file.name}</span>
+              ${row.date} · ${amt}
+            </div>
+          </div>
+          <span class="badge${approved?' bh':''}" style="${approved?'':'background:#f0efe9;color:#888;'}">${approved?'承認済':'未確認'}</span>
+        </div>
+        <div class="csv-card-body">
+          <div class="csv-card-rows">
+            <div class="csv-card-key">借方</div><div class="csv-card-val" style="color:#185FA5;font-weight:600;">${row.debit||'—'}</div>
+            <div class="csv-card-key">貸方</div><div class="csv-card-val" style="color:#C0392B;font-weight:600;">${row.credit||'—'}</div>
+            <div class="csv-card-key">税区分</div><div class="csv-card-val">${row.tax||'—'}</div>
+            <div class="csv-card-key">摘要</div><div class="csv-card-val">${row.memo||'—'}</div>
+          </div>
+        </div>
+        ${!approved?`<div class="csv-card-foot">
+          <button class="btn-approve" onclick="approveCsvCard('${file.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',${idx})">✓ 承認</button>
+          <button class="btn-delete" onclick="deleteCsvCard('${file.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',${idx})">削除</button>
+        </div>`:''}`;
+      container.appendChild(card);
+    });
+  });
+  document.getElementById('csvActionBar').style.display=hasAny?'flex':'none';
+  document.getElementById('csvOutBar').style.display=hasAny?'flex':'none';
+  document.getElementById('csvEmptyState').style.display=
+    (hasAny||document.getElementById('csvFileList').children.length>0)?'none':'block';
+}
+
+function approveCsvCard(fileName,idx) {
+  const f=csvMergeFiles.find(f=>f.name===fileName);
+  if(f){f.approved[idx]=true;}
+  renderCsvCards();updateCsvStats();
+}
+
+function deleteCsvCard(fileName,idx) {
+  const f=csvMergeFiles.find(f=>f.name===fileName);
+  if(f){f.rows.splice(idx,1);f.approved.splice(idx,1);}
+  renderCsvCards();updateCsvStats();
+}
+
+function approveAllCsvCards() {
+  csvMergeFiles.forEach(f=>f.approved=f.rows.map(()=>true));
+  renderCsvCards();updateCsvStats();
+}
+
+function updateCsvStats() {
+  const total=csvMergeFiles.reduce((s,f)=>s+f.rows.length,0);
+  const approved=csvMergeFiles.reduce((s,f)=>s+f.approved.filter(Boolean).length,0);
+  document.getElementById('csvStatTotal').textContent=total;
+  document.getElementById('csvStatApproved').textContent=approved;
+  document.getElementById('csvStatPending').textContent=total-approved;
+}
+
+// ドラッグ&ドロップ初期化
+document.addEventListener('DOMContentLoaded',()=>{
+  const dz=document.getElementById('csvDropZone');
+  if(!dz) return;
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.classList.remove('dragover');
+    Array.from(e.dataTransfer.files).filter(f=>f.name.endsWith('.csv')).forEach(file=>{
+      const r=new FileReader();r.onload=ev=>processCsvFile(file.name,ev.target.result);r.readAsText(file,'UTF-8');
+    });
+  });
+});
+
+function exportMergedCsv() {
+  const fmt=document.getElementById('csvExportFormat').value;
+  const approvedRows=[];
+  csvMergeFiles.forEach(f=>f.rows.forEach((row,i)=>{if(f.approved[i])approvedRows.push(row);}));
+  if(!approvedRows.length){alert('承認済みの仕訳がありません');return;}
+  let headers,lines;
+  const n=r=>r.amount.replace(/[^\d]/g,'');
+  if(fmt==='yayoi'){
+    headers=['日付','借方勘定科目','借方補助科目','借方税区分','借方金額','貸方勘定科目','貸方補助科目','貸方税区分','貸方金額','摘要','仕訳メモ'];
+    lines=approvedRows.map(r=>[r.date,r.debit,'',r.tax,n(r),r.credit,'',r.tax,n(r),r.memo,'']);
+  } else if(fmt==='freee'){
+    headers=['発生日','借方勘定科目','借方補助科目','借方税区分','借方金額(円)','貸方勘定科目','貸方補助科目','貸方税区分','貸方金額(円)','摘要','メモタグ'];
+    lines=approvedRows.map(r=>[r.date,r.debit,'',r.tax,n(r),r.credit,'',r.tax,n(r),r.memo,'']);
+  } else if(fmt==='mf'){
+    headers=['決済日','借方勘定科目','借方補助科目','借方税区分','借方金額','貸方勘定科目','貸方補助科目','貸方税区分','貸方金額','摘要','仕訳メモ'];
+    lines=approvedRows.map(r=>[r.date,r.debit,'',r.tax,n(r),r.credit,'',r.tax,n(r),r.memo,'']);
+  } else if(fmt==='bugyo'){
+    headers=['伝票日付','借方科目コード','借方科目名','借方補助コード','借方補助名','借方税区分','借方金額','貸方科目コード','貸方科目名','貸方補助コード','貸方補助名','貸方税区分','貸方金額','摘要'];
+    lines=approvedRows.map(r=>[r.date,'',r.debit,'','',r.tax,n(r),'',r.credit,'','',r.tax,n(r),r.memo]);
+  } else {
+    headers=['date','debit','credit','tax','amount','memo'];
+    lines=approvedRows.map(r=>[r.date,r.debit,r.credit,r.tax,n(r),r.memo]);
+  }
+  const csv=[headers,...lines].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`仕訳統合_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
 </script>
