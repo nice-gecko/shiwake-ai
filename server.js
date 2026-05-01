@@ -137,18 +137,19 @@ async function callClaudeOnce(apiKey, content) {
 async function callClaude(apiKey, content) {
   const result1 = await callClaudeOnce(apiKey, content);
   console.log(`  1回目: ${result1.length}件`);
+  // 1件以上取れていれば即返す（速度優先）
+  if (result1.length >= 1) return result1;
+  // 0件の場合のみ2回目
   const result2 = await callClaudeOnce(apiKey, content);
   console.log(`  2回目: ${result2.length}件`);
   const best = result1.length >= result2.length ? result1 : result2;
-  console.log(`  採用: ${best.length}件`);
-  if (best.length < 30) {
-    const result3 = await callClaudeOnce(apiKey, content);
-    console.log(`  3回目: ${result3.length}件`);
-    const best3 = result3.length > best.length ? result3 : best;
-    console.log(`  最終採用: ${best3.length}件`);
-    return best3;
-  }
-  return best;
+  if (best.length >= 1) return best;
+  // それでも0件なら3回目
+  const result3 = await callClaudeOnce(apiKey, content);
+  console.log(`  3回目: ${result3.length}件`);
+  const best3 = result3.length > best.length ? result3 : best;
+  console.log(`  最終採用: ${best3.length}件`);
+  return best3;
 }
 
 async function splitPdfToChunks(base64Data, chunkSize = 1) {
@@ -458,10 +459,20 @@ const server = http.createServer(async (req, res) => {
           }
           content.push({ type: 'text', text: `証憑${i+1}（${fileNames[i]}）を分析してください。` });
         });
+
+        // ① マスタをプロンプトに渡す（精度向上）
+        const master = loadMaster();
+        const masterEntries = Object.entries(master);
+        if (masterEntries.length > 0) {
+          const masterText = masterEntries
+            .map(([title, rule]) => `・${title} → 借方:${rule.debit} 貸方:${rule.credit} 税:${rule.tax}`)
+            .join('\n');
+          content.push({ type: 'text', text: `【学習済み取引先マスタ】\n以下の取引先は過去の承認済み仕訳実績です。同じ取引先名が出た場合は、この勘定科目を優先して使用してください：\n${masterText}` });
+        }
+
         content.push({ type: 'text', text: 'JSON配列のみ返してください。バッククォートや説明文は不要です。' });
 
         const rawItems = await callClaude(apiKey, content);
-        const master = loadMaster();
 
         const EXCLUDE_TITLES = ['ETC', 'ETCカード', 'ETCカード利用分', 'ETC利用分'];
         const EXCLUDE_MEMOS = ['ETCカード利用分', 'ETC利用分', 'カード利用分'];
