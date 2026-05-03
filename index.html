@@ -241,10 +241,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .csv-format-arrow{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:#555;pointer-events:none;font-weight:600;}
 
 /* マスタ管理 */
-/* 書類種別選択ボタン */
-.doc-type-btn{padding:8px 4px;border-radius:8px;border:1.5px solid #e0dfd8;background:#fff;font-size:11px;color:#555;cursor:pointer;text-align:center;line-height:1.4;transition:all 0.15s;}
-.doc-type-btn:hover{border-color:#185FA5;color:#185FA5;background:#EBF4FD;}
-.doc-type-btn.active{border-color:#185FA5;background:#185FA5;color:#fff;font-weight:600;}
 .master-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
 .master-toolbar h2{font-size:15px;font-weight:600;}
 .btn-add-master{padding:8px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;}
@@ -745,7 +741,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <div class="sidebar-nav-item" onclick="switchTab('master')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      仕訳ルール学習
+      取引先マスタ
       <span class="sidebar-master-count" id="masterCount">0</span>
     </div>
     <div class="sidebar-nav-item" onclick="switchTab('csvmerge')">
@@ -754,6 +750,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </nav>
   <div class="sidebar-compatible">
+    <div style="font-size:9px;color:#aaa;letter-spacing:0.05em;padding:0 10px 8px;text-align:right;">v1.2 · Sonnet 4.6</div>
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
       <div class="compat-item"><span class="compat-dot"></span>弥生会計</div>
@@ -806,7 +803,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   </div>
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
-    <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>仕訳ルール学習に自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span><span class="sp-pc-only"><br>スマホでスキャンした仕訳はそのままPCと共有されます。</span></p>
+    <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>取引先マスタに自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span><span class="sp-pc-only"><br>スマホでスキャンした仕訳はそのままPCと共有されます。</span></p>
     <button class="mobile-scan-btn" onclick="document.getElementById('scanInput').click()">
       <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
       カメラで撮影する
@@ -824,21 +821,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <div class="ai-stat-card">
         <div class="ai-stat-value" id="statMasterCount">0 <span>社</span></div>
         <div class="ai-stat-label">学習済みの取引先<br>（カウントアップ中）</div>
-      </div>
-    </div>
-    <!-- 書類種別選択 -->
-    <div id="docTypeSelector" style="margin-bottom:14px;">
-      <div style="font-size:11px;color:#999;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">書類の種類を選択</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;" id="docTypeBtns">
-        <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 領収書・レシート</button>
-        <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
-        <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店レシート</button>
-        <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・銀行明細</button>
-        <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費領収書</button>
-        <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 請求書・通販</button>
-      </div>
-      <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;">
-        コンビニ・スーパー・ドラッグストアなど印刷されたレシート
       </div>
     </div>
     <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
@@ -882,7 +864,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <div class="guide-num" id="g1num">1</div>
         <div>
           <div class="guide-step-title">仕訳を確認・承認する</div>
-          <div class="guide-step-desc" id="g1desc">各カードの「承認」を押してください。承認すると仕訳ルール学習に自動登録されます。</div>
+          <div class="guide-step-desc" id="g1desc">各カードの「承認」を押してください。承認すると取引先マスタに自動登録されます。</div>
         </div>
       </div>
       <div class="guide-step">
@@ -919,7 +901,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <!-- マスタ管理パネル -->
   <div class="panel" id="panel-master">
     <div class="master-toolbar">
-      <h2>仕訳ルール学習</h2>
+      <h2>取引先マスタ</h2>
       <div style="display:flex;gap:8px;">
         <button class="btn-add-master" onclick="openModal()">＋ 追加</button>
         <button class="btn-clear-master" onclick="clearAllMaster()">🗑 全件クリア</button>
@@ -1102,24 +1084,6 @@ const ACCTS=["現金","普通預金","当座預金","売掛金","買掛金","仕
 const TAXES=["課税仕入(10%)","課税仕入(8%軽減)","非課税","不課税"];
 let files=[],results=[],approved=new Set(),deleted=new Set();
 let abortController=null;
-// 書類種別（デフォルト：レジレシート型）
-let selectedDocType='register_receipt';
-const DOC_TYPE_DESCS={
-  register_receipt:'コンビニ・スーパー・ドラッグストアなど印刷されたレシート',
-  handwritten:'個人商店・タクシー・飲食店などの手書き領収書',
-  restaurant:'レストラン・居酒屋・カフェなどの飲食店レシート',
-  bank_atm:'銀行通帳・ATM明細・振込明細',
-  transportation:'タクシー・電車・バス・新幹線・高速道路の領収書',
-  ec_online:'請求書・Amazon・楽天・通販サイトの明細',
-};
-function selectDocType(type){
-  selectedDocType=type;
-  document.querySelectorAll('.doc-type-btn').forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.type===type);
-  });
-  const desc=document.getElementById('docTypeDesc');
-  if(desc) desc.textContent=DOC_TYPE_DESCS[type]||'';
-}
 
 // ===== セッション管理 =====
 function getOrCreateSessionId(){
@@ -1530,7 +1494,7 @@ function updateStepBar(step){
 
 // マスタ管理
 async function clearAllMaster(){
-  if(!confirm('仕訳ルール学習を全件削除しますか？\nこの操作は元に戻せません。'))return;
+  if(!confirm('取引先マスタを全件削除しますか？\nこの操作は元に戻せません。'))return;
   await fetch('/api/master/clear',{method:'POST'});
   await loadMasterFromServer();
 }
@@ -1783,7 +1747,7 @@ async function startProcess(resume){
         setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
         try{
           const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType}),signal});
+            body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks}),signal});
           const data=await resp.json();
           if(data.error)throw new Error(data.error);
           results.push(...data.items);
@@ -1809,20 +1773,20 @@ async function startProcess(resume){
 
       if(scanMode==='mixed'){
         // 縦横混在：通常 + 90° + 270°
-        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
         data.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
         setProgress(65,'90°回転で追加解析中...',f.name);
         const b64r90=await rotateImageB64(b64,f.type,90);
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1}),signal});
         const data2=await resp2.json();
         if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270=await rotateImageB64(b64,f.type,270);
-        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1}),signal});
         const data3=await resp3.json();
         if(!data3.error) data3.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
@@ -1830,20 +1794,20 @@ async function startProcess(resume){
         // 画像回転：90° + 270°のみ
         setProgress(50,'90°回転で解析中...',f.name);
         const b64r90=await rotateImageB64(b64,f.type,90);
-        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
         data.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
         setProgress(75,'270°回転で追加解析中...',f.name);
         const b64r270=await rotateImageB64(b64,f.type,270);
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1}),signal});
         const data2=await resp2.json();
         if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
       } else {
         // 通常
-        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
         results.push(...data.items);
@@ -2062,7 +2026,7 @@ function updateBottom(){
   g1.className='guide-num'+(ok===active&&active>0?' done':'');
   g1.textContent=ok===active&&active>0?'✓':'1';
   g2.className='guide-num'+(pend===0&&active>0?' done':'');
-  document.getElementById('g1desc').textContent=pend>0?`${ok}件承認済み・${pend}件未処理。承認すると仕訳ルール学習に自動登録されます。`:'全件確認済みです。';
+  document.getElementById('g1desc').textContent=pend>0?`${ok}件承認済み・${pend}件未処理。承認すると取引先マスタに自動登録されます。`:'全件確認済みです。';
   document.getElementById('g2desc').textContent=pend>0?`まだ${pend}件未処理があります。`:'準備完了。CSVを出力してください。';
   // ステップバー更新
   if(results.length===0)updateStepBar(1);
