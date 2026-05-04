@@ -180,7 +180,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:12px;}
 .card.approved{border-color:#1D9E75;}
 .card-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fafafa;border-bottom:1px solid #f0f0f0;}
-.card-pdf{width:44px;height:44px;border-radius:6px;border:1px solid #eee;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.card-pdf{width:44px;height:44px;border-radius:6px;border:1px solid #eee;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;transition:opacity 0.15s;}
+.card-pdf:hover{opacity:0.8;}
+.card-pdf img{width:44px;height:44px;object-fit:cover;border-radius:6px;}
+.receipt-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;}
+.receipt-modal.open{display:flex;}
+.receipt-modal-inner{background:#fff;border-radius:12px;padding:16px;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;gap:12px;}
+.receipt-modal-inner img{max-width:80vw;max-height:75vh;object-fit:contain;border-radius:8px;}
+.receipt-modal-close{align-self:flex-end;padding:6px 16px;background:#f0f0f0;border:none;border-radius:7px;font-size:13px;cursor:pointer;}
 .card-info{flex:1;min-width:0;}
 .card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-meta{font-size:11px;color:#888;margin-top:2px;}
@@ -1823,6 +1830,7 @@ async function startProcess(resume){
     } else {
       setProgress(40,'画像を解析中...',f.name);
       const b64=await toB64(f);
+      const srcUrl=URL.createObjectURL(f);
 
       // 重複除外用ヘルパー
       const isDup=(item)=>results.some(r=>r.date===item.date&&r.title===item.title&&r.amount===item.amount);
@@ -1832,19 +1840,19 @@ async function startProcess(resume){
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
-        data.items.forEach(it=>{if(!isDup(it))results.push(it);});
+        data.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
         renderCards();updateBottom();
         setProgress(65,'90°回転で追加解析中...',f.name);
         const b64r90=await rotateImageB64(b64,f.type,90);
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data2=await resp2.json();
-        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push(it);});
+        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
         renderCards();updateBottom();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270=await rotateImageB64(b64,f.type,270);
         const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data3=await resp3.json();
-        if(!data3.error) data3.items.forEach(it=>{if(!isDup(it))results.push(it);});
+        if(!data3.error) data3.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
         renderCards();updateBottom();
       } else if(scanMode==='rotate'){
         // 画像回転：90° + 270°のみ
@@ -1853,20 +1861,20 @@ async function startProcess(resume){
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
-        data.items.forEach(it=>{if(!isDup(it))results.push(it);});
+        data.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
         renderCards();updateBottom();
         setProgress(75,'270°回転で追加解析中...',f.name);
         const b64r270=await rotateImageB64(b64,f.type,270);
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data2=await resp2.json();
-        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push(it);});
+        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
         renderCards();updateBottom();
       } else {
         // 通常
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
-        results.push(...data.items);
+        results.push(...data.items.map(it=>({...it,_sourceUrl:srcUrl})));
         renderCards();updateBottom();
       }
 
@@ -1922,7 +1930,12 @@ function renderCards(){
     if(isDeleted)d.style.opacity='0.35';
     d.innerHTML=`
 <div class="card-head">
-  <div class="card-pdf"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg></div>
+  <div class="card-pdf" onclick="${r._sourceUrl?`openReceiptModal('${r._sourceUrl}')`:''}" title="クリックで原本を表示">
+    ${r._sourceUrl
+      ?`<img src="${r._sourceUrl}" alt="領収書">`
+      :`<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg>`
+    }
+  </div>
   <div class="card-info">
     <div class="card-name">${esc(r.title)}${isRepeat?'<span class=\"badge-repeat\">📌 前回と同じ</span>':''}</div>
     <div class="card-meta">${esc(r.date)} · ${esc(r.amount)}</div>
@@ -2354,7 +2367,17 @@ document.addEventListener('DOMContentLoaded',()=>{
       const r=new FileReader();r.onload=ev=>processCsvFile(file.name,ev.target.result);r.readAsText(file,'UTF-8');
     });
   });
-});
+});function openReceiptModal(url){
+  const modal=document.getElementById('receiptModal');
+  const img=document.getElementById('receiptModalImg');
+  img.src=url;
+  modal.classList.add('open');
+}
+function closeReceiptModal(){
+  document.getElementById('receiptModal').classList.remove('open');
+}
+// ESCキーで閉じる
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeReceiptModal();});
 </script>
 </div><!-- /main-area -->
 </div><!-- /layout -->
@@ -2366,6 +2389,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="complete-title">今月の仕訳、完了！</div>
     <div class="complete-sub" id="completeSubText"></div>
     <button class="complete-btn" onclick="document.getElementById('completeModal').className='complete-modal'">閉じる</button>
+  </div>
+</div>
+<div class="receipt-modal" id="receiptModal" onclick="if(event.target===this)closeReceiptModal()">
+  <div class="receipt-modal-inner">
+    <img id="receiptModalImg" src="" alt="領収書原本">
+    <button class="receipt-modal-close" onclick="closeReceiptModal()">閉じる</button>
   </div>
 </div>
 </body>
