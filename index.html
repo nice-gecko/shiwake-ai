@@ -753,7 +753,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </nav>
   <div class="sidebar-compatible">
-    <div style="font-size:9px;color:#aaa;letter-spacing:0.05em;padding:0 10px 8px;text-align:right;">v1.2 · Sonnet 4.6</div>
+    <div style="font-size:9px;color:#aaa;letter-spacing:0.05em;padding:0 10px 8px;text-align:right;">v1.3 · Sonnet 4.6</div>
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
       <div class="compat-item"><span class="compat-dot"></span>弥生会計</div>
@@ -830,14 +830,20 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div id="docTypeSelector" style="margin-bottom:14px;">
       <div style="font-size:11px;color:#999;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">書類の種類を選択</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-        <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 領収書・レシート</button>
-        <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
-        <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店レシート</button>
-        <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・銀行明細</button>
-        <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費領収書</button>
-        <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 請求書・通販</button>
+        <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt"
+          data-desc="コンビニ・スーパー・ドラッグストアなど印刷されたレシート">🧾 一般レシート</button>
+        <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant"
+          data-desc="レストラン・居酒屋・カフェなどの飲食店レシート">🍽️ 飲食店</button>
+        <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation"
+          data-desc="タクシー・電車・バス・新幹線・高速道路の領収書">🚃 交通費</button>
+        <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten"
+          data-desc="個人商店・タクシー・飲食店などの手書き領収書">✍️ 手書き領収書</button>
+        <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online"
+          data-desc="請求書・Amazon・楽天・通販サイトの明細">📦 ECサイト・請求書</button>
+        <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm"
+          data-desc="銀行通帳・ATM明細・クレジットカード明細">🏦 通帳・カード明細</button>
       </div>
-      <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
+      <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;min-height:1.4em;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
     </div>
     <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
       <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -1104,7 +1110,7 @@ const DOC_TYPE_DESCS={
   register_receipt:'コンビニ・スーパー・ドラッグストアなど印刷されたレシート',
   handwritten:'個人商店・タクシー・飲食店などの手書き領収書',
   restaurant:'レストラン・居酒屋・カフェなどの飲食店レシート',
-  bank_atm:'銀行通帳・ATM明細・振込明細',
+  bank_atm:'銀行通帳・ATM明細・クレジットカード明細',
   transportation:'タクシー・電車・バス・新幹線・高速道路の領収書',
   ec_online:'請求書・Amazon・楽天・通販サイトの明細',
 };
@@ -1116,6 +1122,19 @@ function selectDocType(type){
   const desc=document.getElementById('docTypeDesc');
   if(desc)desc.textContent=DOC_TYPE_DESCS[type]||'';
 }
+// ホバーで説明を表示
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.doc-type-btn').forEach(btn=>{
+    btn.addEventListener('mouseenter',()=>{
+      const desc=document.getElementById('docTypeDesc');
+      if(desc)desc.textContent=btn.dataset.desc||'';
+    });
+    btn.addEventListener('mouseleave',()=>{
+      const desc=document.getElementById('docTypeDesc');
+      if(desc)desc.textContent=DOC_TYPE_DESCS[selectedDocType]||'';
+    });
+  });
+});
 let abortController=null;
 
 // ===== セッション管理 =====
