@@ -63,14 +63,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .main-area{overflow-y:auto;}
 .main-subcopy{font-size:12px;color:#888;line-height:1.6;margin-bottom:14px;padding:0 2px;}
 .panel{display:none;}.panel.active{display:block;}
-.doc-type-btn{padding:9px 6px;border-radius:8px;border:1.5px solid #e0dfd8;background:#fff;font-size:11px;color:#555;cursor:pointer;text-align:center;line-height:1.4;transition:all 0.15s;width:100%;}
+.doc-type-btn{padding:8px 4px;border-radius:8px;border:1.5px solid #e0dfd8;background:#fff;font-size:11px;color:#555;cursor:pointer;text-align:center;line-height:1.4;transition:all 0.15s;}
 .doc-type-btn:hover{border-color:#185FA5;color:#185FA5;background:#EBF4FD;}
 .doc-type-btn.active{border-color:#185FA5;background:#185FA5;color:#fff;font-weight:600;}
-.doc-type-wrap{position:relative;display:inline-block;width:100%;}
-.doc-type-tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:11px;color:#555;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.10);z-index:100;pointer-events:none;}
-.doc-type-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#ddd;}
-.doc-type-tooltip::before{content:'';position:absolute;top:calc(100% - 1px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#fff;z-index:1;}
-.doc-type-wrap:hover .doc-type-tooltip{display:block;}
 /* ===== CSV統合・変換 ===== */
 .csv-merge-subcopy{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
 .csv-drop-zone{border:2px dashed #ccc;border-radius:12px;padding:32px 24px;text-align:center;background:#fff;cursor:pointer;transition:all 0.2s;margin-bottom:16px;}
@@ -180,14 +175,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:12px;}
 .card.approved{border-color:#1D9E75;}
 .card-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fafafa;border-bottom:1px solid #f0f0f0;}
-.card-pdf{width:44px;height:44px;border-radius:6px;border:1px solid #eee;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;transition:opacity 0.15s;}
-.card-pdf:hover{opacity:0.8;}
-.card-pdf img{width:44px;height:44px;object-fit:cover;border-radius:6px;}
-.receipt-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;}
-.receipt-modal.open{display:flex;}
-.receipt-modal-inner{background:#fff;border-radius:12px;padding:16px;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;gap:12px;}
-.receipt-modal-inner img{max-width:80vw;max-height:75vh;object-fit:contain;border-radius:8px;}
-.receipt-modal-close{align-self:flex-end;padding:6px 16px;background:#f0f0f0;border:none;border-radius:7px;font-size:13px;cursor:pointer;}
+.card-pdf{width:44px;height:44px;border-radius:6px;border:1px solid #eee;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .card-info{flex:1;min-width:0;}
 .card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-meta{font-size:11px;color:#888;margin-top:2px;}
@@ -764,8 +752,8 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.3 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
+    <div style="font-size:9px;color:#aaa;letter-spacing:0.05em;padding:0 10px 8px;text-align:right;">v1.2 · Sonnet 4.6</div>
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
       <div class="compat-item"><span class="compat-dot"></span>弥生会計</div>
@@ -842,32 +830,14 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div id="docTypeSelector" style="margin-bottom:14px;">
       <div style="font-size:11px;color:#999;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">書類の種類を選択</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 一般レシート</button>
-          <div class="doc-type-tooltip">コンビニ・スーパー・ドラッグストアなど</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店</button>
-          <div class="doc-type-tooltip">レストラン・居酒屋・カフェなど</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費</button>
-          <div class="doc-type-tooltip">タクシー・電車・バス・新幹線・ETC</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
-          <div class="doc-type-tooltip">個人商店・タクシー・飲食店など</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 ECサイト・請求書</button>
-          <div class="doc-type-tooltip">Amazon・楽天・各種請求書</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・カード明細</button>
-          <div class="doc-type-tooltip">銀行通帳・ATM・クレジットカード明細</div>
-        </div>
+        <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 領収書・レシート</button>
+        <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
+        <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店レシート</button>
+        <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・銀行明細</button>
+        <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費領収書</button>
+        <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 請求書・通販</button>
       </div>
-      <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;min-height:1.4em;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
+      <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
     </div>
     <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
       <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -1134,7 +1104,7 @@ const DOC_TYPE_DESCS={
   register_receipt:'コンビニ・スーパー・ドラッグストアなど印刷されたレシート',
   handwritten:'個人商店・タクシー・飲食店などの手書き領収書',
   restaurant:'レストラン・居酒屋・カフェなどの飲食店レシート',
-  bank_atm:'銀行通帳・ATM明細・クレジットカード明細',
+  bank_atm:'銀行通帳・ATM明細・振込明細',
   transportation:'タクシー・電車・バス・新幹線・高速道路の領収書',
   ec_online:'請求書・Amazon・楽天・通販サイトの明細',
 };
@@ -1830,7 +1800,6 @@ async function startProcess(resume){
     } else {
       setProgress(40,'画像を解析中...',f.name);
       const b64=await toB64(f);
-      const srcUrl=URL.createObjectURL(f);
 
       // 重複除外用ヘルパー
       const isDup=(item)=>results.some(r=>r.date===item.date&&r.title===item.title&&r.amount===item.amount);
@@ -1840,19 +1809,19 @@ async function startProcess(resume){
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
-        data.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
+        data.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
         setProgress(65,'90°回転で追加解析中...',f.name);
         const b64r90=await rotateImageB64(b64,f.type,90);
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data2=await resp2.json();
-        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
+        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270=await rotateImageB64(b64,f.type,270);
         const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data3=await resp3.json();
-        if(!data3.error) data3.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
+        if(!data3.error) data3.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
       } else if(scanMode==='rotate'){
         // 画像回転：90° + 270°のみ
@@ -1861,20 +1830,20 @@ async function startProcess(resume){
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
-        data.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
+        data.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
         setProgress(75,'270°回転で追加解析中...',f.name);
         const b64r270=await rotateImageB64(b64,f.type,270);
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data2=await resp2.json();
-        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push({...it,_sourceUrl:srcUrl});});
+        if(!data2.error) data2.items.forEach(it=>{if(!isDup(it))results.push(it);});
         renderCards();updateBottom();
       } else {
         // 通常
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
         const data=await resp.json();
         if(data.error){showErr(data.error);done();return;}
-        results.push(...data.items.map(it=>({...it,_sourceUrl:srcUrl})));
+        results.push(...data.items);
         renderCards();updateBottom();
       }
 
@@ -1930,12 +1899,7 @@ function renderCards(){
     if(isDeleted)d.style.opacity='0.35';
     d.innerHTML=`
 <div class="card-head">
-  <div class="card-pdf" onclick="${r._sourceUrl?`openReceiptModal('${r._sourceUrl}')`:''}" title="クリックで原本を表示">
-    ${r._sourceUrl
-      ?`<img src="${r._sourceUrl}" alt="領収書">`
-      :`<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg>`
-    }
-  </div>
+  <div class="card-pdf"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg></div>
   <div class="card-info">
     <div class="card-name">${esc(r.title)}${isRepeat?'<span class=\"badge-repeat\">📌 前回と同じ</span>':''}</div>
     <div class="card-meta">${esc(r.date)} · ${esc(r.amount)}</div>
@@ -2367,17 +2331,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const r=new FileReader();r.onload=ev=>processCsvFile(file.name,ev.target.result);r.readAsText(file,'UTF-8');
     });
   });
-});function openReceiptModal(url){
-  const modal=document.getElementById('receiptModal');
-  const img=document.getElementById('receiptModalImg');
-  img.src=url;
-  modal.classList.add('open');
-}
-function closeReceiptModal(){
-  document.getElementById('receiptModal').classList.remove('open');
-}
-// ESCキーで閉じる
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeReceiptModal();});
+});
 </script>
 </div><!-- /main-area -->
 </div><!-- /layout -->
@@ -2389,12 +2343,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeReceiptModal();
     <div class="complete-title">今月の仕訳、完了！</div>
     <div class="complete-sub" id="completeSubText"></div>
     <button class="complete-btn" onclick="document.getElementById('completeModal').className='complete-modal'">閉じる</button>
-  </div>
-</div>
-<div class="receipt-modal" id="receiptModal" onclick="if(event.target===this)closeReceiptModal()">
-  <div class="receipt-modal-inner">
-    <img id="receiptModalImg" src="" alt="領収書原本">
-    <button class="receipt-modal-close" onclick="closeReceiptModal()">閉じる</button>
   </div>
 </div>
 </body>
