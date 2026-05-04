@@ -1353,7 +1353,7 @@ let currentScanTab='crop';
 let perspCorners=[];
 let dragHandle=null,dragOffX=0,dragOffY=0;
 // スキャンモード（mixed: 縦横混在, rotate: 画像回転, normal: 通常）
-let scanMode='mixed';
+let scanMode='normal';
 
 function setScanMode(mode){
   scanMode=mode;
@@ -1893,11 +1893,16 @@ async function processOneFile(f){
     const b64=await toB64(f);
     const srcUrl=URL.createObjectURL(f);
     const addItems=(items)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl}));
-    if(scanMode==='mixed'){
-      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-      const data=await resp.json();
-      if(data.error){showErr(data.error);return;}
-      addItems(data.items);renderCards();updateBottom();
+
+    // まず通常向きで解析（Haikuがorientationを返す）
+    const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+    const data=await resp.json();
+    if(data.error){showErr(data.error);return;}
+    addItems(data.items);renderCards();updateBottom();
+
+    // Haikuが判定したorientationに従って追加解析
+    const detectedOrientation = data.orientation || 'normal';
+    if(detectedOrientation==='mixed'){
       setProgress(65,'90°回転で追加解析中...',f.name);
       const b64r90=await rotateImageB64(b64,f.type,90);
       const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
@@ -1908,24 +1913,14 @@ async function processOneFile(f){
       const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data3=await resp3.json();
       if(!data3.error)addItems(data3.items);renderCards();updateBottom();
-    } else if(scanMode==='rotate'){
-      setProgress(50,'90°回転で解析中...',f.name);
+    } else if(detectedOrientation==='rotate'){
+      setProgress(65,'回転補正で再解析中...',f.name);
       const b64r90=await rotateImageB64(b64,f.type,90);
-      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-      const data=await resp.json();
-      if(data.error){showErr(data.error);return;}
-      addItems(data.items);renderCards();updateBottom();
-      setProgress(75,'270°回転で追加解析中...',f.name);
-      const b64r270=await rotateImageB64(b64,f.type,270);
-      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
       if(!data2.error)addItems(data2.items);renderCards();updateBottom();
-    } else {
-      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-      const data=await resp.json();
-      if(data.error){showErr(data.error);return;}
-      addItems(data.items);renderCards();updateBottom();
     }
+    // normal の場合は追加解析なし
     setProgress(100,'完了','');
     setTimeout(()=>{document.getElementById('prog').className='prog';},1500);
   }

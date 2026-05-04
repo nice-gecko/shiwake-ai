@@ -234,7 +234,7 @@ const RECEIPT_FORMATS = {
   },
 };
 
-// ===== Haikuでフォーマット判定 =====
+// ===== Haikuでフォーマット＋向き判定 =====
 async function detectReceiptFormat(apiKey, imageData) {
   const formatList = Object.entries(RECEIPT_FORMATS)
     .map(([key, f]) => `・${key}: ${f.name}（例：${f.examples}）`)
@@ -244,20 +244,39 @@ async function detectReceiptFormat(apiKey, imageData) {
     imageData.mediaType === 'application/pdf'
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageData.data } }
       : { type: 'image', source: { type: 'base64', media_type: imageData.mediaType, data: imageData.data } },
-    { type: 'text', text: `この画像はどの種類の証憑ですか？以下から最も近いキーを1つだけ返してください。説明不要。\n${formatList}\n\nキーのみ返答：` }
+    { type: 'text', text: `この証憑画像について2つを判定してください。説明不要。JSONのみ返答。
+
+【1】フォーマット：以下から最も近いキーを1つ
+${formatList}
+
+【2】画像の向き：
+・normal: 文字が正立していて読める（縦向きのみ）
+・rotate: 画像全体が90°または270°回転していて横倒しになっている
+・mixed: 縦向きと横向きの文字が混在している
+
+返答形式（このJSONのみ）：{"format":"register_receipt","orientation":"normal"}` }
   ];
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 30, messages: [{ role: 'user', content }] })
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content }] })
     });
     const data = await res.json();
-    const raw = (data.content?.[0]?.text || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
-    return RECEIPT_FORMATS[raw] ? raw : 'register_receipt'; // 判定失敗時はデフォルト
+    const raw = (data.content?.[0]?.text || '').trim();
+    try {
+      const parsed = JSON.parse(raw);
+      const format = RECEIPT_FORMATS[parsed.format] ? parsed.format : 'register_receipt';
+      const orientation = ['normal','rotate','mixed'].includes(parsed.orientation) ? parsed.orientation : 'normal';
+      return { format, orientation };
+    } catch(e) {
+      // JSON解析失敗時はフォーマットキーのみ抽出してnormalを返す
+      const key = raw.toLowerCase().replace(/[^a-z_]/g, '');
+      return { format: RECEIPT_FORMATS[key] ? key : 'register_receipt', orientation: 'normal' };
+    }
   } catch(e) {
-    return 'register_receipt';
+    return { format: 'register_receipt', orientation: 'normal' };
   }
 }
 
@@ -629,11 +648,19 @@ const server = http.createServer(async (req, res) => {
 
         // ===== ステップ1: フォーマット判定（Haiku・高速） =====
         let formatKey = docType || null;
+        let orientation = 'normal';
         if (!formatKey && imageDataList.length > 0) {
-          formatKey = await detectReceiptFormat(apiKey, imageDataList[0]);
-          console.log(`  フォーマット判定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name}）`);
+          const detected = await detectReceiptFormat(apiKey, imageDataList[0]);
+          formatKey = detected.format;
+          orientation = detected.orientation;
+          console.log(`  フォーマット判定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name}）向き: ${orientation}`);
         } else if (formatKey) {
-          console.log(`  フォーマット指定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name || '不明'}）`);
+          // docType指定時もHaikuで向きだけ判定
+          if (imageDataList.length > 0) {
+            const detected = await detectReceiptFormat(apiKey, imageDataList[0]);
+            orientation = detected.orientation;
+          }
+          console.log(`  フォーマット指定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name || '不明'}）向き: ${orientation}`);
         }
         const systemPrompt = buildSystemPrompt(formatKey || 'register_receipt');
 
@@ -691,7 +718,7 @@ const server = http.createServer(async (req, res) => {
 
         console.log(`チャンク ${chunkIndex+1}/${totalChunks}: ${rawItems.length}件取得 → ${items.length}件（フォーマット:${formatKey}・マスタ${Object.keys(master).length}件適用）`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ items }));
+        res.end(JSON.stringify({ items, orientation }));
       } catch(e) {
         console.error('Error:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
