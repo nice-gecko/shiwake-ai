@@ -63,9 +63,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .main-area{overflow-y:auto;}
 .main-subcopy{font-size:12px;color:#888;line-height:1.6;margin-bottom:14px;padding:0 2px;}
 .panel{display:none;}.panel.active{display:block;}
-.doc-type-btn{padding:8px 4px;border-radius:8px;border:1.5px solid #e0dfd8;background:#fff;font-size:11px;color:#555;cursor:pointer;text-align:center;line-height:1.4;transition:all 0.15s;}
+.doc-type-btn{padding:9px 6px;border-radius:8px;border:1.5px solid #e0dfd8;background:#fff;font-size:11px;color:#555;cursor:pointer;text-align:center;line-height:1.4;transition:all 0.15s;width:100%;}
 .doc-type-btn:hover{border-color:#185FA5;color:#185FA5;background:#EBF4FD;}
 .doc-type-btn.active{border-color:#185FA5;background:#185FA5;color:#fff;font-weight:600;}
+.doc-type-wrap{position:relative;display:inline-block;width:100%;}
+.doc-type-tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:11px;color:#555;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.10);z-index:100;pointer-events:none;}
+.doc-type-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#ddd;}
+.doc-type-tooltip::before{content:'';position:absolute;top:calc(100% - 1px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#fff;z-index:1;}
+.doc-type-wrap:hover .doc-type-tooltip{display:block;}
 /* ===== CSV統合・変換 ===== */
 .csv-merge-subcopy{font-size:13px;color:#888;margin-bottom:20px;line-height:1.6;}
 .csv-drop-zone{border:2px dashed #ccc;border-radius:12px;padding:32px 24px;text-align:center;background:#fff;cursor:pointer;transition:all 0.2s;margin-bottom:16px;}
@@ -830,18 +835,30 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div id="docTypeSelector" style="margin-bottom:14px;">
       <div style="font-size:11px;color:#999;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">書類の種類を選択</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-        <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt"
-          data-desc="コンビニ・スーパー・ドラッグストアなど印刷されたレシート">🧾 一般レシート</button>
-        <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant"
-          data-desc="レストラン・居酒屋・カフェなどの飲食店レシート">🍽️ 飲食店</button>
-        <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation"
-          data-desc="タクシー・電車・バス・新幹線・高速道路の領収書">🚃 交通費</button>
-        <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten"
-          data-desc="個人商店・タクシー・飲食店などの手書き領収書">✍️ 手書き領収書</button>
-        <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online"
-          data-desc="請求書・Amazon・楽天・通販サイトの明細">📦 ECサイト・請求書</button>
-        <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm"
-          data-desc="銀行通帳・ATM明細・クレジットカード明細">🏦 通帳・カード明細</button>
+        <div class="doc-type-wrap">
+          <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 一般レシート</button>
+          <div class="doc-type-tooltip">コンビニ・スーパー・ドラッグストアなど</div>
+        </div>
+        <div class="doc-type-wrap">
+          <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店</button>
+          <div class="doc-type-tooltip">レストラン・居酒屋・カフェなど</div>
+        </div>
+        <div class="doc-type-wrap">
+          <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費</button>
+          <div class="doc-type-tooltip">タクシー・電車・バス・新幹線・ETC</div>
+        </div>
+        <div class="doc-type-wrap">
+          <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
+          <div class="doc-type-tooltip">個人商店・タクシー・飲食店など</div>
+        </div>
+        <div class="doc-type-wrap">
+          <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 ECサイト・請求書</button>
+          <div class="doc-type-tooltip">Amazon・楽天・各種請求書</div>
+        </div>
+        <div class="doc-type-wrap">
+          <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・カード明細</button>
+          <div class="doc-type-tooltip">銀行通帳・ATM・クレジットカード明細</div>
+        </div>
       </div>
       <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;min-height:1.4em;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
     </div>
@@ -1122,19 +1139,6 @@ function selectDocType(type){
   const desc=document.getElementById('docTypeDesc');
   if(desc)desc.textContent=DOC_TYPE_DESCS[type]||'';
 }
-// ホバーで説明を表示
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.doc-type-btn').forEach(btn=>{
-    btn.addEventListener('mouseenter',()=>{
-      const desc=document.getElementById('docTypeDesc');
-      if(desc)desc.textContent=btn.dataset.desc||'';
-    });
-    btn.addEventListener('mouseleave',()=>{
-      const desc=document.getElementById('docTypeDesc');
-      if(desc)desc.textContent=DOC_TYPE_DESCS[selectedDocType]||'';
-    });
-  });
-});
 let abortController=null;
 
 // ===== セッション管理 =====
