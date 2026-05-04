@@ -51,6 +51,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .step-label.done{color:#1D9E75;}
 .step-arrow{color:#ccc;font-size:12px;margin:0 4px;}
 
+/* 縦型ステッパー */
+.v-stepper{display:flex;flex-direction:column;margin-bottom:14px;}
+.v-step-row{display:flex;gap:12px;}
+.v-step-spine{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:24px;}
+.v-step-circle{width:24px;height:24px;border-radius:50%;background:#185FA5;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.v-step-line{width:2px;flex:1;min-height:12px;background:#d8d7d0;margin:3px 0;border-radius:2px;}
+.v-step-content{flex:1;padding-top:3px;padding-bottom:14px;}
+.v-step-content.last{padding-bottom:0;}
+.v-step-label{font-size:11px;font-weight:600;color:#999;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.v-step-spinner{width:12px;height:12px;border:2px solid #d0d0d0;border-top-color:#185FA5;border-radius:50%;animation:spin 0.8s linear infinite;display:none;}
+.v-step-spinner.show{display:inline-block;}
+.v-step-auto-hint{font-size:11px;color:#888;margin-top:6px;}
+
 /* ヘッダー（サイドバーに移動後は非表示にしてもよいが残す） */
 .header{background:#fff;border-bottom:1px solid #e5e5e5;padding:14px 24px;display:flex;align-items:center;gap:10px;}
 .header-logo{width:28px;height:28px;background:#185FA5;border-radius:6px;display:flex;align-items:center;justify-content:center;}
@@ -691,6 +704,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.0 · Instant Flow</div>
   </div>
 </div>
 
@@ -764,7 +778,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.3.1 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.0 · Instant Flow · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -838,44 +852,76 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <div class="ai-stat-label">学習済みの取引先<br>（カウントアップ中）</div>
       </div>
     </div>
-    <!-- 書類種別選択 -->
-    <div id="docTypeSelector" style="margin-bottom:14px;">
-      <div style="font-size:11px;color:#999;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">書類の種類を選択</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 一般レシート</button>
-          <div class="doc-type-tooltip">コンビニ・スーパー・ドラッグストアなど</div>
+    <!-- 縦型ステッパー -->
+    <div class="v-stepper">
+      <!-- ① 書類の種類を選択 -->
+      <div class="v-step-row">
+        <div class="v-step-spine">
+          <div class="v-step-circle">1</div>
+          <div class="v-step-line"></div>
         </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店</button>
-          <div class="doc-type-tooltip">レストラン・居酒屋・カフェなど</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費</button>
-          <div class="doc-type-tooltip">タクシー・電車・バス・新幹線・ETC</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
-          <div class="doc-type-tooltip">個人商店・タクシー・飲食店など</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 ECサイト・請求書</button>
-          <div class="doc-type-tooltip">Amazon・楽天・各種請求書</div>
-        </div>
-        <div class="doc-type-wrap">
-          <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・カード明細</button>
-          <div class="doc-type-tooltip">銀行通帳・ATM・クレジットカード明細</div>
+        <div class="v-step-content">
+          <div class="v-step-label">書類の種類を選択</div>
+          <div id="docTypeSelector">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+              <div class="doc-type-wrap">
+                <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 一般レシート</button>
+                <div class="doc-type-tooltip">コンビニ・スーパー・ドラッグストアなど</div>
+              </div>
+              <div class="doc-type-wrap">
+                <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店</button>
+                <div class="doc-type-tooltip">レストラン・居酒屋・カフェなど</div>
+              </div>
+              <div class="doc-type-wrap">
+                <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費</button>
+                <div class="doc-type-tooltip">タクシー・電車・バス・新幹線・ETC</div>
+              </div>
+              <div class="doc-type-wrap">
+                <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
+                <div class="doc-type-tooltip">個人商店・タクシー・飲食店など</div>
+              </div>
+              <div class="doc-type-wrap">
+                <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 ECサイト・請求書</button>
+                <div class="doc-type-tooltip">Amazon・楽天・各種請求書</div>
+              </div>
+              <div class="doc-type-wrap">
+                <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・カード明細</button>
+                <div class="doc-type-tooltip">銀行通帳・ATM・クレジットカード明細</div>
+              </div>
+            </div>
+            <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;min-height:1.4em;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
+          </div>
         </div>
       </div>
-      <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;min-height:1.4em;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
+      <!-- ② 証憑をアップロード -->
+      <div class="v-step-row">
+        <div class="v-step-spine">
+          <div class="v-step-circle">2</div>
+          <div class="v-step-line"></div>
+        </div>
+        <div class="v-step-content">
+          <div class="v-step-label">証憑をアップロード</div>
+          <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+            <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
+            <small>領収書・レシート・通帳 JPG / PNG / PDF 最大10枚</small>
+          </div>
+          <input type="file" id="fi" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="addFiles(this.files)">
+          <div class="previews" id="prev"></div>
+        </div>
+      </div>
+      <!-- ③ 仕訳を自動生成 -->
+      <div class="v-step-row">
+        <div class="v-step-spine">
+          <div class="v-step-circle">3</div>
+        </div>
+        <div class="v-step-content last">
+          <div class="v-step-label">仕訳を自動生成<div class="v-step-spinner" id="vStepSpinner"></div></div>
+          <div class="v-step-auto-hint" id="vStepHint">アップロードすると自動で生成します</div>
+        </div>
+      </div>
     </div>
-    <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
-      <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
-      <small>領収書・レシート・通帳 JPG / PNG / PDF 最大10枚</small>
-    </div>
-    <input type="file" id="fi" accept="image/*,.pdf,application/pdf" multiple style="display:none" onchange="addFiles(this.files)">
-    <div class="previews" id="prev"></div>
+
     <div class="status-panel" id="statusPanel">
       <div class="sp-title" id="spTitle"></div>
       <div class="sp-progress"><div class="sp-bar-wrap"><div class="sp-bar" id="spBar"></div></div><div class="sp-pct" id="spPct"></div></div>
@@ -888,7 +934,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <div class="sp-btns" id="spBtns"></div>
     </div>
     <div class="err" id="errBox"></div>
-    <button class="run-btn" id="runBtn" disabled onclick="onRunClick()">仕訳を自動生成する</button>
+    <button class="run-btn" id="runBtn" disabled onclick="onRunClick()" style="display:none;">仕訳を自動生成する</button>
     <div class="prog" id="prog">
       <div class="prog-title"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
       <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"><div class="prog-bar-pulse" id="progPulse"></div></div></div>
@@ -1147,6 +1193,8 @@ function selectDocType(type){
   if(desc)desc.textContent=DOC_TYPE_DESCS[type]||'';
 }
 let abortController=null;
+let processQueue=[];
+let isProcessing=false;
 
 // ===== セッション管理 =====
 function getOrCreateSessionId(){
@@ -1694,10 +1742,29 @@ function onDrop(e){e.preventDefault();onDragLeave();addFiles(e.dataTransfer.file
 function addFiles(fl){
   Array.from(fl).forEach(f=>{
     const ok=f.type.startsWith('image/')||f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
-    if(ok&&files.length<10)files.push(f);
+    if(ok&&files.length<10){files.push(f);processQueue.push(f);}
   });
   renderPrev();checkSavedState();
   document.getElementById('runBtn').disabled=files.length===0;
+  drainQueue();
+}
+
+async function drainQueue(){
+  if(isProcessing||processQueue.length===0)return;
+  isProcessing=true;
+  // スピナー表示
+  const spinner=document.getElementById('vStepSpinner');
+  const hint=document.getElementById('vStepHint');
+  if(spinner)spinner.className='v-step-spinner show';
+  if(hint)hint.textContent='AI処理中...';
+  while(processQueue.length>0){
+    const f=processQueue.shift();
+    await processOneFile(f);
+  }
+  isProcessing=false;
+  if(spinner)spinner.className='v-step-spinner';
+  if(hint)hint.textContent=results.length>0?`${results.length}件の仕訳を生成しました`:'アップロードすると自動で生成します';
+  doneDrain();
 }
 
 function checkSavedState(){
@@ -1769,137 +1836,167 @@ function hideErr(){document.getElementById('errBox').className='err';}
 function onRunClick(){startProcess(false);}
 function cancelProcess(){
   if(abortController){abortController.abort();}
+  processQueue=[];isProcessing=false;
   document.getElementById('cancelBtn').style.display='none';
   document.getElementById('prog').className='prog';
-  document.getElementById('runBtn').disabled=false;
-  document.getElementById('runBtn').style.display='';
+  const spinner=document.getElementById('vStepSpinner');
+  const hint=document.getElementById('vStepHint');
+  if(spinner)spinner.className='v-step-spinner';
+  if(hint)hint.textContent=results.length>0?`${results.length}件の仕訳を生成しました`:'アップロードすると自動で生成します';
   showToast('処理をキャンセルしました');
   if(results.length>0){renderCards();updateBottom();}
 }
 
-async function startProcess(resume){
+// 1ファイル分の処理（キューから呼ばれる）
+async function processOneFile(f){
   hideErr();
-  abortController=new AbortController();
+  if(!abortController)abortController=new AbortController();
   const signal=abortController.signal;
-  document.getElementById('statusPanel').className='status-panel';
-  document.getElementById('runBtn').style.display='';
-  document.getElementById('runBtn').disabled=true;
   document.getElementById('cancelBtn').style.display='';
   document.getElementById('prog').className='prog show';
-  document.getElementById('bottomPanel').className='bottom-panel show';document.getElementById('btnContinueScan').className='btn-continue-scan show';
+  document.getElementById('bottomPanel').className='bottom-panel show';
+  document.getElementById('btnContinueScan').className='btn-continue-scan show';
   updateStepBar(2);
-  if(!resume){results=[];approved=new Set();deleted=new Set();document.getElementById('cards').innerHTML='';}
-
-  for(let fi=0;fi<files.length;fi++){
-    const f=files[fi];
-    const isPdf=f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
-    if(isPdf){
-      const key=pdfKey(f);currentFile=f;currentKey=key;
-      const saved=resume?loadState(key):null;
-      const startChunk=saved?(saved.lastChunk??-1)+1:0;
-      if(saved&&saved.items&&resume){results=[...saved.items];}
-      setProgress(2,'PDFを分割中...',f.name);
-      const b64=await toB64(f);
-      const splitRes=await fetch('/api/split-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:b64,fileName:f.name}),signal});
-      const sd=await splitRes.json();
-      if(sd.error){showErr(sd.error);done();return;}
-      allChunks=sd.chunks;totalChunks=sd.chunks.length;
-      for(let ci=startChunk;ci<totalChunks;ci++){
-        const chunk=allChunks[ci];
-        const pct=5+Math.round((ci/totalChunks)*90);
-        setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
-        try{
-          const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType}),signal});
-          const data=await resp.json();
-          if(data.error)throw new Error(data.error);
-          results.push(...data.items);
-          saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
-          // サーバーにも同期
-          syncSessionAppend(items);
-          addMonthlyCount(items.length);
-          renderCards();updateBottom();
-        }catch(e){
-          if(e.name==='AbortError'){done();return;}
-          showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}\n${results.length}件読み込み済み。同じPDFを再アップロードすると続きから再開できます。`);
-          done();return;
-        }
+  const isPdf=f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
+  if(isPdf){
+    const key=pdfKey(f);currentFile=f;currentKey=key;
+    setProgress(2,'PDFを分割中...',f.name);
+    const b64=await toB64(f);
+    const splitRes=await fetch('/api/split-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:b64,fileName:f.name}),signal});
+    const sd=await splitRes.json();
+    if(sd.error){showErr(sd.error);return;}
+    allChunks=sd.chunks;totalChunks=sd.chunks.length;
+    for(let ci=0;ci<totalChunks;ci++){
+      const chunk=allChunks[ci];
+      const pct=5+Math.round((ci/totalChunks)*90);
+      setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
+      try{
+        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType}),signal});
+        const data=await resp.json();
+        if(data.error)throw new Error(data.error);
+        results.push(...data.items);
+        saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
+        syncSessionAppend(data.items);
+        addMonthlyCount(data.items.length);
+        renderCards();updateBottom();
+      }catch(e){
+        if(e.name==='AbortError')return;
+        showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}\n${results.length}件読み込み済み。同じPDFを再アップロードすると続きから再開できます。`);
+        return;
       }
-      setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
-      setTimeout(()=>{document.getElementById('prog').className='prog';document.getElementById('progSpinner').style.animation='none';document.getElementById('progPulse').style.display='none';},2500);
-    } else {
-      setProgress(40,'画像を解析中...',f.name);
-      const b64=await toB64(f);
-      const srcUrl=URL.createObjectURL(f);
-
-      // 重複は除外せず全件追加。重複バッジで表示してユーザーが判断する
-      const addItems=(items)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl}));
-
-      if(scanMode==='mixed'){
-        // 縦横混在：通常 + 90° + 270°
-        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-        const data=await resp.json();
-        if(data.error){showErr(data.error);done();return;}
-        addItems(data.items);
-        renderCards();updateBottom();
-        setProgress(65,'90°回転で追加解析中...',f.name);
-        const b64r90=await rotateImageB64(b64,f.type,90);
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-        const data2=await resp2.json();
-        if(!data2.error) addItems(data2.items);
-        renderCards();updateBottom();
-        setProgress(85,'270°回転で追加解析中...',f.name);
-        const b64r270=await rotateImageB64(b64,f.type,270);
-        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-        const data3=await resp3.json();
-        if(!data3.error) addItems(data3.items);
-        renderCards();updateBottom();
-      } else if(scanMode==='rotate'){
-        // 画像回転：90° + 270°のみ
-        setProgress(50,'90°回転で解析中...',f.name);
-        const b64r90=await rotateImageB64(b64,f.type,90);
-        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-        const data=await resp.json();
-        if(data.error){showErr(data.error);done();return;}
-        addItems(data.items);
-        renderCards();updateBottom();
-        setProgress(75,'270°回転で追加解析中...',f.name);
-        const b64r270=await rotateImageB64(b64,f.type,270);
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-        const data2=await resp2.json();
-        if(!data2.error) addItems(data2.items);
-        renderCards();updateBottom();
-      } else {
-        // 通常
-        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-        const data=await resp.json();
-        if(data.error){showErr(data.error);done();return;}
-        addItems(data.items);
-        renderCards();updateBottom();
-      }
-
-      setProgress(100,'完了','');
-      setTimeout(()=>{document.getElementById('prog').className='prog';},1500);
     }
+    setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
+    setTimeout(()=>{document.getElementById('prog').className='prog';document.getElementById('progSpinner').style.animation='none';document.getElementById('progPulse').style.display='none';},2500);
+  } else {
+    setProgress(40,'画像を解析中...',f.name);
+    const b64=await toB64(f);
+    const srcUrl=URL.createObjectURL(f);
+    const addItems=(items)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl}));
+    if(scanMode==='mixed'){
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const data=await resp.json();
+      if(data.error){showErr(data.error);return;}
+      addItems(data.items);renderCards();updateBottom();
+      setProgress(65,'90°回転で追加解析中...',f.name);
+      const b64r90=await rotateImageB64(b64,f.type,90);
+      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const data2=await resp2.json();
+      if(!data2.error)addItems(data2.items);renderCards();updateBottom();
+      setProgress(85,'270°回転で追加解析中...',f.name);
+      const b64r270=await rotateImageB64(b64,f.type,270);
+      const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const data3=await resp3.json();
+      if(!data3.error)addItems(data3.items);renderCards();updateBottom();
+    } else if(scanMode==='rotate'){
+      setProgress(50,'90°回転で解析中...',f.name);
+      const b64r90=await rotateImageB64(b64,f.type,90);
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const data=await resp.json();
+      if(data.error){showErr(data.error);return;}
+      addItems(data.items);renderCards();updateBottom();
+      setProgress(75,'270°回転で追加解析中...',f.name);
+      const b64r270=await rotateImageB64(b64,f.type,270);
+      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const data2=await resp2.json();
+      if(!data2.error)addItems(data2.items);renderCards();updateBottom();
+    } else {
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const data=await resp.json();
+      if(data.error){showErr(data.error);return;}
+      addItems(data.items);renderCards();updateBottom();
+    }
+    setProgress(100,'完了','');
+    setTimeout(()=>{document.getElementById('prog').className='prog';},1500);
   }
-  done();
 }
-function done(){
+
+// startProcess：PDFの「途中から再開」用に残す
+async function startProcess(resume){
+  if(files.length===0)return;
+  const f=files[0];
+  const isPdf=f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf');
+  if(isPdf&&resume){
+    hideErr();
+    if(!abortController)abortController=new AbortController();
+    const signal=abortController.signal;
+    const key=pdfKey(f);currentFile=f;currentKey=key;
+    const saved=loadState(key);
+    const startChunk=saved?(saved.lastChunk??-1)+1:0;
+    if(saved&&saved.items)results=[...saved.items];
+    document.getElementById('cancelBtn').style.display='';
+    document.getElementById('prog').className='prog show';
+    document.getElementById('statusPanel').className='status-panel';
+    updateStepBar(2);
+    allChunks=saved?.chunks||[];totalChunks=allChunks.length;
+    // 残りチャンクを処理
+    const b64=await toB64(f);
+    const splitRes=await fetch('/api/split-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:b64,fileName:f.name}),signal});
+    const sd=await splitRes.json();
+    if(sd.error){showErr(sd.error);return;}
+    allChunks=sd.chunks;totalChunks=sd.chunks.length;
+    for(let ci=startChunk;ci<totalChunks;ci++){
+      const chunk=allChunks[ci];
+      const pct=5+Math.round((ci/totalChunks)*90);
+      setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
+      try{
+        const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType}),signal});
+        const data=await resp.json();
+        if(data.error)throw new Error(data.error);
+        results.push(...data.items);
+        saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
+        syncSessionAppend(data.items);
+        addMonthlyCount(data.items.length);
+        renderCards();updateBottom();
+      }catch(e){
+        if(e.name==='AbortError')return;
+        showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}`);return;
+      }
+    }
+    setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
+    setTimeout(()=>{document.getElementById('prog').className='prog';},2500);
+    doneDrain();
+    return;
+  }
+  // 通常はキュー経由
+  processQueue.push(f);
+  drainQueue();
+}
+
+function doneDrain(){
   document.getElementById('cancelBtn').style.display='none';
   abortController=null;
-  document.getElementById('runBtn').disabled=false;
-  // ファイルをリセットして次のアップロードを受け付ける
-  files=[];
-  renderPrev();
-  document.getElementById('runBtn').disabled=true;
+  files=[];renderPrev();
   document.getElementById('statusPanel').className='status-panel';
-  // 蓄積件数を表示
   if(results.length>0){
     document.getElementById('dz').querySelector('small').textContent=
       `追加アップロード可能 · 現在${results.length}件蓄積中`;
   }
   updateBottom();
 }
+// 後方互換のため done も残す
+function done(){doneDrain();}
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function aOpts(s){return ACCTS.map(a=>`<option${a===s?' selected':''}>${a}</option>`).join('');}
