@@ -234,6 +234,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-reanalyze{padding:6px 10px;background:#fff;border:1px solid #8B5CF6;border-radius:7px;font-size:11px;color:#8B5CF6;cursor:pointer;margin-left:auto;}
 .btn-reanalyze:hover{background:#F5F3FF;}
 .btn-reanalyze:disabled{opacity:0.5;cursor:not-allowed;}
+
+/* グループカード */
+.group-rows{padding:10px 14px 0;}
+.group-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;}
+.group-row:last-child{border-bottom:none;}
+.group-row-deleted{opacity:0.4;}
+.group-row-left{display:flex;flex-direction:column;gap:2px;flex:1;}
+.group-row-tax{font-size:11px;color:#888;}
+.group-row-memo{font-size:13px;color:#333;}
+.group-row-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.group-row-amount{font-size:13px;font-weight:600;color:#222;}
+.group-row-debit{font-size:11px;color:#1D9E75;background:#F0FBF6;padding:2px 6px;border-radius:4px;}
+.btn-row-del{background:none;border:none;color:#ccc;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;}
+.btn-row-del:hover{color:#e55;}
+.btn-row-restore{background:none;border:none;color:#1D9E75;cursor:pointer;font-size:12px;padding:2px 4px;}
+.group-total-row{display:flex;justify-content:space-between;padding:8px 0 4px;font-size:12px;font-weight:600;color:#555;border-top:1px solid #e0e0e0;margin-top:4px;}
+.badge-multi{background:#EDE9FE;color:#7C3AED;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;flex-shrink:0;}
+.group-edit-area{background:#fafafa;border-top:1px solid #eee;padding:12px 14px;margin-top:8px;}
+.group-edit-item{margin-bottom:8px;}
 /* インボイスバッジ */
 .badge-invoice-ok{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#EAF3DE;color:#3B6D11;padding:2px 8px;border-radius:999px;font-weight:600;}
 .badge-invoice-ng{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#FEF0F0;color:#A32D2D;padding:2px 8px;border-radius:999px;font-weight:600;}
@@ -707,7 +726,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.3</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.4</div>
   </div>
 </div>
 
@@ -781,7 +800,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.3 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.4 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2002,43 +2021,102 @@ function tOpts(s){return TAXES.map(a=>`<option${a===s?' selected':''}>${a}</opti
 
 function renderCards(){
   const c=document.getElementById('cards');c.innerHTML='';
-  // 同じ日付・同じ取引先が複数ある場合を検出
-  const dupCheck={};
+
+  // ===== グループ化：同じ_sourceB64ごとにまとめる =====
+  // グループ = { srcB64, indices[], deleted, approved }
+  const groupMap=new Map(); // srcB64 → indices[]
+  const soloIndices=[]; // _sourceB64なし（旧データ等）は個別
+
   results.forEach((r,i)=>{
-    if(deleted.has(i))return;
-    const key=`${r.date}_${r.title}_${r.amount}`;
-    if(!dupCheck[key])dupCheck[key]=[];
-    dupCheck[key].push(i);
-  });
-  const dupSet=new Set();
-  Object.values(dupCheck).forEach(idxs=>{
-    if(idxs.length>1)idxs.forEach(i=>dupSet.add(i));
-  });
-  // 承認済み取引先セット（前回と同じバッジ用）
-  const approvedTitles=new Set([...approved].map(i=>results[i]?.title).filter(Boolean));
-  results.forEach((r,i)=>{
-    const isRepeat=approvedTitles.has(r.title)&&!approved.has(i);
-    const conf=r.confidence==='high'?'高信頼':r.confidence==='mid'?'要確認':'低信頼';
-    const bc=r.confidence==='high'?'bh':r.confidence==='mid'?'bm':'bl';
-    const isApproved=approved.has(i),isDeleted=deleted.has(i);
-    const d=document.createElement('div');d.className='card'+(isApproved?' approved':'');d.id='c'+i;
-    if(isDeleted)d.style.opacity='0.35';
-    d.innerHTML=`
-<div class="card-head">
-  <div class="card-pdf" onclick="${r._sourceUrl?`openReceiptModal('${r._sourceUrl}')`:''}" title="クリックで原本を表示">
-    ${r._sourceUrl
-      ?`<img src="${r._sourceUrl}" alt="領収書">`
-      :`<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg>`
+    if(r._sourceB64){
+      if(!groupMap.has(r._sourceB64))groupMap.set(r._sourceB64,[]);
+      groupMap.get(r._sourceB64).push(i);
+    } else {
+      soloIndices.push(i);
     }
+  });
+
+  // グループリスト（表示順：最初のindexの順番で）
+  const groups=[];
+  groupMap.forEach((indices,srcB64)=>{
+    groups.push({srcB64, indices});
+  });
+  groups.sort((a,b)=>a.indices[0]-b.indices[0]);
+  // ソロも1要素グループとして追加
+  soloIndices.forEach(i=>groups.push({srcB64:null, indices:[i]}));
+
+  // 重複チェック（グループ単位：同じ日付・取引先・金額合計）
+  const dupCheck={};
+  groups.forEach((g,gi)=>{
+    const active=g.indices.filter(i=>!deleted.has(i));
+    if(active.length===0)return;
+    const r0=results[active[0]];
+    const totalAmt=active.reduce((s,i)=>{
+      const n=parseInt((results[i].amount||'').replace(/[^\d]/g,''))||0;return s+n;
+    },0);
+    const key=`${r0.date}_${r0.title}_${totalAmt}`;
+    if(!dupCheck[key])dupCheck[key]=[];
+    dupCheck[key].push(gi);
+  });
+  const dupGroupSet=new Set();
+  Object.values(dupCheck).forEach(gis=>{if(gis.length>1)gis.forEach(gi=>dupGroupSet.add(gi));});
+
+  const approvedTitles=new Set([...approved].map(i=>results[i]?.title).filter(Boolean));
+
+  groups.forEach((g, gi)=>{
+    const {srcB64, indices}=g;
+    const activeIndices=indices.filter(i=>!deleted.has(i));
+    const allDeleted=activeIndices.length===0;
+    const allApproved=activeIndices.length>0&&activeIndices.every(i=>approved.has(i));
+    const someDeleted=indices.some(i=>deleted.has(i))&&!allDeleted;
+    const r0=results[indices[0]]; // 代表アイテム（ヘッダー表示用）
+    if(!r0)return;
+
+    const isRepeat=approvedTitles.has(r0.title)&&!allApproved;
+    const isDup=dupGroupSet.has(gi);
+    const lineItemMode=r0._lineItemMode||'total_only';
+
+    // グループ全体の合計金額
+    const totalAmt=activeIndices.reduce((s,i)=>{
+      const n=parseInt((results[i].amount||'').replace(/[^\d]/g,''))||0;return s+n;
+    },0);
+    const totalStr=totalAmt>0?'¥'+totalAmt.toLocaleString():'';
+
+    // 複数件かどうか
+    const isMulti=indices.length>1;
+
+    const d=document.createElement('div');
+    d.className='card'+(allApproved?' approved':'');
+    d.id='cg'+gi;
+    if(allDeleted)d.style.opacity='0.35';
+
+    // ヘッダー：代表アイテムの取引先・日付・インボイス
+    const hasInvoice=indices.some(i=>results[i].invoice_number);
+    const hasB64=!!srcB64;
+
+    // カード内の各仕訳行HTML
+    const rowsHtml=indices.map(i=>{
+      const r=results[i];
+      const isDel=deleted.has(i);
+      const isApprv=approved.has(i);
+      const conf=r.confidence==='high'?'高信頼':r.confidence==='mid'?'要確認':'低信頼';
+      const bc=r.confidence==='high'?'bh':r.confidence==='mid'?'bm':'bl';
+      if(isMulti){
+        // マルチ行：税率・金額・借方のコンパクト表示
+        return `<div class="group-row${isDel?' group-row-deleted':''}" id="grow${i}">
+  <div class="group-row-left">
+    <span class="group-row-tax">${esc(r.tax)}</span>
+    <span class="group-row-memo">${esc(r.memo)}</span>
   </div>
-  <div class="card-info">
-    <div class="card-name">${esc(r.title)}${isRepeat?'<span class=\"badge-repeat\">📌 前回と同じ</span>':''}</div>
-    <div class="card-meta">${esc(r.date)} · ${esc(r.amount)}</div>
+  <div class="group-row-right">
+    <span class="group-row-amount">${esc(r.amount)}</span>
+    <span class="group-row-debit">${esc(r.debit)}</span>
+    ${isDel?`<button class="btn-row-restore" onclick="restoreCard(${i})">↩</button>`:`<button class="btn-row-del" onclick="deleteCard(${i})">×</button>`}
   </div>
-  ${r.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${bc}">${conf}</span>`}
-  ${dupSet.has(i)&&!approved.has(i)?'<span class="badge-dup">⚠ 重複の可能性</span>':''}
-  ${r.invoice_number?`<span class="badge-invoice-ok">✓ 適格</span>`:`<span class="badge-invoice-ng">✗ 不適格</span>`}
-</div>
+</div>`;
+      } else {
+        // シングル行：従来の詳細表示
+        return `
 <div class="card-body">
   <div class="rows">
     <span class="rk" style="border-top:none;">借方</span><span class="rv debit" id="dbt${i}" style="border-top:none;">${esc(r.debit)}</span>
@@ -2063,18 +2141,88 @@ function renderCards(){
   <div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div>
   <div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div>
   <button class="btn-save" onclick="saveEdit(${i})">保存して承認</button>
+</div>`;
+      }
+    }).join('');
+
+    // マルチ行の場合：合計行・編集エリア・修正ボタン
+    const multiFootExtra=isMulti?`
+<div class="group-total-row">
+  <span>合計</span><span>${totalStr}</span>
 </div>
-<div class="card-foot" id="foot${i}" ${isDeleted?'style="display:none"':''}>
-  <button class="btn-ok${isApproved?' done':''}" id="ok${i}" onclick="approve(${i})">${isApproved?'✓ 承認済み':'✓ 承認'}</button>
-  <button class="btn-ed" onclick="document.getElementById('ep${i}').classList.toggle('show')">修正</button>
-  <button class="btn-del" onclick="deleteCard(${i})">削除</button>
-  ${r._sourceB64?`<button class="btn-reanalyze" id="reanalyze-btn-${i}" onclick="reanalyzeWithMode(${i})">${r._lineItemMode==='individual'?'🔀 合計のみにまとめる':'🔀 内訳を個別仕訳にする'}</button>`:''}
+<div class="group-edit-area" id="gep${gi}" style="display:none;">
+  ${indices.map(i=>{const r=results[i];return `
+  <div class="group-edit-item">
+    <div style="font-size:11px;color:#888;margin-bottom:4px;">${esc(r.tax)} ${esc(r.amount)}</div>
+    <div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div>
+    <div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div>
+    <div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div>
+    <div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div>
+  </div>`}).join('<hr style="margin:8px 0;border:none;border-top:1px solid #eee;">')}
+  <button class="btn-save" onclick="saveGroupEdit(${JSON.stringify(indices)})">保存して承認</button>
+</div>`:'';
+
+    // フッターボタン
+    const footHtml=allDeleted
+      ?`<div class="card-foot"><button class="btn-restore" onclick="restoreGroup(${JSON.stringify(indices)})">↩ グループを元に戻す</button></div>`
+      :`<div class="card-foot" id="foot${indices[0]}">
+  <button class="btn-ok${allApproved?' done':''}" id="ok${indices[0]}" onclick="approveGroup(${JSON.stringify(indices)})">${allApproved?'✓ 承認済み':'✓ 承認'}</button>
+  ${isMulti?`<button class="btn-ed" onclick="document.getElementById('gep${gi}').style.display=document.getElementById('gep${gi}').style.display==='none'?'block':'none'">修正</button>`:`<button class="btn-ed" onclick="document.getElementById('ep${indices[0]}').classList.toggle('show')">修正</button>`}
+  <button class="btn-del" onclick="deleteGroup(${JSON.stringify(indices)})">削除</button>
+  ${hasB64?`<button class="btn-reanalyze" id="reanalyze-btn-${indices[0]}" onclick="reanalyzeWithMode(${indices[0]})">${lineItemMode==='individual'?'🔀 合計のみにまとめる':'🔀 内訳を個別仕訳にする'}</button>`:''}
+</div>`;
+
+    d.innerHTML=`
+<div class="card-head">
+  <div class="card-pdf" onclick="${r0._sourceUrl?`openReceiptModal('${r0._sourceUrl}')`:''}" title="クリックで原本を表示">
+    ${r0._sourceUrl
+      ?`<img src="${r0._sourceUrl}" alt="領収書">`
+      :`<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg>`
+    }
+  </div>
+  <div class="card-info">
+    <div class="card-name">${esc(r0.title)}${isRepeat?'<span class="badge-repeat">📌 前回と同じ</span>':''}</div>
+    <div class="card-meta">${esc(r0.date)}${isMulti&&totalStr?' · '+totalStr:' · '+esc(r0.amount)}</div>
+  </div>
+  ${isMulti?`<span class="badge-multi">${indices.length}件</span>`:(r0.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${results[indices[0]].confidence==='high'?'bh':results[indices[0]].confidence==='mid'?'bm':'bl'}">${results[indices[0]].confidence==='high'?'高信頼':results[indices[0]].confidence==='mid'?'要確認':'低信頼'}</span>`)}
+  ${isDup&&!allApproved?'<span class="badge-dup">⚠ 重複の可能性</span>':''}
+  ${hasInvoice?`<span class="badge-invoice-ok">✓ 適格</span>`:`<span class="badge-invoice-ng">✗ 不適格</span>`}
 </div>
-${isDeleted?`<div class="card-foot" id="restore${i}">
-  <button class="btn-restore" onclick="restoreCard(${i})">↩ 元に戻す</button>
-</div>`:''}`;
+${isMulti?`<div class="group-rows">${rowsHtml}${multiFootExtra}</div>`:rowsHtml}
+${footHtml}`;
     c.appendChild(d);
   });
+}
+
+// グループ承認
+function approveGroup(indices){
+  indices.forEach(i=>{if(!deleted.has(i))approved.add(i);});
+  renderCards();updateBottom();checkAllApproved();
+}
+// グループ削除
+function deleteGroup(indices){
+  indices.forEach(i=>deleted.add(i));
+  renderCards();updateBottom();
+}
+// グループ復元
+function restoreGroup(indices){
+  indices.forEach(i=>deleted.delete(i));
+  renderCards();updateBottom();
+}
+// グループ編集保存
+function saveGroupEdit(indices){
+  indices.forEach(i=>{
+    const ed=document.getElementById('ed'+i);
+    const ec=document.getElementById('ec'+i);
+    const et=document.getElementById('et'+i);
+    const em=document.getElementById('em'+i);
+    if(ed)results[i].debit=ed.value;
+    if(ec)results[i].credit=ec.value;
+    if(et)results[i].tax=et.value;
+    if(em)results[i].memo=em.value;
+    approved.add(i);
+  });
+  renderCards();updateBottom();checkAllApproved();
 }
 
 function showToast(msg, duration=2200){
