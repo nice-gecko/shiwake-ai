@@ -231,6 +231,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .card.soft-deleted{opacity:0.4;}
 .btn-restore{padding:8px 14px;background:#fff;border:1px solid #1D9E75;border-radius:7px;font-size:13px;color:#1D9E75;cursor:pointer;}
 .btn-restore:hover{background:#F0FBF6;}
+.btn-reanalyze{padding:6px 10px;background:#fff;border:1px solid #8B5CF6;border-radius:7px;font-size:11px;color:#8B5CF6;cursor:pointer;margin-left:auto;}
+.btn-reanalyze:hover{background:#F5F3FF;}
+.btn-reanalyze:disabled{opacity:0.5;cursor:not-allowed;}
 /* インボイスバッジ */
 .badge-invoice-ok{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#EAF3DE;color:#3B6D11;padding:2px 8px;border-radius:999px;font-weight:600;}
 .badge-invoice-ng{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#FEF0F0;color:#A32D2D;padding:2px 8px;border-radius:999px;font-weight:600;}
@@ -704,7 +707,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.2</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.3</div>
   </div>
 </div>
 
@@ -778,7 +781,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.2 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.3 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1892,13 +1895,13 @@ async function processOneFile(f){
     setProgress(40,'画像を解析中...',f.name);
     const b64=await toB64(f);
     const srcUrl=URL.createObjectURL(f);
-    const addItems=(items)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl}));
+    const addItems=(items, lineItemMode, srcB64, srcMediaType)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
 
     // まず通常向きで解析（Haikuがorientationを返す）
     const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
     const data=await resp.json();
     if(data.error){showErr(data.error);return;}
-    addItems(data.items);renderCards();updateBottom();
+    addItems(data.items, data.line_item_mode, b64, f.type);renderCards();updateBottom();
 
     // Haikuが判定したorientationに従って追加解析
     const detectedOrientation = data.orientation || 'normal';
@@ -1907,18 +1910,18 @@ async function processOneFile(f){
       const b64r90=await rotateImageB64(b64,f.type,90);
       const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items);renderCards();updateBottom();
+      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, f.type);renderCards();updateBottom();
       setProgress(85,'270°回転で追加解析中...',f.name);
       const b64r270=await rotateImageB64(b64,f.type,270);
       const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data3=await resp3.json();
-      if(!data3.error)addItems(data3.items);renderCards();updateBottom();
+      if(!data3.error)addItems(data3.items, data3.line_item_mode, b64r270, f.type);renderCards();updateBottom();
     } else if(detectedOrientation==='rotate'){
       setProgress(65,'回転補正で再解析中...',f.name);
       const b64r90=await rotateImageB64(b64,f.type,90);
       const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items);renderCards();updateBottom();
+      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, f.type);renderCards();updateBottom();
     }
     // normal の場合は追加解析なし
     setProgress(100,'完了','');
@@ -2065,6 +2068,7 @@ function renderCards(){
   <button class="btn-ok${isApproved?' done':''}" id="ok${i}" onclick="approve(${i})">${isApproved?'✓ 承認済み':'✓ 承認'}</button>
   <button class="btn-ed" onclick="document.getElementById('ep${i}').classList.toggle('show')">修正</button>
   <button class="btn-del" onclick="deleteCard(${i})">削除</button>
+  ${r._sourceB64?`<button class="btn-reanalyze" id="reanalyze-btn-${i}" onclick="reanalyzeWithMode(${i})">${r._lineItemMode==='individual'?'🔀 合計のみにまとめる':'🔀 内訳を個別仕訳にする'}</button>`:''}
 </div>
 ${isDeleted?`<div class="card-foot" id="restore${i}">
   <button class="btn-restore" onclick="restoreCard(${i})">↩ 元に戻す</button>
@@ -2149,6 +2153,70 @@ async function approve(i){
     }
   });
   updateBottom();
+}
+// 内訳モード切り替えボタンから呼ばれる関数
+// 同じカードインデックス群（同じ_sourceB64）を再解析してモード切り替え
+async function reanalyzeWithMode(cardIndex) {
+  const item = results[cardIndex];
+  if (!item || !item._sourceB64) {
+    showToast('再解析できません（元画像データなし）');
+    return;
+  }
+  const newMode = item._lineItemMode === 'individual' ? 'total_only' : 'individual';
+  const modeLabel = newMode === 'individual' ? '個別仕訳' : '合計のみ';
+
+  // 同じ元画像（_sourceB64が同じ）のカードをすべて削除対象にする
+  const srcB64 = item._sourceB64;
+  const relatedIndices = results.map((r,i)=>r._sourceB64===srcB64 ? i : -1).filter(i=>i>=0);
+
+  // 確認
+  const btn = document.getElementById(`reanalyze-btn-${cardIndex}`);
+  if (btn) { btn.disabled = true; btn.textContent = '再解析中…'; }
+
+  try {
+    const resp = await fetch('/api/analyze-chunk', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        imageDataList: [{data: srcB64, mediaType: item._sourceMediaType}],
+        fileNames: ['再解析'],
+        chunkIndex: 0, totalChunks: 1,
+        line_item_mode: newMode
+      })
+    });
+    const data = await resp.json();
+    if (data.error) { showToast('再解析失敗: ' + data.error); return; }
+
+    // 関連カードをすべて削除して新しい仕訳で置き換え
+    const srcUrl = item._sourceUrl;
+    const newItems = data.items.map(it => ({
+      ...it,
+      _sourceUrl: srcUrl,
+      _lineItemMode: newMode,
+      _sourceB64: srcB64,
+      _sourceMediaType: item._sourceMediaType
+    }));
+
+    // 関連インデックスをdeletedに追加（降順で処理してインデックスズレを防ぐ）
+    relatedIndices.sort((a,b)=>b-a).forEach(i=>deleted.add(i));
+    // 新しいアイテムをresultsに挿入（最初の関連インデックスの位置へ）
+    const insertAt = Math.min(...relatedIndices);
+    results.splice(insertAt, 0, ...newItems);
+    // deletedのインデックスをinsertAt以降はoffsetする
+    const offset = newItems.length;
+    const newDeleted = new Set();
+    deleted.forEach(i => newDeleted.add(i < insertAt ? i : i + offset));
+    deleted.clear(); newDeleted.forEach(i=>deleted.add(i));
+    const newApproved = new Set();
+    approved.forEach(i => newApproved.add(i < insertAt ? i : i + offset));
+    approved.clear(); newApproved.forEach(i=>approved.add(i));
+
+    renderCards(); updateBottom();
+    showToast(`🔀 ${modeLabel}に切り替えました（${newItems.length}件）`);
+  } catch(e) {
+    showToast('再解析エラー: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = newMode === 'individual' ? '🔀 内訳を個別仕訳にする' : '🔀 合計のみにまとめる'; }
+  }
 }
 function deleteCard(i){
   deleted.add(i);approved.delete(i);

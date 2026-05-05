@@ -244,7 +244,7 @@ async function detectReceiptFormat(apiKey, imageData) {
     imageData.mediaType === 'application/pdf'
       ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageData.data } }
       : { type: 'image', source: { type: 'base64', media_type: imageData.mediaType, data: imageData.data } },
-    { type: 'text', text: `この証憑画像について2つを判定してください。説明不要。JSONのみ返答。
+    { type: 'text', text: `この証憑画像について3つを判定してください。説明不要。JSONのみ返答。
 
 【1】フォーマット：以下から最も近いキーを1つ
 ${formatList}
@@ -254,7 +254,12 @@ ${formatList}
 ・rotate: 画像全体が90°または270°回転していて横倒しになっている
 ・mixed: 縦向きと横向きの文字が混在している
 
-返答形式（このJSONのみ）：{"format":"register_receipt","orientation":"normal"}` }
+【3】内訳仕訳モード（line_item_mode）：
+・individual: 内訳行を個別仕訳にすべき業種（コンビニ・書店・文具店・ドラッグストアなど、商品カテゴリが混在しやすい小売店）
+・total_only: 合計行のみ1件仕訳にすべき業種（飲食店・タクシー・ガソリンスタンド・ホテル・ECサイト・公共料金・医療など）
+判定基準：店名・業種・レシートの形式から判断する。コンビニ（セブン-イレブン・ファミマ・ローソン等）、書店（紀伊國屋・丸善・TSUTAYA等）、文具店（ロフト・東急ハンズ等）、ドラッグストア（マツキヨ・ウエルシア・ツルハ等）は"individual"。それ以外は"total_only"。
+
+返答形式（このJSONのみ）：{"format":"register_receipt","orientation":"normal","line_item_mode":"total_only"}` }
   ];
 
   try {
@@ -269,27 +274,31 @@ ${formatList}
       const parsed = JSON.parse(raw);
       const format = RECEIPT_FORMATS[parsed.format] ? parsed.format : 'register_receipt';
       const orientation = ['normal','rotate','mixed'].includes(parsed.orientation) ? parsed.orientation : 'normal';
-      return { format, orientation };
+      const line_item_mode = parsed.line_item_mode === 'individual' ? 'individual' : 'total_only';
+      return { format, orientation, line_item_mode };
     } catch(e) {
       // JSON解析失敗時はフォーマットキーのみ抽出してnormalを返す
       const key = raw.toLowerCase().replace(/[^a-z_]/g, '');
-      return { format: RECEIPT_FORMATS[key] ? key : 'register_receipt', orientation: 'normal' };
+      return { format: RECEIPT_FORMATS[key] ? key : 'register_receipt', orientation: 'normal', line_item_mode: 'total_only' };
     }
   } catch(e) {
-    return { format: 'register_receipt', orientation: 'normal' };
+    return { format: 'register_receipt', orientation: 'normal', line_item_mode: 'total_only' };
   }
 }
 
 // ===== タイプ別プロンプト生成 =====
-function buildSystemPrompt(formatKey) {
+function buildSystemPrompt(formatKey, line_item_mode = 'total_only') {
   const fmt = RECEIPT_FORMATS[formatKey] || RECEIPT_FORMATS['register_receipt'];
+  const lineItemInstruction = line_item_mode === 'individual'
+    ? `\n\n【内訳仕訳モード：個別仕訳】\nこの証憑は「個別仕訳モード」で処理してください。\n- 商品・カテゴリごとの内訳行を1件ずつ個別に仕訳してください\n- 「小計」「合計」「総合計」などの集計行は出力しないでください\n- 内訳行が存在しない場合のみ合計行を1件出力してください`
+    : `\n\n【内訳仕訳モード：合計のみ】\nこの証憑は「合計のみモード」で処理してください。\n- 「合計」「金額」「領収金額」「乗車料金」「金」「￥」などと明示された総合計行のみを1件仕訳してください\n- 内訳行・品目明細・小計行はすべて除外してください\n- 1枚の領収書から出力する仕訳は原則1件です`;
   return SYSTEM + `
 
 【証憑タイプ】
 この証憑は「${fmt.name}」と判定されました。
 特徴：${fmt.features}
 読み取りポイント：${fmt.readingPoints}
-上記の特徴を踏まえて、より正確に読み取ってください。`;
+上記の特徴を踏まえて、より正確に読み取ってください。` + lineItemInstruction;
 }
 
 async function callClaudeWithFormat(apiKey, content, systemPrompt) {
@@ -642,27 +651,31 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { imageDataList, fileNames, chunkIndex, totalChunks, docType } = JSON.parse(body);
+        const { imageDataList, fileNames, chunkIndex, totalChunks, docType, line_item_mode: requestedMode } = JSON.parse(body);
         const apiKey = process.env.ANTHROPIC_API_KEY || '';
         if (!apiKey) throw new Error('APIキーが設定されていません');
 
         // ===== ステップ1: フォーマット判定（Haiku・高速） =====
         let formatKey = docType || null;
         let orientation = 'normal';
+        let line_item_mode = requestedMode || null; // フロントから指定があれば優先
         if (!formatKey && imageDataList.length > 0) {
           const detected = await detectReceiptFormat(apiKey, imageDataList[0]);
           formatKey = detected.format;
           orientation = detected.orientation;
-          console.log(`  フォーマット判定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name}）向き: ${orientation}`);
+          if (!line_item_mode) line_item_mode = detected.line_item_mode;
+          console.log(`  フォーマット判定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name}）向き: ${orientation} モード: ${line_item_mode}`);
         } else if (formatKey) {
           // docType指定時もHaikuで向きだけ判定
           if (imageDataList.length > 0) {
             const detected = await detectReceiptFormat(apiKey, imageDataList[0]);
             orientation = detected.orientation;
+            if (!line_item_mode) line_item_mode = detected.line_item_mode;
           }
-          console.log(`  フォーマット指定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name || '不明'}）向き: ${orientation}`);
+          console.log(`  フォーマット指定: ${formatKey}（${RECEIPT_FORMATS[formatKey]?.name || '不明'}）向き: ${orientation} モード: ${line_item_mode}`);
         }
-        const systemPrompt = buildSystemPrompt(formatKey || 'register_receipt');
+        if (!line_item_mode) line_item_mode = 'total_only';
+        const systemPrompt = buildSystemPrompt(formatKey || 'register_receipt', line_item_mode);
 
         // ===== ステップ2: タイプ別プロンプトで読み取り（Sonnet・高精度） =====
         const content = [];
@@ -716,9 +729,9 @@ const server = http.createServer(async (req, res) => {
             return item;
           });
 
-        console.log(`チャンク ${chunkIndex+1}/${totalChunks}: ${rawItems.length}件取得 → ${items.length}件（フォーマット:${formatKey}・マスタ${Object.keys(master).length}件適用）`);
+        console.log(`チャンク ${chunkIndex+1}/${totalChunks}: ${rawItems.length}件取得 → ${items.length}件（フォーマット:${formatKey}・モード:${line_item_mode}・マスタ${Object.keys(master).length}件適用）`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ items, orientation }));
+        res.end(JSON.stringify({ items, orientation, line_item_mode }));
       } catch(e) {
         console.error('Error:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
