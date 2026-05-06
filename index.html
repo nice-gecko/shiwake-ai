@@ -781,7 +781,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.7</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.8</div>
   </div>
 </div>
 
@@ -860,7 +860,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.7 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.8 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1020,11 +1020,13 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <div class="err" id="errBox" style="display:none;">
       <div class="err-msg" id="errMsg"></div>
-      <button class="btn-cancel-proc" id="cancelBtn" onclick="cancelProcess()" style="margin-top:8px;display:block;">処理をキャンセル</button>
     </div>
     <button class="run-btn" id="runBtn" disabled onclick="onRunClick()" style="display:none;">仕訳を自動生成する</button>
     <div class="prog" id="prog">
-      <div class="prog-title"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
+      <div class="prog-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="prog-title" style="margin-bottom:0;"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
+        <button class="btn-cancel-proc" id="cancelBtn" onclick="cancelProcess()" style="display:none;">処理をキャンセル</button>
+      </div>
       <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"><div class="prog-bar-pulse" id="progPulse"></div></div></div>
       <div class="prog-status" id="progStatus"></div>
     </div>
@@ -1081,9 +1083,8 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <div class="panel" id="panel-master">
     <div class="master-toolbar">
       <h2>仕訳ルール学習</h2>
-      <div style="display:flex;gap:8px;" id="masterToolbarBtns">
-        <button class="btn-add-master" id="btnAddMaster" onclick="openModal()">＋ 追加</button>
-        <button class="btn-add-master" id="btnAddCatRule" onclick="openCatRuleModal()" style="display:none;">＋ ルール追加</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-add-master" id="btnAddAny" onclick="onAddRuleClick()">＋ 追加</button>
         <button class="btn-clear-master" onclick="clearAllMaster()">🗑 全件クリア</button>
       </div>
     </div>
@@ -1753,13 +1754,16 @@ function addMonthlyCount(n){
 
 
 // ===== マスタ2タブ =====
+let _masterTab='vendor';
 function switchMasterTab(tab){
+  _masterTab=tab;
   document.getElementById('mtab-vendor').classList.toggle('active',tab==='vendor');
   document.getElementById('mtab-category').classList.toggle('active',tab==='category');
   document.getElementById('master-pane-vendor').style.display=tab==='vendor'?'':'none';
   document.getElementById('master-pane-category').style.display=tab==='category'?'':'none';
-  document.getElementById('btnAddMaster').style.display=tab==='vendor'?'':'none';
-  document.getElementById('btnAddCatRule').style.display=tab==='category'?'':'none';
+}
+function onAddRuleClick(){
+  if(_masterTab==='category'){openCatRuleModal();}else{openModal();}
 }
 
 // ===== カテゴリルール =====
@@ -2095,6 +2099,8 @@ function cancelProcess(){
   if(abortController){abortController.abort();}
   processQueue=[];isProcessing=false;
   hideErr();
+  document.getElementById('cancelBtn').style.display='none';
+  stopProgLabelAnim();
   document.getElementById('prog').className='prog';
   const spinner=document.getElementById('vStepSpinner');
   const hint=document.getElementById('vStepHint');
@@ -2110,6 +2116,7 @@ async function processOneFile(f){
   if(!abortController)abortController=new AbortController();
   const signal=abortController.signal;
   document.getElementById('prog').className='prog show';
+  document.getElementById('cancelBtn').style.display='';
   document.getElementById('bottomPanel').className='bottom-panel show';
   document.getElementById('btnContinueScan').className='btn-continue-scan show';
   updateStepBar(2);
@@ -2142,6 +2149,7 @@ async function processOneFile(f){
         return;
       }
     }
+    document.getElementById('cancelBtn').style.display='none';
     setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
     setTimeout(()=>{document.getElementById('prog').className='prog';document.getElementById('progSpinner').style.animation='none';document.getElementById('progPulse').style.display='none';},2500);
   } else {
@@ -2164,7 +2172,7 @@ async function processOneFile(f){
       const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
       const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
+      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
       setProgress(85,'270°回転で追加解析中...',f.name);
       const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
       const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
@@ -2180,6 +2188,7 @@ async function processOneFile(f){
       if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
     }
     // normal の場合は追加解析なし
+    document.getElementById('cancelBtn').style.display='none';
     setProgress(100,'完了','');
     setTimeout(()=>{document.getElementById('prog').className='prog';},1500);
   }
@@ -2228,6 +2237,7 @@ async function startProcess(resume){
         showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}`);return;
       }
     }
+    document.getElementById('cancelBtn').style.display='none';
     setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
     setTimeout(()=>{document.getElementById('prog').className='prog';},2500);
     doneDrain();
