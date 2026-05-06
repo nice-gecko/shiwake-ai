@@ -269,6 +269,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .group-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;}
 .group-row:last-child{border-bottom:none;}
 .group-row-deleted{opacity:0.4;}
+.group-row-title-line{display:flex;align-items:center;gap:5px;margin-bottom:1px;}
+.group-row-title{font-size:11px;font-weight:600;color:#333;}
+.group-row-inv-ok{font-size:9px;background:#E1F5EE;color:#0F6E56;padding:1px 5px;border-radius:4px;font-weight:600;flex-shrink:0;}
+.group-row-inv-ng{font-size:9px;background:#FEF0F0;color:#A32D2D;padding:1px 5px;border-radius:4px;font-weight:600;flex-shrink:0;}
 .group-row-left{display:flex;flex-direction:column;gap:2px;flex:1;}
 .group-row-tax{font-size:11px;color:#888;}
 .group-row-memo{font-size:13px;color:#333;}
@@ -756,7 +760,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.9</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.0</div>
   </div>
 </div>
 
@@ -830,7 +834,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.9 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.0 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1860,6 +1864,37 @@ function renderPrev(){
 }
 function toB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});}
 
+// 5MB超の画像を自動圧縮してb64を返す
+async function toB64WithCompress(f){
+  const MAX=4.5*1024*1024;
+  const raw=await toB64(f);
+  if(raw.length*0.75<=MAX)return {b64:raw,mediaType:f.type};
+  // 5MB超 → Canvas圧縮
+  const objectUrl=URL.createObjectURL(f);
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(objectUrl);
+      let w=img.width,h=img.height;
+      const maxPx=2048;
+      if(w>maxPx||h>maxPx){const ratio=Math.min(maxPx/w,maxPx/h);w=Math.round(w*ratio);h=Math.round(h*ratio);}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      let quality=0.85;
+      const tryCompress=()=>{
+        const dataUrl=canvas.toDataURL('image/jpeg',quality);
+        const b64=dataUrl.split(',')[1];
+        if(b64.length*0.75<=MAX||quality<0.35){res({b64,mediaType:'image/jpeg'});}
+        else{quality-=0.1;tryCompress();}
+      };
+      tryCompress();
+    };
+    img.onerror=()=>{URL.revokeObjectURL(objectUrl);rej(new Error('画像読込失敗'));};
+    img.src=objectUrl;
+  });
+}
+
 // 画像を90°回転してBase64で返す
 function rotateImageB64(b64, mediaType, degrees) {
   return new Promise(res => {
@@ -1942,12 +1977,12 @@ async function processOneFile(f){
     setTimeout(()=>{document.getElementById('prog').className='prog';document.getElementById('progSpinner').style.animation='none';document.getElementById('progPulse').style.display='none';},2500);
   } else {
     setProgress(40,'画像を解析中...',f.name);
-    const b64=await toB64(f);
+    const {b64,mediaType:imgMediaType}=await toB64WithCompress(f);
     const srcUrl=URL.createObjectURL(f);
     const addItems=(items, lineItemMode, srcB64, srcMediaType)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
 
     // まず通常向きで解析（Haikuがorientationを返す）
-    const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:f.type}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+    const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
     const data=await resp.json();
     if(data.error){showErr(data.error);return;}
     addItems(data.items, data.line_item_mode, b64, f.type);appendNewCards();
@@ -2104,7 +2139,14 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
     const isDel=deleted.has(i);
     if(isMulti){
       return `<div class="group-row${isDel?' group-row-deleted':''}" id="grow${i}">
-  <div class="group-row-left"><span class="group-row-tax">${esc(r.tax)}</span><span class="group-row-memo">${esc(r.memo)}</span></div>
+  <div class="group-row-left">
+    <div class="group-row-title-line">
+      <span class="group-row-title">${esc(r.title||'')}</span>
+      ${r.invoice_number?`<span class="group-row-inv-ok">✓ 適格</span>`:`<span class="group-row-inv-ng">✗ 不適格</span>`}
+    </div>
+    <span class="group-row-tax">${esc(r.tax)} ${r.invoice_number?`<span style="font-size:10px;color:#aaa;">${esc(r.invoice_number)}</span>`:''}</span>
+    <span class="group-row-memo">${esc(r.memo)}</span>
+  </div>
   <div class="group-row-right"><span class="group-row-amount">${esc(r.amount)}</span><span class="group-row-debit">${esc(r.debit)}</span>
   ${isDel?`<button class="btn-row-restore" onclick="restoreCard(${i})">↩</button>`:`<button class="btn-row-del" onclick="deleteCard(${i})">×</button>`}
   </div></div>`;
@@ -2174,7 +2216,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
     ${r0._sourceUrl?`<img src="${r0._sourceUrl}" alt="領収書">`:`<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><rect x="3" y="1" width="14" height="18" rx="2" stroke="#888" stroke-width="1.2"/><line x1="6" y1="6" x2="14" y2="6" stroke="#888" stroke-width="1"/></svg>`}
   </div>
   <div class="card-info">
-    <div class="card-name">${esc(r0.title)}${isRepeat?'<span class="badge-repeat">📌 前回と同じ</span>':''}</div>
+    <div class="card-name">${isMulti&&new Set(indices.map(i=>results[i].title).filter(Boolean)).size>1?'混在領収書':esc(r0.title)}${isRepeat?'<span class="badge-repeat">📌 前回と同じ</span>':''}</div>
     <div class="card-meta">${esc(r0.date)}</div>
     <div class="card-amount">${isMulti&&totalStr?totalStr:esc(r0.amount)}</div>
   </div>
