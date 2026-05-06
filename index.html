@@ -211,6 +211,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .receipt-float-body{flex:1;overflow:auto;padding:8px;display:flex;align-items:center;justify-content:center;}
 .receipt-float-body img{max-width:100%;max-height:70vh;object-fit:contain;border-radius:6px;}
 .receipt-float-resize{width:14px;height:14px;position:absolute;bottom:4px;right:4px;cursor:se-resize;opacity:0.4;}
+.guide-float{display:none;position:fixed;z-index:9998;background:var(--color-background-primary, #fff);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);border:1px solid #e0e0e0;flex-direction:column;min-width:300px;min-height:240px;overflow:hidden;}
+.guide-float.open{display:flex;}
+.guide-float-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f5f5f5;border-radius:12px 12px 0 0;cursor:move;border-bottom:1px solid #eee;user-select:none;flex-shrink:0;}
+.guide-float-title{font-size:12px;color:#555;font-weight:500;}
+.guide-float-close{padding:3px 8px;background:#fff;border:1px solid #ddd;border-radius:5px;font-size:12px;cursor:pointer;color:#555;}
+.guide-float-close:hover{background:#f0f0f0;}
+.guide-float-body{flex:1;overflow-y:auto;padding:12px 14px;}
+.guide-float-resize{width:14px;height:14px;position:absolute;bottom:4px;right:4px;cursor:se-resize;opacity:0.4;}
+.gf-flow{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.gf-step{background:#f5f4f0;border-radius:6px;padding:5px 10px;font-size:11px;color:#555;white-space:nowrap;}
+.gf-step.hi{background:#E6F1FB;color:#0C447C;font-weight:500;}
+.gf-arrow{color:#aaa;font-size:12px;}
+.gf-tabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;}
+.gf-tab{padding:5px 10px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid #ddd;background:#fff;color:#888;}
+.gf-tab.active{background:#185FA5;border-color:#185FA5;color:#fff;}
+.gf-panel{display:none;}.gf-panel.active{display:block;}
+.gf-steps{display:flex;flex-direction:column;gap:10px;}
+.gf-srow{display:flex;gap:10px;align-items:flex-start;}
+.gf-snum{width:20px;height:20px;border-radius:50%;background:#185FA5;color:#fff;font-size:10px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.gf-slabel{font-size:12px;font-weight:500;color:#1a1a1a;margin-bottom:2px;}
+.gf-spath{font-size:11px;color:#666;line-height:1.6;}
+.gf-spath code{background:#f0efe9;padding:1px 4px;border-radius:3px;font-size:10px;color:#333;}
+.gf-snote{margin-top:4px;font-size:10px;color:#854F0B;background:#FAEEDA;padding:3px 7px;border-radius:5px;line-height:1.5;}
+.gf-div{height:1px;background:#f0f0f0;margin:2px 0;}
+.guide-float-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;background:#E6F1FB;color:#0C447C;border:none;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;margin-top:8px;}
+.guide-float-btn:hover{background:#B5D4F4;}
 .card-info{flex:1;min-width:0;}
 .card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-meta{font-size:11px;color:#888;margin-top:2px;}
@@ -888,7 +914,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.6</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.7</div>
   </div>
 </div>
 
@@ -971,7 +997,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.6 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.7 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1203,13 +1229,29 @@ window.incrementSupabaseCount = incrementMonthlyCount;
             <button class="btn-csv-approved" onclick="exportCSV('approved')">承認済みのみ（<span id="csvOkCount">0</span>件）</button>
             <button class="btn-csv-all" onclick="exportCSV('all')">全件出力（<span id="csvAllCount">0</span>件）</button>
           </div>
+          <div id="creditFilterWrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:11px;color:#888;white-space:nowrap;">貸方科目：</span>
+            <div class="csv-format-wrap" style="flex:1;">
+              <select id="creditFilter" style="min-width:120px;">
+                <option value="all">すべて（複数ファイル）</option>
+                <option value="現金">現金のみ</option>
+                <option value="未払金">未払金のみ</option>
+                <option value="預金">預金のみ</option>
+              </select>
+              <span class="csv-format-arrow">∨</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="guide-step">
         <div class="guide-num">3</div>
         <div>
-          <div class="guide-step-title">弥生会計にインポートする</div>
+          <div class="guide-step-title">会計ソフトにインポートする</div>
           <div class="guide-step-desc" id="g3desc">弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でテキストファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。</div>
+          <button class="guide-float-btn" onclick="openGuideFloat()" style="margin-top:8px;">
+            <svg width="13" height="13" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="10" r="0.7" fill="currentColor"/></svg>
+            ソフト別インポート手順を見る
+          </button>
         </div>
       </div>
     </div>
@@ -3208,14 +3250,38 @@ function fmtAmtInput(el){
   el.setSelectionRange(el.value.length,el.value.length);
 }
 // フォーマット切替時にステップ3説明を変更
+function openGuideFloat(){
+  document.getElementById('guideFloat').classList.add('open');
+}
+function closeGuideFloat(){
+  document.getElementById('guideFloat').classList.remove('open');
+}
+function switchGfTab(key, el){
+  ['yayoi','freee','mf','bugyo'].forEach(k=>{
+    const p=document.getElementById('gfp-'+k);
+    if(p)p.className='gf-panel'+(k===key?' active':'');
+  });
+  document.querySelectorAll('.gf-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
 function onCsvFormatChange(){
   const fmt=document.getElementById('csvFormat').value;
   const el=document.getElementById('g3desc');
+  const creditWrap=document.getElementById('creditFilterWrap');
+  const isYayoi=fmt==='yayoi_txt'||fmt==='yayoi';
+  if(creditWrap)creditWrap.style.display=isYayoi?'flex':'none';
   if(!el)return;
-  if(fmt==='yayoi_txt'){
-    el.innerHTML='弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でテキストファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。';
+  if(fmt==='yayoi_txt'||fmt==='yayoi'){
+    el.innerHTML='弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。';
+  } else if(fmt==='freee'){
+    el.innerHTML='freee →「取引入力」→「振替伝票」→「インポート」→「他社会計ソフトインポート」でCSVをアップロードします。';
+  } else if(fmt==='mf'){
+    el.innerHTML='マネーフォワード →「会計帳簿」→「仕訳帳」→「インポート」→「仕訳帳」でCSVをアップロードします。';
+  } else if(fmt==='bugyo'){
+    el.innerHTML='勘定奉行 →「随時処理」→「汎用データ受入」→「参照」でCSVファイルを指定します。';
   } else {
-    el.innerHTML='弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でCSVを読み込みます。';
+    el.innerHTML='会計ソフトのインポート機能でCSVを読み込みます。';
   }
 }
 
@@ -3245,12 +3311,27 @@ function toYayoiLine(r){
 // 弥生テキスト形式：貸方科目別にファイルを分けてダウンロード
 function exportYayoiTxt(mode){
   const rows=getRows(mode);
-  const CREDIT_GROUPS={
+  const creditFilter=(document.getElementById('creditFilter')||{}).value||'all';
+  const ALL_GROUPS={
     '現金':    rows.filter(r=>(r.credit||'').includes('現金')),
     '未払金':  rows.filter(r=>(r.credit||'').includes('未払金')),
     '預金':    rows.filter(r=>(r.credit||'').match(/預金|銀行/)),
     'その他':  rows.filter(r=>!(r.credit||'').includes('現金')&&!(r.credit||'').includes('未払金')&&!(r.credit||'').match(/預金|銀行/))
   };
+  let CREDIT_GROUPS;
+  if(creditFilter==='all'){
+    CREDIT_GROUPS=ALL_GROUPS;
+  } else {
+    // 単一科目フィルタ
+    const filtered=rows.filter(r=>{
+      const c=r.credit||'';
+      if(creditFilter==='現金')return c.includes('現金');
+      if(creditFilter==='未払金')return c.includes('未払金');
+      if(creditFilter==='預金')return c.match(/預金|銀行/);
+      return true;
+    });
+    CREDIT_GROUPS={[creditFilter]:filtered};
+  }
   let downloadCount=0;
   Object.entries(CREDIT_GROUPS).forEach(([label,group])=>{
     if(group.length===0)return;
@@ -3637,6 +3718,40 @@ window.addEventListener('load',function(){
   });
   document.addEventListener('mouseup',function(){resizing=false;});
 });
+window.addEventListener('load',function(){
+  const el=document.getElementById('guideFloat');
+  const bar=document.getElementById('guideFloatBar');
+  const resizer=document.getElementById('guideFloatResize');
+  if(!el||!bar||!resizer)return;
+  let dx=0,dy=0,sx=0,sy=0,dragging=false;
+  bar.addEventListener('mousedown',function(e){
+    dragging=true;sx=e.clientX;sy=e.clientY;
+    const r=el.getBoundingClientRect();
+    dx=r.left;dy=r.top;
+    el.style.transform='none';
+    el.style.left=Math.round(dx)+'px';
+    el.style.top=Math.round(dy)+'px';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!dragging)return;
+    el.style.left=(dx+e.clientX-sx)+'px';
+    el.style.top=(dy+e.clientY-sy)+'px';
+  });
+  document.addEventListener('mouseup',function(){dragging=false;});
+  let resizing=false,rsx=0,rsy=0,rw=0,rh=0;
+  resizer.addEventListener('mousedown',function(e){
+    resizing=true;rsx=e.clientX;rsy=e.clientY;
+    const r=el.getBoundingClientRect();rw=r.width;rh=r.height;
+    e.preventDefault();e.stopPropagation();
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!resizing)return;
+    el.style.width=Math.max(280,rw+e.clientX-rsx)+'px';
+    el.style.height=Math.max(200,rh+e.clientY-rsy)+'px';
+  });
+  document.addEventListener('mouseup',function(){resizing=false;});
+});
 </script>
 </div><!-- /main-area -->
 </div><!-- /layout -->
@@ -3649,6 +3764,69 @@ window.addEventListener('load',function(){
     <div class="complete-sub" id="completeSubText"></div>
     <button class="complete-btn" onclick="document.getElementById('completeModal').className='complete-modal'">閉じる</button>
   </div>
+</div>
+<div class="guide-float" id="guideFloat" style="top:80px;left:16px;width:340px;height:480px;">
+  <div class="guide-float-bar" id="guideFloatBar">
+    <span class="guide-float-title">ソフト別インポート手順</span>
+    <button class="guide-float-close" onclick="closeGuideFloat()">✕</button>
+  </div>
+  <div class="guide-float-body">
+    <div class="gf-flow">
+      <div class="gf-step">① 撮影</div><div class="gf-arrow">→</div>
+      <div class="gf-step">② 承認</div><div class="gf-arrow">→</div>
+      <div class="gf-step hi">③ 出力</div><div class="gf-arrow">→</div>
+      <div class="gf-step hi">④ 取込</div>
+    </div>
+    <div class="gf-tabs">
+      <div class="gf-tab active" onclick="switchGfTab('yayoi',this)">弥生</div>
+      <div class="gf-tab" onclick="switchGfTab('freee',this)">freee</div>
+      <div class="gf-tab" onclick="switchGfTab('mf',this)">MF</div>
+      <div class="gf-tab" onclick="switchGfTab('bugyo',this)">勘定奉行</div>
+    </div>
+    <div class="gf-panel active" id="gfp-yayoi">
+      <div class="gf-steps">
+        <div class="gf-srow"><div class="gf-snum">1</div><div><div class="gf-slabel">フォーマット選択</div><div class="gf-spath"><code>弥生テキスト形式（推奨）</code> を選択</div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">2</div><div><div class="gf-slabel">ファイルをダウンロード</div><div class="gf-spath">「承認済みのみ」をクリック<br>貸方科目ごとにファイルが分割されます<br>例：<code>弥生_現金_approved.txt</code></div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">3</div><div><div class="gf-slabel">弥生でインポート</div><div class="gf-spath"><code>仕訳日記帳</code> → <code>ファイル</code> → <code>インポート</code> → ファイルを選択</div><div class="gf-snote">ファイルの種類を「すべてのファイル(*.*)」に変更してから選択</div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">4</div><div><div class="gf-slabel">科目を確認</div><div class="gf-spath">科目名不一致時は「勘定科目マッチングリスト」が表示されます。<code>変換</code> で既存科目に割り当て</div></div></div>
+      </div>
+    </div>
+    <div class="gf-panel" id="gfp-freee">
+      <div class="gf-steps">
+        <div class="gf-srow"><div class="gf-snum">1</div><div><div class="gf-slabel">フォーマット選択</div><div class="gf-spath"><code>freee</code> を選択してCSVをダウンロード<br>1ファイルで全仕訳を一括取込できます</div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">2</div><div><div class="gf-slabel">振替伝票を開く</div><div class="gf-spath"><code>取引入力</code> → <code>振替伝票</code> → 右上の <code>インポート</code></div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">3</div><div><div class="gf-slabel">インポート方法を選択</div><div class="gf-spath"><code>他社会計ソフトインポート</code> → CSVをアップロード</div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">4</div><div><div class="gf-slabel">確認して登録</div><div class="gf-spath">各列の設定を確認 → <code>登録する</code></div><div class="gf-snote">科目が未登録の場合は「新規登録」または「既存科目に変換」を選択</div></div></div>
+      </div>
+    </div>
+    <div class="gf-panel" id="gfp-mf">
+      <div class="gf-steps">
+        <div class="gf-srow"><div class="gf-snum">1</div><div><div class="gf-slabel">フォーマット選択</div><div class="gf-spath"><code>マネーフォワード</code> を選択してCSVをダウンロード<br>1ファイルで全仕訳を一括取込できます</div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">2</div><div><div class="gf-slabel">仕訳帳を開く</div><div class="gf-spath"><code>会計帳簿</code> → <code>仕訳帳</code> → <code>インポート</code> → <code>仕訳帳</code></div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">3</div><div><div class="gf-slabel">ファイルを選択して取込</div><div class="gf-spath"><code>ファイルを選択</code> → CSVを指定 → <code>インポート</code></div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">4</div><div><div class="gf-slabel">確認して保存</div><div class="gf-spath">プレビューを確認 → <code>保存</code> で完了</div><div class="gf-snote">会計年度外の日付はエラーになります。対象年度に切り替えてから取込を</div></div></div>
+      </div>
+    </div>
+    <div class="gf-panel" id="gfp-bugyo">
+      <div class="gf-steps">
+        <div class="gf-srow"><div class="gf-snum">1</div><div><div class="gf-slabel">フォーマット選択</div><div class="gf-spath"><code>勘定奉行</code> を選択してCSVをダウンロード<br>1ファイルで全仕訳を一括取込できます</div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">2</div><div><div class="gf-slabel">汎用データ受入を開く</div><div class="gf-spath"><code>随時処理</code> → <code>汎用データ受入</code> → <code>参照</code> でファイルを指定</div></div></div>
+        <div class="gf-div"></div>
+        <div class="gf-srow"><div class="gf-snum">3</div><div><div class="gf-slabel">取込実行</div><div class="gf-spath">内容を確認して取込を実行<br>科目名不一致時はマッチング画面で対応</div></div></div>
+      </div>
+    </div>
+  </div>
+  <svg class="guide-float-resize" id="guideFloatResize" viewBox="0 0 14 14"><path d="M12 12L4 12M12 12L12 4M12 12L6 6" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
 </div>
 <div class="receipt-float" id="receiptFloat" style="top:80px;left:50%;transform:translateX(-50%);width:420px;">
   <div class="receipt-float-bar" id="receiptFloatBar">
