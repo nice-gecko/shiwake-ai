@@ -181,7 +181,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .prog-spinner{width:14px;height:14px;border:2px solid #d0e4f5;border-top-color:#185FA5;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .prog-bar-wrap{background:#eee;border-radius:999px;height:6px;margin-bottom:6px;overflow:hidden;position:relative;}
-.prog-bar{background:#185FA5;height:6px;border-radius:999px;transition:width 0.4s ease;width:0%;position:relative;overflow:hidden;}
+.prog-bar{background:#185FA5;height:6px;border-radius:999px;transition:width 0.6s ease;width:0%;position:relative;overflow:hidden;}
+.prog-bar::after{content:'';position:absolute;top:0;left:-60%;width:50%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);animation:bar-sweep 1.4s ease-in-out infinite;}
+@keyframes bar-sweep{0%{left:-60%}100%{left:110%}}
 .prog-bar::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);animation:shimmer 1.2s ease-in-out infinite;}
 @keyframes shimmer{0%{left:-60%;}100%{left:160%;}}
 .prog-bar-pulse{position:absolute;top:0;right:0;width:6px;height:6px;border-radius:50%;background:#185FA5;box-shadow:0 0 6px 2px rgba(24,95,165,0.5);animation:pulse 1.2s ease-in-out infinite;}
@@ -349,6 +351,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .master-table td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
 .master-table tr:last-child td{border-bottom:none;}
 .master-table tr:hover td{background:#fafafa;}
+.master-tabs{display:flex;border-bottom:1px solid #eee;margin-bottom:12px;}
+.master-tab{padding:8px 16px;font-size:13px;color:#888;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-weight:500;}
+.master-tab.active{color:#185FA5;border-bottom-color:#185FA5;}
+.cat-rule-desc{font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;padding:8px 12px;background:#F5F4F0;border-radius:7px;}
 .btn-edit-rule,.btn-del-rule{padding:4px 10px;border:1px solid #ddd;border-radius:5px;font-size:12px;background:#fff;cursor:pointer;color:#555;}
 .btn-del-rule{color:#A32D2D;border-color:#F7C1C1;}
 .master-empty{text-align:center;padding:40px;color:#aaa;font-size:13px;}
@@ -775,7 +781,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.6</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.7</div>
   </div>
 </div>
 
@@ -854,7 +860,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.6 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.7 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1012,8 +1018,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <div class="sp-incomplete" id="spIncomplete"></div>
       <div class="sp-btns" id="spBtns"></div>
     </div>
-    <div class="err" id="errBox"></div>
-    <button class="btn-cancel-proc" id="cancelBtn" onclick="cancelProcess()" style="display:none;">処理をキャンセル</button>
+    <div class="err" id="errBox" style="display:none;">
+      <div class="err-msg" id="errMsg"></div>
+      <button class="btn-cancel-proc" id="cancelBtn" onclick="cancelProcess()" style="margin-top:8px;display:block;">処理をキャンセル</button>
+    </div>
     <button class="run-btn" id="runBtn" disabled onclick="onRunClick()" style="display:none;">仕訳を自動生成する</button>
     <div class="prog" id="prog">
       <div class="prog-title"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
@@ -1073,15 +1081,29 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <div class="panel" id="panel-master">
     <div class="master-toolbar">
       <h2>仕訳ルール学習</h2>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-add-master" onclick="openModal()">＋ 追加</button>
+      <div style="display:flex;gap:8px;" id="masterToolbarBtns">
+        <button class="btn-add-master" id="btnAddMaster" onclick="openModal()">＋ 追加</button>
+        <button class="btn-add-master" id="btnAddCatRule" onclick="openCatRuleModal()" style="display:none;">＋ ルール追加</button>
         <button class="btn-clear-master" onclick="clearAllMaster()">🗑 全件クリア</button>
       </div>
     </div>
-    <table class="master-table">
-      <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
-      <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
-    </table>
+    <div class="master-tabs">
+      <button class="master-tab active" id="mtab-vendor" onclick="switchMasterTab('vendor')">取引先マスタ</button>
+      <button class="master-tab" id="mtab-category" onclick="switchMasterTab('category')">カテゴリルール</button>
+    </div>
+    <div id="master-pane-vendor">
+      <table class="master-table">
+        <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
+        <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
+      </table>
+    </div>
+    <div id="master-pane-category" style="display:none;">
+      <div class="cat-rule-desc">業種・金額・取引先パターンに応じた勘定科目を自動設定します。AIが判断に迷う場合に優先適用されます。</div>
+      <table class="master-table">
+        <thead><tr><th>ルール名</th><th>条件</th><th>借方</th><th>税区分</th><th></th></tr></thead>
+        <tbody id="catRuleTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- 料金プランパネル -->
@@ -1234,6 +1256,19 @@ window.incrementSupabaseCount = incrementMonthlyCount;
 </div>
 
 <!-- マスタ編集モーダル -->
+<div class="modal-overlay" id="catRuleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;flex-direction:column;">
+  <div class="modal-inner" style="width:360px;">
+    <h3 id="catRuleModalTitle">カテゴリルールを追加</h3>
+    <div class="modal-row"><label>ルール名</label><input id="crName" placeholder="例：飲食全般→会議費"></div>
+    <div class="modal-row"><label>条件</label><input id="crCondition" placeholder="例：飲食店・居酒屋・カフェ"></div>
+    <div class="modal-row"><label>借方科目</label><select id="crDebit"></select></div>
+    <div class="modal-row"><label>税区分</label><select id="crTax"></select></div>
+    <div class="modal-footer">
+      <button class="btn-modal-save" onclick="saveCatRuleModal()">保存</button>
+      <button class="btn-modal-cancel" onclick="closeCatRuleModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3 id="modalTitle">取引先ルールを追加</h3>
@@ -1716,6 +1751,74 @@ function addMonthlyCount(n){
   }
 }
 
+
+// ===== マスタ2タブ =====
+function switchMasterTab(tab){
+  document.getElementById('mtab-vendor').classList.toggle('active',tab==='vendor');
+  document.getElementById('mtab-category').classList.toggle('active',tab==='category');
+  document.getElementById('master-pane-vendor').style.display=tab==='vendor'?'':'none';
+  document.getElementById('master-pane-category').style.display=tab==='category'?'':'none';
+  document.getElementById('btnAddMaster').style.display=tab==='vendor'?'':'none';
+  document.getElementById('btnAddCatRule').style.display=tab==='category'?'':'none';
+}
+
+// ===== カテゴリルール =====
+let catRules=JSON.parse(localStorage.getItem('shiwake_catRules')||'[]');
+function saveCatRules(){localStorage.setItem('shiwake_catRules',JSON.stringify(catRules));}
+
+function renderCatRules(){
+  const tbody=document.getElementById('catRuleTbody');
+  if(!tbody)return;
+  if(catRules.length===0){
+    tbody.innerHTML='<tr><td colspan="5" class="master-empty">まだ登録されていません。</td></tr>';
+    return;
+  }
+  tbody.innerHTML=catRules.map((r,i)=>`<tr>
+    <td style="font-weight:500">${esc(r.name)}</td>
+    <td style="font-size:12px;color:#555">${esc(r.condition)}</td>
+    <td style="color:#185FA5">${esc(r.debit)}</td>
+    <td style="font-size:12px;color:#888">${esc(r.tax)}</td>
+    <td style="display:flex;gap:6px">
+      <button class="btn-edit-rule" onclick="editCatRule(${i})">編集</button>
+      <button class="btn-del-rule" onclick="deleteCatRule(${i})">削除</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openCatRuleModal(idx){
+  _editingCatIdx=idx!=null?idx:-1;
+  const r=idx!=null?catRules[idx]:{name:'',condition:'',debit:'会議費',tax:'課税仕入(10%)'};
+  document.getElementById('crName').value=r.name;
+  document.getElementById('crCondition').value=r.condition;
+  // selectを動的生成
+  document.getElementById('crDebit').innerHTML=aOpts(r.debit);
+  document.getElementById('crTax').innerHTML=tOpts(r.tax);
+  document.getElementById('catRuleModal').style.display='flex';
+}
+function closeCatRuleModal(){document.getElementById('catRuleModal').style.display='none';}
+function editCatRule(i){openCatRuleModal(i);}
+function deleteCatRule(i){
+  if(!confirm('このルールを削除しますか？'))return;
+  catRules.splice(i,1);saveCatRules();renderCatRules();
+}
+function saveCatRuleModal(){
+  const name=document.getElementById('crName').value.trim();
+  const condition=document.getElementById('crCondition').value.trim();
+  const debit=document.getElementById('crDebit').value;
+  const tax=document.getElementById('crTax').value;
+  if(!name||!condition)return alert('ルール名と条件を入力してください');
+  const rule={name,condition,debit,tax};
+  if(_editingCatIdx>=0){catRules[_editingCatIdx]=rule;}else{catRules.push(rule);}
+  saveCatRules();renderCatRules();closeCatRuleModal();
+}
+let _editingCatIdx=-1;
+
+// カテゴリルールをSonnetプロンプトに反映（analyze-chunk呼び出し時に渡す）
+function getCatRulePrompt(){
+  if(catRules.length===0)return '';
+  return '\n\n【ユーザー定義カテゴリルール（最優先）】\n'+catRules.map(r=>`- ${r.condition} → 借方「${r.debit}」・${r.tax}`).join('\n');
+}
+
 async function loadMasterFromServer(){
   const res=await fetch('/api/master');
   masterData=await res.json();
@@ -1963,18 +2066,35 @@ function setProgress(pct,title,status){
   document.getElementById('progBar').style.width=pct+'%';
   document.getElementById('progTitle').textContent=title;
   document.getElementById('progStatus').textContent=status;
+  // ラベルアニメーション開始（解析中のみ）
+  if(pct>0&&pct<100){startProgLabelAnim();}else{stopProgLabelAnim();}
+}
+let _progLabelTimer=null;
+const _progLabels=['フォーマット判定中...','画像を解析中...','AI推論中...','仕訳を生成中...'];
+let _progLabelIdx=0;
+function startProgLabelAnim(){
+  if(_progLabelTimer)return;
+  _progLabelTimer=setInterval(()=>{
+    _progLabelIdx=(_progLabelIdx+1)%_progLabels.length;
+    const el=document.getElementById('progTitle');
+    if(el&&el.textContent.includes('中'))el.textContent=_progLabels[_progLabelIdx];
+  },1800);
+}
+function stopProgLabelAnim(){
+  if(_progLabelTimer){clearInterval(_progLabelTimer);_progLabelTimer=null;_progLabelIdx=0;}
 }
 function showErr(msg){
-  const b=document.getElementById('errBox');b.textContent=msg;b.className='err show';
-  // エラー後もキャンセルボタンは表示し続ける（処理が続いている場合があるため）
-  const cb=document.getElementById('cancelBtn');if(cb)cb.style.display='';
+  const box=document.getElementById('errBox');
+  const msgEl=document.getElementById('errMsg');
+  if(msgEl)msgEl.textContent=msg;
+  box.style.display='block';
 }
-function hideErr(){document.getElementById('errBox').className='err';}
+function hideErr(){document.getElementById('errBox').style.display='none';}
 function onRunClick(){startProcess(false);}
 function cancelProcess(){
   if(abortController){abortController.abort();}
   processQueue=[];isProcessing=false;
-  document.getElementById('cancelBtn').style.display='none';
+  hideErr();
   document.getElementById('prog').className='prog';
   const spinner=document.getElementById('vStepSpinner');
   const hint=document.getElementById('vStepHint');
@@ -1989,7 +2109,6 @@ async function processOneFile(f){
   hideErr();
   if(!abortController)abortController=new AbortController();
   const signal=abortController.signal;
-  document.getElementById('cancelBtn').style.display='';
   document.getElementById('prog').className='prog show';
   document.getElementById('bottomPanel').className='bottom-panel show';
   document.getElementById('btnContinueScan').className='btn-continue-scan show';
@@ -2120,7 +2239,7 @@ async function startProcess(resume){
 }
 
 function doneDrain(){
-  document.getElementById('cancelBtn').style.display='none';
+  hideErr();
   abortController=null;
   files=[];renderPrev();
   document.getElementById('statusPanel').className='status-panel';
@@ -2839,40 +2958,7 @@ function closeReceiptModal(){
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeReceiptModal();});
 
-// ドラッグ移動
-(function(){
-  const el=document.getElementById('receiptFloat');
-  const bar=document.getElementById('receiptFloatBar');
-  const resizer=document.getElementById('receiptFloatResize');
-  if(!el||!bar)return;
-  let dx=0,dy=0,sx=0,sy=0,dragging=false;
-  bar.addEventListener('mousedown',e=>{
-    dragging=true;sx=e.clientX;sy=e.clientY;
-    const r=el.getBoundingClientRect();dx=r.left;dy=r.top;
-    el.style.transform='none';
-    el.style.left=Math.round(dx)+'px';el.style.top=Math.round(dy)+'px';
-    e.preventDefault();
-  });
-  document.addEventListener('mousemove',e=>{
-    if(!dragging)return;
-    el.style.left=(dx+e.clientX-sx)+'px';
-    el.style.top=(dy+e.clientY-sy)+'px';
-  });
-  document.addEventListener('mouseup',()=>{dragging=false;});
-  // リサイズ
-  let resizing=false,rsx=0,rsy=0,rw=0,rh=0;
-  resizer.addEventListener('mousedown',e=>{
-    resizing=true;rsx=e.clientX;rsy=e.clientY;
-    const r=el.getBoundingClientRect();rw=r.width;rh=r.height;
-    e.preventDefault();e.stopPropagation();
-  });
-  document.addEventListener('mousemove',e=>{
-    if(!resizing)return;
-    el.style.width=Math.max(280,rw+e.clientX-rsx)+'px';
-    el.style.height=Math.max(200,rh+e.clientY-rsy)+'px';
-  });
-  document.addEventListener('mouseup',()=>{resizing=false;});
-})();
+
 
 // ===== セッションリセット =====
 function resetSession(){
@@ -2907,6 +2993,41 @@ function _getGroupId(itemIdx){
   for(let gi=0;gi<groups.length;gi++){if(groups[gi].indices.includes(itemIdx))return gi;}
   return -1;
 }
+// ドラッグ移動・リサイズ（receiptFloat HTML後に初期化）
+window.addEventListener('load',function(){
+  const el=document.getElementById('receiptFloat');
+  const bar=document.getElementById('receiptFloatBar');
+  const resizer=document.getElementById('receiptFloatResize');
+  if(!el||!bar||!resizer)return;
+  let dx=0,dy=0,sx=0,sy=0,dragging=false;
+  bar.addEventListener('mousedown',function(e){
+    dragging=true;sx=e.clientX;sy=e.clientY;
+    const r=el.getBoundingClientRect();
+    dx=r.left;dy=r.top;
+    el.style.transform='none';
+    el.style.left=Math.round(dx)+'px';
+    el.style.top=Math.round(dy)+'px';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!dragging)return;
+    el.style.left=(dx+e.clientX-sx)+'px';
+    el.style.top=(dy+e.clientY-sy)+'px';
+  });
+  document.addEventListener('mouseup',function(){dragging=false;});
+  let resizing=false,rsx=0,rsy=0,rw=0,rh=0;
+  resizer.addEventListener('mousedown',function(e){
+    resizing=true;rsx=e.clientX;rsy=e.clientY;
+    const r=el.getBoundingClientRect();rw=r.width;rh=r.height;
+    e.preventDefault();e.stopPropagation();
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!resizing)return;
+    el.style.width=Math.max(280,rw+e.clientX-rsx)+'px';
+    el.style.height=Math.max(200,rh+e.clientY-rsy)+'px';
+  });
+  document.addEventListener('mouseup',function(){resizing=false;});
+});
 </script>
 </div><!-- /main-area -->
 </div><!-- /layout -->
