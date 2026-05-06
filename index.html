@@ -38,8 +38,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .compat-dot{width:4px;height:4px;border-radius:50%;background:#888;flex-shrink:0;}
 
 /* メインエリア */
-.main-area{flex:1;display:flex;flex-direction:column;min-width:0;}
-
+.main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow-y:auto;height:0;}
 /* ステップ進捗バー */
 .step-bar{background:#fff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 
@@ -75,7 +74,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-master-open:hover{background:#f5f5f5;}
 
 .main{max-width:680px;margin:0 auto;padding:24px 16px;}
-.main-area{overflow-y:auto;}
 .main-subcopy{font-size:12px;color:#888;line-height:1.6;margin-bottom:14px;padding:0 2px;}
 .panel{display:none;opacity:0;transition:opacity 0.15s ease;}
 .panel.active{display:block;opacity:1;}
@@ -349,7 +347,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-clear-master{padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:13px;color:#888;cursor:pointer;}
 .btn-clear-master:hover{background:#f5f5f5;}
 .master-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;}
-.master-table th{background:#fafafa;font-size:12px;color:#888;font-weight:500;padding:10px 14px;text-align:left;border-bottom:1px solid #eee;}
+.master-table th{background:#fafafa;font-size:12px;color:#888;font-weight:500;padding:10px 14px;text-align:left;border-bottom:1px solid #eee;position:sticky;top:0;z-index:5;}
 .master-table td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
 .master-table tr:last-child td{border-bottom:none;}
 .master-table tr:hover td{background:#fafafa;}
@@ -415,6 +413,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
   .main-subcopy{font-size:11px;}
   .hamburger{margin-right:6px !important;}
 }
+
+/* リアルタイムカメラオーバーレイ */
+.cam-overlay{display:none;position:fixed;inset:0;background:#000;z-index:500;flex-direction:column;}
+.cam-overlay.show{display:flex;}
+.cam-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#1a1a1a;flex-shrink:0;}
+.cam-title{color:#fff;font-size:14px;font-weight:600;}
+.cam-close{background:none;border:none;color:#aaa;font-size:22px;cursor:pointer;padding:0 4px;line-height:1;}
+.cam-body{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#000;}
+.cam-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.cam-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+.cam-hint{padding:8px 16px;background:#111;font-size:11px;color:#888;text-align:center;flex-shrink:0;}
+.cam-footer{display:flex;align-items:center;justify-content:center;padding:16px;background:#1a1a1a;flex-shrink:0;gap:24px;}
+.cam-shutter{width:64px;height:64px;border-radius:50%;background:#fff;border:4px solid #aaa;cursor:pointer;flex-shrink:0;}
+.cam-shutter:active{background:#ddd;}
+.cam-file-btn{padding:10px 18px;background:#333;color:#aaa;border:none;border-radius:9px;font-size:13px;cursor:pointer;}
 
 /* スキャン編集モーダル */
 .scan-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;flex-direction:column;}
@@ -917,7 +930,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
     <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>仕訳ルール学習に自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span><span class="sp-pc-only"><br>スマホでスキャンした仕訳はそのままPCと共有されます。</span></p>
-    <button class="mobile-scan-btn" onclick="document.getElementById('scanInput').click()">
+    <button class="mobile-scan-btn" onclick="openCameraOverlay()">
       <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
       カメラで撮影する
     </button>
@@ -1210,7 +1223,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <div class="panel" id="panel-scan">
     <p class="main-subcopy">スマホのカメラで領収書を撮影し、そのまま仕訳処理へ送れます。</p>
     <div class="scan-area">
-      <button class="scan-btn" onclick="document.getElementById('scanInput').click()">
+      <button class="scan-btn" onclick="openCameraOverlay()">
         <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
         カメラで撮影 / 画像を選択
       </button>
@@ -1236,6 +1249,24 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       </div>
     </div>
   </div>
+
+<!-- リアルタイムカメラオーバーレイ -->
+<div class="cam-overlay" id="camOverlay">
+  <div class="cam-header">
+    <span class="cam-title">領収書を枠に合わせてください</span>
+    <button class="cam-close" onclick="closeCameraOverlay()">×</button>
+  </div>
+  <div class="cam-body" id="camBody">
+    <video class="cam-video" id="camVideo" autoplay playsinline muted></video>
+    <canvas class="cam-canvas" id="camCanvas"></canvas>
+  </div>
+  <div class="cam-hint">自動で4辺を検出します。枠が合ったらシャッターを押してください</div>
+  <div class="cam-footer">
+    <button class="cam-file-btn" onclick="closeCameraOverlay();document.getElementById('fi').click();">📎 ファイル選択</button>
+    <button class="cam-shutter" id="camShutter" onclick="captureCamera()"></button>
+    <div style="width:80px;"></div>
+  </div>
+</div>
 
 <!-- スキャン編集モーダル -->
 <div class="scan-modal-overlay" id="scanModalOverlay">
@@ -1540,6 +1571,97 @@ function initPerspective(){
     drawPerspOverlay(ctx,canvas,ox,oy);
   };
   img.src=scanRawUrl;
+}
+
+// ============================================================
+// リアルタイムカメラオーバーレイ
+// ============================================================
+let _camStream=null;
+let _camRafId=null;
+
+async function openCameraOverlay(){
+  const overlay=document.getElementById('camOverlay');
+  overlay.className='cam-overlay show';
+  const video=document.getElementById('camVideo');
+  try{
+    _camStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},
+      audio:false
+    });
+    video.srcObject=_camStream;
+    video.onloadedmetadata=()=>{
+      video.play();
+      _camRafId=requestAnimationFrame(drawCamDetection);
+    };
+  }catch(e){
+    // getUserMedia非対応またはカメラ拒否→ファイル選択へフォールバック
+    closeCameraOverlay();
+    document.getElementById('scanInput').click();
+  }
+}
+
+function closeCameraOverlay(){
+  if(_camRafId){cancelAnimationFrame(_camRafId);_camRafId=null;}
+  if(_camStream){_camStream.getTracks().forEach(t=>t.stop());_camStream=null;}
+  const video=document.getElementById('camVideo');
+  video.srcObject=null;
+  document.getElementById('camOverlay').className='cam-overlay';
+}
+
+function drawCamDetection(){
+  const video=document.getElementById('camVideo');
+  const canvas=document.getElementById('camCanvas');
+  const body=document.getElementById('camBody');
+  if(!video.videoWidth){_camRafId=requestAnimationFrame(drawCamDetection);return;}
+  // canvasをbodyサイズに合わせる
+  canvas.width=body.clientWidth;
+  canvas.height=body.clientHeight;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  // videoの表示領域を計算（object-fit:cover）
+  const vw=video.videoWidth,vh=video.videoHeight;
+  const cw=canvas.width,ch=canvas.height;
+  const scale=Math.max(cw/vw,ch/vh);
+  const dw=vw*scale,dh=vh*scale;
+  const dx=(cw-dw)/2,dy=(ch-dh)/2;
+  // canvasにvideoを描画（検出用）
+  ctx.drawImage(video,dx,dy,dw,dh);
+  // 輝度ベース4辺検出
+  const imgData=ctx.getImageData(0,0,cw,ch);
+  const corners=autoDetectCorners(imgData,cw,ch);
+  const [L,T,R,B]=[corners[0][0],corners[0][1],corners[2][0],corners[2][1]];
+  // 描画をクリア（videoはCSSで表示）
+  ctx.clearRect(0,0,cw,ch);
+  // 半透明マスク（領収書外を暗く）
+  ctx.fillStyle='rgba(0,0,0,0.45)';
+  ctx.fillRect(0,0,cw,ch);
+  ctx.clearRect(L,T,R-L,B-T);
+  // 4辺のライン
+  ctx.strokeStyle='rgba(111,168,252,0.95)';
+  ctx.lineWidth=2;
+  ctx.strokeRect(L,T,R-L,B-T);
+  // 4隅のコーナーマーク
+  const cs=20;ctx.lineWidth=3;ctx.strokeStyle='#fff';
+  [[L,T,1,1],[R,T,-1,1],[R,B,-1,-1],[L,B,1,-1]].forEach(([x,y,sx,sy])=>{
+    ctx.beginPath();ctx.moveTo(x+sx*cs,y);ctx.lineTo(x,y);ctx.lineTo(x,y+sy*cs);ctx.stroke();
+  });
+  _camRafId=requestAnimationFrame(drawCamDetection);
+}
+
+function captureCamera(){
+  const video=document.getElementById('camVideo');
+  const body=document.getElementById('camBody');
+  if(!video.videoWidth)return;
+  // フル解像度でキャプチャ
+  const out=document.createElement('canvas');
+  out.width=video.videoWidth;
+  out.height=video.videoHeight;
+  out.getContext('2d').drawImage(video,0,0);
+  closeCameraOverlay();
+  out.toBlob(blob=>{
+    const file=new File([blob],'camera_capture.jpg',{type:'image/jpeg'});
+    scanRawUrl=URL.createObjectURL(file);
+    openScanModal(scanRawUrl);
+  },'image/jpeg',0.92);
 }
 
 function autoDetectCorners(imgData,w,h){
