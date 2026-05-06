@@ -18,7 +18,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-logo-icon{width:26px;height:26px;background:#185FA5;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .sidebar-logo-text{font-size:16px;font-weight:700;color:#1a1a1a;letter-spacing:0.01em;line-height:26px;}
 .sidebar-copy{margin-top:10px;padding:12px 14px;background:#e8e7e0;border-radius:8px;text-align:left;}
-.sidebar-catch{font-size:13px;font-weight:600;color:#555;line-height:1.65;margin-bottom:0;}
+.sidebar-catch{font-size:13px;font-weight:600;color:#555;line-height:1.65;margin-bottom:6px;}
+.sidebar-subcopy{display:flex;flex-direction:column;gap:3px;margin-top:4px;}
+.sidebar-subcopy-item{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;}
 .sidebar-sub{font-size:10px;color:#666;line-height:1.5;}
 .sidebar-nav{padding:12px 8px;flex:1;}
 .sidebar-section-label{font-size:9px;color:#999;letter-spacing:0.07em;text-transform:uppercase;padding:6px 10px 4px;}
@@ -202,6 +204,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .receipt-float-title{font-size:12px;color:#666;font-weight:500;}
 .receipt-float-btns{display:flex;gap:6px;align-items:center;}
 .receipt-float-close{padding:3px 10px;background:#e0e0e0;border:none;border-radius:5px;font-size:12px;cursor:pointer;}
+.receipt-float-newtab{padding:3px 10px;background:#fff;border:1px solid #ddd;border-radius:5px;font-size:12px;cursor:pointer;color:#555;}
+.receipt-float-newtab:hover{background:#f0f0f0;}
 .receipt-float-body{flex:1;overflow:auto;padding:8px;display:flex;align-items:center;justify-content:center;}
 .receipt-float-body img{max-width:100%;max-height:70vh;object-fit:contain;border-radius:6px;}
 .receipt-float-resize{width:14px;height:14px;position:absolute;bottom:4px;right:4px;cursor:se-resize;opacity:0.4;}
@@ -326,6 +330,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-continue-scan:hover{background:#EBF4FD;}
 .btn-reset-session{width:100%;padding:10px;background:#fff;border:1px solid #e0dfd8;border-radius:10px;font-size:12px;color:#bbb;cursor:pointer;margin-top:4px;}
 .btn-reset-session:hover{border-color:#dc2626;color:#dc2626;}
+.v-step-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.btn-reset-inline{padding:3px 10px;background:#fff;border:1px solid #e0dfd8;border-radius:6px;font-size:11px;color:#bbb;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.btn-reset-inline:hover{border-color:#dc2626;color:#dc2626;}
 .csv-format-wrap{position:relative;display:flex;align-self:stretch;}
 .csv-format-wrap select{appearance:none;-webkit-appearance:none;padding:0 40px 0 14px;border:1px solid #ddd;border-radius:9px;font-size:14px;background:#fff;color:#1a1a1a;cursor:pointer;min-width:140px;height:100%;width:100%;box-sizing:border-box;}
 .csv-format-wrap select:focus{outline:none;border-color:#185FA5;}
@@ -768,7 +775,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.3</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.4</div>
   </div>
 </div>
 
@@ -820,6 +827,11 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <div class="sidebar-copy">
       <div class="sidebar-catch">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
+      <div class="sidebar-subcopy">
+        <div class="sidebar-subcopy-item">✓ 科目・税区分・摘要を自動判定</div>
+        <div class="sidebar-subcopy-item">✓ 使うほど賢くなる仕訳ルール学習</div>
+        <div class="sidebar-subcopy-item">✓ スマホでスキャン→PCで即共有</div>
+      </div>
     </div>
   </div>
   <nav class="sidebar-nav">
@@ -842,7 +854,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.3 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.4 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -980,7 +992,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <div class="v-step-circle">3</div>
         </div>
         <div class="v-step-content last">
-          <div class="v-step-label">仕訳を自動生成<div class="v-step-spinner" id="vStepSpinner"></div></div>
+          <div class="v-step-label-row">
+            <div class="v-step-label">仕訳を自動生成<div class="v-step-spinner" id="vStepSpinner"></div></div>
+            <button class="btn-reset-inline" id="btnResetSession" onclick="resetSession()" style="display:none;">🗑 クリア</button>
+          </div>
           <div class="v-step-auto-hint" id="vStepHint">アップロードすると自動で生成します</div>
         </div>
       </div>
@@ -1008,7 +1023,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div id="cards"></div>
     <div class="bottom-panel" id="bottomPanel">
       <button class="btn-continue-scan" id="btnContinueScan" onclick="continueScan()">📷 続けてスキャン</button>
-      <button class="btn-reset-session" id="btnResetSession" onclick="resetSession()" style="display:none;">🗑 仕訳をすべてクリア</button>
       <div class="bp-counts">
         <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
         <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
@@ -2788,11 +2802,25 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ===== 原本フローティングウィンドウ =====
+let _floatCurrentUrl='';
 function openReceiptModal(url){
-  const f=document.getElementById('receiptFloat');
+  const fl=document.getElementById('receiptFloat');
   const img=document.getElementById('receiptModalImg');
   img.src=url;
-  f.classList.add('open');
+  _floatCurrentUrl=url;
+  // 初期位置：画面中央（transform無し・絶対px指定）
+  if(!fl.classList.contains('open')){
+    const W=window.innerWidth,H=window.innerHeight;
+    const w=420,h=500;
+    fl.style.width=w+'px';fl.style.height=h+'px';
+    fl.style.left=Math.max(0,(W-w)/2)+'px';
+    fl.style.top=Math.max(0,(H-h)/2)+'px';
+    fl.style.transform='none';
+  }
+  fl.classList.add('open');
+}
+function openReceiptNewTab(){
+  if(_floatCurrentUrl)window.open(_floatCurrentUrl,'_blank');
 }
 function closeReceiptModal(){
   document.getElementById('receiptFloat').classList.remove('open');
@@ -2809,7 +2837,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeReceiptModal();
   bar.addEventListener('mousedown',e=>{
     dragging=true;sx=e.clientX;sy=e.clientY;
     const r=el.getBoundingClientRect();dx=r.left;dy=r.top;
-    el.style.transform='none';el.style.left=dx+'px';el.style.top=dy+'px';
+    el.style.transform='none';
+    el.style.left=Math.round(dx)+'px';el.style.top=Math.round(dy)+'px';
     e.preventDefault();
   });
   document.addEventListener('mousemove',e=>{
@@ -2883,6 +2912,7 @@ function _getGroupId(itemIdx){
   <div class="receipt-float-bar" id="receiptFloatBar">
     <span class="receipt-float-title">領収書原本</span>
     <div class="receipt-float-btns">
+      <button class="receipt-float-newtab" onclick="openReceiptNewTab()">別タブで開く</button>
       <button class="receipt-float-close" onclick="closeReceiptModal()">✕ 閉じる</button>
     </div>
   </div>
