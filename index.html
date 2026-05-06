@@ -38,7 +38,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .compat-dot{width:4px;height:4px;border-radius:50%;background:#888;flex-shrink:0;}
 
 /* メインエリア */
-.main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow-y:auto;min-height:0;}
+.main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow-y:scroll;min-height:0;}
 /* ステップ進捗バー */
 .step-bar{background:#fff;border-radius:10px;padding:10px 16px;display:flex;align-items:center;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 
@@ -223,7 +223,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .gf-step{background:#f5f4f0;border-radius:6px;padding:5px 10px;font-size:11px;color:#555;white-space:nowrap;}
 .gf-step.hi{background:#E6F1FB;color:#0C447C;font-weight:500;}
 .gf-arrow{color:#aaa;font-size:12px;}
-.gf-tabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;}
+.gf-tabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;margin-top:10px;}
+.gf-sep{height:2px;background:#1D9E75;border-radius:2px;margin-bottom:0;}
 .gf-tab{padding:5px 10px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid #ddd;background:#fff;color:#888;}
 .gf-tab.active{background:#185FA5;border-color:#185FA5;color:#fff;}
 .gf-panel{display:none;}.gf-panel.active{display:block;}
@@ -359,6 +360,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-continue-scan{width:100%;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:10px;font-size:14px;font-weight:600;color:#185FA5;cursor:pointer;margin-bottom:12px;display:none;}
 .btn-continue-scan.show{display:block;}
 .btn-continue-scan:hover{background:#EBF4FD;}
+.btn-continue-scan.dragover{background:#EBF4FD;border-color:#0C447C;border-style:dashed;}
 .btn-reset-session{width:100%;padding:10px;background:#fff;border:1px solid #e0dfd8;border-radius:10px;font-size:12px;color:#bbb;cursor:pointer;margin-top:4px;}
 .btn-reset-session:hover{border-color:#dc2626;color:#dc2626;}
 .v-step-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -914,7 +916,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.7</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.8</div>
   </div>
 </div>
 
@@ -997,7 +999,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.7 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.8 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1051,7 +1053,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   </div>
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
-    <p class="main-subcopy">AIが勘定科目・税区分・摘要を自動判定、承認するだけで完了。<br>仕訳ルール学習に自動登録され、使うほどに賢くなります。<span class="sp-mobile"><br>領収書をカメラで撮るだけで、その場で仕訳できます。</span><span class="sp-pc-only"><br>スマホでスキャンした仕訳はそのままPCと共有されます。</span></p>
     <button class="mobile-scan-btn" onclick="openCameraOverlay()">
       <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
       カメラで撮影する
@@ -1193,7 +1194,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <div id="cards"></div>
     <div class="bottom-panel" id="bottomPanel">
-      <button class="btn-continue-scan" id="btnContinueScan" onclick="continueUpload()">📎 続けてアップロード</button>
+      <button class="btn-continue-scan" id="btnContinueScan" onclick="continueUpload()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="this.classList.remove('dragover');onDrop(event)">📎 続けてアップロード（またはドロップ）</button>
       <div class="bp-counts">
         <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
         <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
@@ -3777,6 +3778,7 @@ window.addEventListener('load',function(){
       <div class="gf-step hi">③ 出力</div><div class="gf-arrow">→</div>
       <div class="gf-step hi">④ 取込</div>
     </div>
+    <div class="gf-sep"></div>
     <div class="gf-tabs">
       <div class="gf-tab active" onclick="switchGfTab('yayoi',this)">弥生</div>
       <div class="gf-tab" onclick="switchGfTab('freee',this)">freee</div>
