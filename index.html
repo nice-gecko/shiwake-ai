@@ -342,7 +342,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .csv-format-arrow{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:#555;pointer-events:none;font-weight:600;}
 
 /* マスタ管理 */
-.master-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.master-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:0;position:sticky;top:0;z-index:10;background:#f0efe9;padding:16px 0 10px;}
 .master-toolbar h2{font-size:15px;font-weight:600;}
 .btn-add-master{padding:8px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;}
 .btn-clear-master{padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:13px;color:#888;cursor:pointer;}
@@ -352,7 +352,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .master-table td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
 .master-table tr:last-child td{border-bottom:none;}
 .master-table tr:hover td{background:#fafafa;}
-.master-tabs{display:flex;border-bottom:1px solid #eee;margin-bottom:12px;}
+.master-tabs{display:flex;border-bottom:1px solid #eee;margin-bottom:12px;position:sticky;top:52px;z-index:10;background:#f0efe9;}
 .master-tab{padding:8px 16px;font-size:13px;color:#888;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-weight:500;}
 .master-tab.active{color:#185FA5;border-bottom-color:#185FA5;}
 .cat-rule-desc{font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;padding:8px 12px;background:#F5F4F0;border-radius:7px;}
@@ -1497,8 +1497,8 @@ function onScanFile(input){
 
 function openScanModal(url){
   document.getElementById('scanModalOverlay').className='scan-modal-overlay show';
-  // 少し待ってからパース補正初期化（モーダルのサイズが確定してから）
-  setTimeout(()=>initPerspective(),80);
+  // rAFを2回ネスト→確実にレイアウト確定後にinitPerspective（iOS Safari対策）
+  requestAnimationFrame(()=>requestAnimationFrame(()=>initPerspective()));
 }
 
 function closeScanModal(){
@@ -1514,7 +1514,6 @@ function initPerspective(){
   img.onload=()=>{
     const canvas=document.getElementById('perspCanvas');
     const wrap=document.getElementById('perspWrap');
-    // wrapサイズが0の場合はwindowサイズで代替（iOS Safari対策）
     const maxW=(wrap.clientWidth||window.innerWidth)-40;
     const maxH=(wrap.clientHeight||(window.innerHeight*0.65))-40;
     const scale=Math.min(maxW/img.width,maxH/img.height,1);
@@ -1522,23 +1521,20 @@ function initPerspective(){
     canvas.height=Math.round(img.height*scale);
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
     ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    // getBoundingClientRectはrAF後に正確になる（iOS Safari対策）
-    requestAnimationFrame(()=>{
-      const rect=canvas.getBoundingClientRect();
-      const wrapRect=wrap.getBoundingClientRect();
-      const ox=rect.left-wrapRect.left;
-      const oy=rect.top-wrapRect.top;
-      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
-      const corners=autoDetectCorners(imgData,canvas.width,canvas.height);
-      perspCorners=[
-        {x:ox+corners[0][0],y:oy+corners[0][1]},
-        {x:ox+corners[1][0],y:oy+corners[1][1]},
-        {x:ox+corners[2][0],y:oy+corners[2][1]},
-        {x:ox+corners[3][0],y:oy+corners[3][1]}
-      ];
-      updateHandles();
-      drawPerspOverlay(ctx,canvas,ox,oy);
-    });
+    const rect=canvas.getBoundingClientRect();
+    const wrapRect=wrap.getBoundingClientRect();
+    const ox=rect.left-wrapRect.left;
+    const oy=rect.top-wrapRect.top;
+    const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const corners=autoDetectCorners(imgData,canvas.width,canvas.height);
+    perspCorners=[
+      {x:ox+corners[0][0],y:oy+corners[0][1]},
+      {x:ox+corners[1][0],y:oy+corners[1][1]},
+      {x:ox+corners[2][0],y:oy+corners[2][1]},
+      {x:ox+corners[3][0],y:oy+corners[3][1]}
+    ];
+    updateHandles();
+    drawPerspOverlay(ctx,canvas,ox,oy);
   };
   img.src=scanRawUrl;
 }
