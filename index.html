@@ -215,8 +215,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-meta{font-size:11px;color:#888;margin-top:2px;}
 .card-amount{font-size:17px;font-weight:700;color:#1a1a1a;margin-top:2px;letter-spacing:-0.3px;}
-.badge{font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;}
-.bh{background:#EAF3DE;color:#3B6D11;}.bm{background:#FAEEDA;color:#854F0B;}.bl{background:#FCEBEB;color:#A32D2D;}
+.badge{font-size:12px;padding:4px 11px;border-radius:999px;font-weight:600;flex-shrink:0;}
+.bh{background:#EAF3DE;color:#3B6D11;}.bm{background:#FAEEDA;color:#854F0B;}.bl{background:#E24B4A;color:#fff;border:none;}
 .badge-master{background:#E6F1FB;color:#185FA5;font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;}
 .badge-dup{background:#FEF0F0;color:#A32D2D;font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;border:1px dashed #F09595;}
 .card-body{padding:14px;}
@@ -818,7 +818,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.3</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.4</div>
   </div>
 </div>
 
@@ -897,7 +897,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.3 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.4 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2784,7 +2784,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
     <div class="card-meta">${esc(r0.date)}</div>
     <div class="card-amount">${isMulti&&totalStr?totalStr:esc(r0.amount)}</div>
   </div>
-  ${isMulti?`<span class="badge-multi">${indices.length}件</span>`:(r0.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${results[indices[0]].confidence==='high'?'bh':results[indices[0]].confidence==='mid'?'bm':'bl'}">${results[indices[0]].confidence==='high'?'高信頼':results[indices[0]].confidence==='mid'?'要確認':'低信頼'}</span>`)}
+  ${isMulti?`<span class="badge-multi">${indices.length}件</span>`:(r0.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${results[indices[0]].confidence==='high'?'bh':results[indices[0]].confidence==='mid'?'bm':'bl'}">${results[indices[0]].confidence==='high'?'高信頼':results[indices[0]].confidence==='mid'?'要確認':'不明瞭・要確認'}</span>`)}
   ${isDup&&!allApproved?'<span class="badge-dup">⚠ 重複の可能性</span>':''}
   ${hasInvoice?`<span class="badge-invoice-ok">✓ 適格</span>`:activeIndices.length>0&&(results[activeIndices[0]].tax||'').match(/非課税|不課税/)?`<span class="badge-invoice-na">― 対象外</span>`:`<span class="badge-invoice-ng">✗ 不適格</span>`}
 </div>
