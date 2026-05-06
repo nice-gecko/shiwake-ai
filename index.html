@@ -234,6 +234,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-reanalyze{padding:6px 10px;background:#fff;border:1px solid #8B5CF6;border-radius:7px;font-size:11px;color:#8B5CF6;cursor:pointer;margin-left:auto;}
 .btn-reanalyze:hover{background:#F5F3FF;}
 .btn-reanalyze:disabled{opacity:0.5;cursor:not-allowed;}
+.rule-learn-toast{background:#fff;border:1px solid #C4B5FD;border-radius:10px;padding:12px 14px;margin:8px 14px 4px;display:flex;flex-direction:column;gap:10px;}
+.rlt-top{display:flex;align-items:flex-start;gap:8px;}
+.rlt-icon{width:28px;height:28px;border-radius:6px;background:#EDE9FE;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.rlt-title{font-size:12px;font-weight:600;color:#3C3489;margin-bottom:2px;}
+.rlt-sub{font-size:11px;color:#888;}
+.rlt-preview{background:#F5F4F0;border-radius:8px;padding:9px 12px;font-size:11px;color:#555;line-height:1.7;}
+.rlt-preview b{font-weight:600;color:#3C3489;}
+.rlt-actions{display:flex;gap:8px;}
+.rlt-btn-yes{flex:1;padding:7px;background:#7C3AED;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;}
+.rlt-btn-yes:hover{background:#6D28D9;}
+.rlt-btn-no{flex:1;padding:7px;background:#fff;color:#888;border:1px solid #e0e0e0;border-radius:7px;font-size:12px;cursor:pointer;}
+.rlt-btn-no:hover{background:#f5f5f5;}
+.rlt-done{text-align:center;font-size:12px;font-weight:600;color:#1D9E75;padding:4px 0;}
 
 /* グループカード */
 .group-rows{padding:10px 14px 0;}
@@ -726,7 +739,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.4</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.5</div>
   </div>
 </div>
 
@@ -800,7 +813,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.4 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.5 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2380,16 +2393,75 @@ function restoreCard(i){
   updateBottom();
 }
 async function saveEdit(i){
-  results[i].debit=document.getElementById('ed'+i).value;
-  results[i].credit=document.getElementById('ec'+i).value;
-  results[i].tax=document.getElementById('et'+i).value;
-  results[i].memo=document.getElementById('em'+i).value;
+  const before={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
+  const after={
+    debit:document.getElementById('ed'+i).value,
+    credit:document.getElementById('ec'+i).value,
+    tax:document.getElementById('et'+i).value,
+    memo:document.getElementById('em'+i).value
+  };
+  const changed=before.debit!==after.debit||before.credit!==after.credit||before.tax!==after.tax;
+  results[i].debit=after.debit;results[i].credit=after.credit;
+  results[i].tax=after.tax;results[i].memo=after.memo;
   document.getElementById('dbt'+i).textContent=results[i].debit;
   document.getElementById('cdt'+i).textContent=results[i].credit;
   document.getElementById('tax'+i).textContent=results[i].tax;
   document.getElementById('mem'+i).textContent=results[i].memo;
   await approve(i);
+  if(changed&&results[i].title&&results[i].title!=='不明'){
+    showRuleToast(i, results[i], after);
+  }
 }
+
+function showRuleToast(cardIdx, item, rule){
+  const existingKey=findExistingKey(item.title, masterData);
+  const isUpdate=!!existingKey;
+  const toastId='rule-toast-'+cardIdx;
+  const old=document.getElementById(toastId);
+  if(old)old.remove();
+  const toast=document.createElement('div');
+  toast.id=toastId;
+  toast.className='rule-learn-toast';
+  toast.innerHTML=`
+<div class="rlt-top">
+  <div class="rlt-icon">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L8.5 5H13L9.5 7.5L11 12L7 9.5L3 12L4.5 7.5L1 5H5.5L7 1Z" fill="#7C3AED"/></svg>
+  </div>
+  <div>
+    <div class="rlt-title">${isUpdate?'ルールを更新しますか？':'このルールを学習しますか？'}</div>
+    <div class="rlt-sub">次回から自動で適用されます</div>
+  </div>
+</div>
+<div class="rlt-preview">
+  <b>${esc(item.title)}</b> が出たら<br>
+  借方：<b>${esc(rule.debit)}</b> ／ 税区分：<b>${esc(rule.tax)}</b> を自動セット
+</div>
+<div class="rlt-actions">
+  <button class="rlt-btn-yes" onclick="doLearnRule(${cardIdx},'${escAttr(item.title)}','${escAttr(rule.debit)}','${escAttr(rule.credit)}','${escAttr(rule.tax)}')">
+    ${isUpdate?'更新する':'学習する'}
+  </button>
+  <button class="rlt-btn-no" onclick="document.getElementById('${toastId}').remove()">しない</button>
+</div>`;
+  const editArea=document.getElementById('ep'+cardIdx);
+  if(editArea&&editArea.parentNode){
+    editArea.parentNode.insertBefore(toast, editArea.nextSibling);
+    toast.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+}
+
+async function doLearnRule(cardIdx, title, debit, credit, tax){
+  const rule={debit,credit,tax};
+  const existingKey=findExistingKey(title, masterData)||title;
+  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[existingKey]:rule})});
+  await loadMasterFromServer();
+  const toast=document.getElementById('rule-toast-'+cardIdx);
+  if(toast){
+    toast.innerHTML='<div class="rlt-done">✓ ルールを学習しました</div>';
+    setTimeout(()=>toast.remove(),2000);
+  }
+}
+
+function escAttr(s){return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
 function updateBottom(){
   const active=results.length-deleted.size;
   const ok=approved.size,pend=active-ok,del=deleted.size;
