@@ -5,6 +5,10 @@ const { PDFDocument } = require('pdf-lib');
 const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute } = require('./master');
 const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 
+// インセンティブ設定（後から変更可能）
+const INCENTIVE_THRESHOLD = 1000; // 何枚でギフト券1枚
+const INCENTIVE_AMOUNT    = 500;  // ギフト券の金額（円）
+
 // Stripe設定
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
@@ -482,19 +486,38 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/user/count → 月次処理件数を加算
+  // POST /api/user/count → 月次処理件数・インセンティブカウントを加算
   if (req.method === 'POST' && req.url === '/api/user/count') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
         const { uid, amount } = JSON.parse(body);
-        // 現在の件数を取得してから加算
-        const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count`);
-        const cur = current?.[0]?.monthly_count || 0;
-        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { monthly_count: cur + (amount || 1) });
+        const n = amount || 1;
+        // 現在の値を取得
+        const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count,incentive_total,incentive_unredeemed,stripe_plan`);
+        const row = current?.[0] || {};
+        const cur = row.monthly_count || 0;
+        const incTotal = (row.incentive_total || 0) + n;
+        const incUnredeemed = (row.incentive_unredeemed || 0) + n;
+        // 代理店プランのみincentiveを加算
+        const isAgency = ['agency_light','agency_std','agency_prem'].includes(row.stripe_plan);
+        const patch = { monthly_count: cur + n };
+        if (isAgency) {
+          patch.incentive_total      = incTotal;
+          patch.incentive_unredeemed = incUnredeemed;
+        }
+        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patch);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, monthly_count: cur + (amount || 1) }));
+        res.end(JSON.stringify({
+          ok: true,
+          monthly_count: cur + n,
+          incentive_total: isAgency ? incTotal : (row.incentive_total || 0),
+          incentive_unredeemed: isAgency ? incUnredeemed : (row.incentive_unredeemed || 0),
+          incentive_threshold: INCENTIVE_THRESHOLD,
+          incentive_amount: INCENTIVE_AMOUNT,
+          is_agency: isAgency
+        }));
       } catch(e) {
         res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
       }
