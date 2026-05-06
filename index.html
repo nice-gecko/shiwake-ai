@@ -196,9 +196,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:12px;}
 .card.approved{border-color:#1D9E75;}
 .card-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fafafa;border-bottom:1px solid #f0f0f0;}
-.card-pdf{width:44px;height:44px;border-radius:6px;border:1px solid #eee;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;transition:opacity 0.15s;}
-.card-pdf:hover{opacity:0.8;}
-.card-pdf img{width:44px;height:44px;object-fit:cover;border-radius:6px;}
+.card-pdf{position:relative;width:72px;height:72px;border-radius:8px;border:1px solid #ddd;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;transition:opacity 0.15s;}
+.card-pdf:hover{opacity:1;}
+.card-pdf:hover::after{content:'原本を確認';position:absolute;inset:0;background:rgba(0,0,0,0.45);color:#fff;font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center;text-align:center;letter-spacing:0.03em;}
+.card-pdf img{width:72px;height:72px;object-fit:cover;border-radius:8px;}
 .receipt-float{display:none;position:fixed;z-index:9999;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.25);border:1px solid #e0e0e0;flex-direction:column;min-width:280px;min-height:200px;}
 .receipt-float.open{display:flex;}
 .receipt-float-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f5f5f5;border-radius:12px 12px 0 0;cursor:move;border-bottom:1px solid #eee;user-select:none;}
@@ -288,6 +289,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .group-row-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .group-row-amount{font-size:13px;font-weight:600;color:#222;}
 .group-row-debit{font-size:11px;color:#1D9E75;background:#F0FBF6;padding:2px 6px;border-radius:4px;}
+.group-row-credit{font-size:11px;color:#888;background:#F5F4F0;padding:2px 6px;border-radius:4px;}
 .btn-row-del{background:none;border:none;color:#ccc;cursor:pointer;font-size:14px;padding:2px 4px;line-height:1;}
 .btn-row-del:hover{color:#e55;}
 .btn-row-restore{background:none;border:none;color:#1D9E75;cursor:pointer;font-size:12px;padding:2px 4px;}
@@ -322,10 +324,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .guide-step-title{font-size:13px;font-weight:600;margin-bottom:2px;}
 .guide-step-desc{font-size:12px;color:#666;line-height:1.5;}
 .csv-btns{display:flex;gap:10px;margin-top:10px;align-items:stretch;height:48px;}
-.btn-csv-all{flex:1;padding:0 18px;height:48px;background:#185FA5;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;}
-.btn-csv-all:hover{background:#0C447C;}
-.btn-csv-approved{flex:1;padding:0 18px;height:48px;background:#fff;border:2px solid #1D9E75;border-radius:9px;font-size:14px;color:#1D9E75;font-weight:600;cursor:pointer;white-space:nowrap;}
-.btn-csv-approved:hover{background:#E1F5EE;}
+.btn-csv-all{flex:1;padding:0 18px;height:48px;background:#fff;border:2px solid #aaa;border-radius:9px;font-size:14px;color:#888;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-csv-all:hover{background:#f5f4f0;border-color:#888;}
+.btn-csv-approved{flex:1;padding:0 18px;height:48px;background:#1D9E75;border:none;border-radius:9px;font-size:14px;color:#fff;font-weight:600;cursor:pointer;white-space:nowrap;}
+.btn-csv-approved:hover{background:#168a64;}
 .btn-continue-scan{width:100%;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:10px;font-size:14px;font-weight:600;color:#185FA5;cursor:pointer;margin-bottom:12px;display:none;}
 .btn-continue-scan.show{display:block;}
 .btn-continue-scan:hover{background:#EBF4FD;}
@@ -814,7 +816,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.1</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.2</div>
   </div>
 </div>
 
@@ -893,7 +895,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.1 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.2 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2699,7 +2701,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
     <span class="group-row-tax">${esc(r.tax)} ${r.invoice_number?`<span style="font-size:10px;color:#aaa;">${esc(r.invoice_number)}</span>`:''}</span>
     <span class="group-row-memo">${esc(r.memo)}</span>
   </div>
-  <div class="group-row-right"><span class="group-row-amount">${esc(r.amount)}</span><span class="group-row-debit">${esc(r.debit)}</span>
+  <div class="group-row-right"><span class="group-row-amount">${esc(r.amount)}</span><span class="group-row-debit">${esc(r.debit)}</span><span class="group-row-credit">${esc(r.credit)}</span>
   ${isDel?`<button class="btn-row-restore" onclick="restoreCard(${i})">↩</button>`:`<button class="btn-row-del" onclick="deleteCard(${i})">×</button>`}
   </div></div>`;
     } else {
