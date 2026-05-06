@@ -196,11 +196,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .card-pdf{width:44px;height:44px;border-radius:6px;border:1px solid #eee;background:#f0f0f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;transition:opacity 0.15s;}
 .card-pdf:hover{opacity:0.8;}
 .card-pdf img{width:44px;height:44px;object-fit:cover;border-radius:6px;}
-.receipt-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;}
-.receipt-modal.open{display:flex;}
-.receipt-modal-inner{background:#fff;border-radius:12px;padding:16px;max-width:90vw;max-height:90vh;display:flex;flex-direction:column;gap:12px;}
-.receipt-modal-inner img{max-width:80vw;max-height:75vh;object-fit:contain;border-radius:8px;}
-.receipt-modal-close{align-self:flex-end;padding:6px 16px;background:#f0f0f0;border:none;border-radius:7px;font-size:13px;cursor:pointer;}
+.receipt-float{display:none;position:fixed;z-index:9999;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.25);border:1px solid #e0e0e0;flex-direction:column;min-width:280px;min-height:200px;}
+.receipt-float.open{display:flex;}
+.receipt-float-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f5f5f5;border-radius:12px 12px 0 0;cursor:move;border-bottom:1px solid #eee;user-select:none;}
+.receipt-float-title{font-size:12px;color:#666;font-weight:500;}
+.receipt-float-btns{display:flex;gap:6px;align-items:center;}
+.receipt-float-close{padding:3px 10px;background:#e0e0e0;border:none;border-radius:5px;font-size:12px;cursor:pointer;}
+.receipt-float-body{flex:1;overflow:auto;padding:8px;display:flex;align-items:center;justify-content:center;}
+.receipt-float-body img{max-width:100%;max-height:70vh;object-fit:contain;border-radius:6px;}
+.receipt-float-resize{width:14px;height:14px;position:absolute;bottom:4px;right:4px;cursor:se-resize;opacity:0.4;}
 .card-info{flex:1;min-width:0;}
 .card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-meta{font-size:11px;color:#888;margin-top:2px;}
@@ -289,6 +293,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 /* インボイスバッジ */
 .badge-invoice-ok{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#EAF3DE;color:#3B6D11;padding:2px 8px;border-radius:999px;font-weight:600;}
 .badge-invoice-ng{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#FEF0F0;color:#A32D2D;padding:2px 8px;border-radius:999px;font-weight:600;}
+.badge-invoice-na{display:inline-flex;align-items:center;gap:3px;font-size:10px;background:#F1EFE8;color:#888;padding:2px 8px;border-radius:999px;font-weight:600;}
+.group-row-inv-na{font-size:9px;background:#F1EFE8;color:#888;padding:1px 5px;border-radius:4px;font-weight:600;flex-shrink:0;}
 /* 控除割合セレクト */
 .deduction-row{display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:#FFF8E6;border-radius:6px;border:1px solid #FAC775;}
 .deduction-label{font-size:11px;color:#854F0B;}
@@ -318,6 +324,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-continue-scan{width:100%;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:10px;font-size:14px;font-weight:600;color:#185FA5;cursor:pointer;margin-bottom:12px;display:none;}
 .btn-continue-scan.show{display:block;}
 .btn-continue-scan:hover{background:#EBF4FD;}
+.btn-reset-session{width:100%;padding:10px;background:#fff;border:1px solid #e0dfd8;border-radius:10px;font-size:12px;color:#bbb;cursor:pointer;margin-top:4px;}
+.btn-reset-session:hover{border-color:#dc2626;color:#dc2626;}
 .csv-format-wrap{position:relative;display:flex;align-self:stretch;}
 .csv-format-wrap select{appearance:none;-webkit-appearance:none;padding:0 40px 0 14px;border:1px solid #ddd;border-radius:9px;font-size:14px;background:#fff;color:#1a1a1a;cursor:pointer;min-width:140px;height:100%;width:100%;box-sizing:border-box;}
 .csv-format-wrap select:focus{outline:none;border-color:#185FA5;}
@@ -760,7 +768,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.2</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.3</div>
   </div>
 </div>
 
@@ -834,7 +842,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.2 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.3 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1000,6 +1008,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div id="cards"></div>
     <div class="bottom-panel" id="bottomPanel">
       <button class="btn-continue-scan" id="btnContinueScan" onclick="continueScan()">📷 続けてスキャン</button>
+      <button class="btn-reset-session" id="btnResetSession" onclick="resetSession()" style="display:none;">🗑 仕訳をすべてクリア</button>
       <div class="bp-counts">
         <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
         <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
@@ -1849,7 +1858,7 @@ function checkSavedState(){
   btns.appendChild(b2);
   panel.className='status-panel show';
   document.getElementById('runBtn').style.display='none';
-  if(saved.items&&saved.items.length>0){results=[...saved.items];renderCards();updateBottom();document.getElementById('bottomPanel').className='bottom-panel show';document.getElementById('btnContinueScan').className='btn-continue-scan show';}
+  if(saved.items&&saved.items.length>0){results=[...saved.items];renderCards();updateBottom();document.getElementById('bottomPanel').className='bottom-panel show';document.getElementById('btnContinueScan').className='btn-continue-scan show';document.getElementById('btnResetSession').style.display='';}
 }
 
 function removeFile(i){files.splice(i,1);renderPrev();document.getElementById('statusPanel').className='status-panel';document.getElementById('runBtn').style.display='';document.getElementById('runBtn').disabled=files.length===0;}
@@ -2011,7 +2020,7 @@ async function processOneFile(f){
     const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
     const data=await resp.json();
     if(data.error){showErr(data.error);return;}
-    addItems(data.items, data.line_item_mode, b64, f.type);appendNewCards();
+    addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();
 
     // Haikuが判定したorientationに従って追加解析
     const detectedOrientation = data.orientation || 'normal';
@@ -2021,7 +2030,7 @@ async function processOneFile(f){
       const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
       const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
+      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
       setProgress(85,'270°回転で追加解析中...',f.name);
       const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
       const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
@@ -2034,7 +2043,7 @@ async function processOneFile(f){
       const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
       const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
+      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
     }
     // normal の場合は追加解析なし
     setProgress(100,'完了','');
@@ -2171,7 +2180,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
   <div class="group-row-left">
     <div class="group-row-title-line">
       <span class="group-row-title">${esc(r.title||'')}</span>
-      ${r.invoice_number?`<span class="group-row-inv-ok">✓ 適格</span>`:`<span class="group-row-inv-ng">✗ 不適格</span>`}
+      ${r.invoice_number?`<span class="group-row-inv-ok">✓ 適格</span>`:(r.tax||"").match(/非課税|不課税/)?`<span class="group-row-inv-na">― 対象外</span>`:`<span class="group-row-inv-ng">✗ 不適格</span>`}
     </div>
     <span class="group-row-tax">${esc(r.tax)} ${r.invoice_number?`<span style="font-size:10px;color:#aaa;">${esc(r.invoice_number)}</span>`:''}</span>
     <span class="group-row-memo">${esc(r.memo)}</span>
@@ -2193,11 +2202,13 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
   <div class="reason-box"><div class="reason-lbl">AIの根拠</div>${esc(r.reason)}</div>
 </div>
 <div class="edit-area" id="ep${i}">
+  <div class="erow"><label>取引先</label><input id="etitle${i}" value="${esc(r.title||'')}" placeholder="取引先名"></div>
   <div class="erow"><label>金額</label><input id="eamt${i}" value="${esc(r.amount)}" placeholder="¥0"></div>
   <div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div>
   <div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div>
   <div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div>
   <div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div>
+  <div class="erow"><label>登録番号</label><input id="einv${i}" value="${esc(r.invoice_number||'')}" placeholder="T1234567890123" oninput="onInvoiceInput(${i},this.value)"></div>
   <button class="btn-save" onclick="saveEdit(${i})">保存して承認</button>
 </div>
 <div class="learn-area" id="la${i}">
@@ -2251,7 +2262,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
   </div>
   ${isMulti?`<span class="badge-multi">${indices.length}件</span>`:(r0.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${results[indices[0]].confidence==='high'?'bh':results[indices[0]].confidence==='mid'?'bm':'bl'}">${results[indices[0]].confidence==='high'?'高信頼':results[indices[0]].confidence==='mid'?'要確認':'低信頼'}</span>`)}
   ${isDup&&!allApproved?'<span class="badge-dup">⚠ 重複の可能性</span>':''}
-  ${hasInvoice?`<span class="badge-invoice-ok">✓ 適格</span>`:`<span class="badge-invoice-ng">✗ 不適格</span>`}
+  ${hasInvoice?`<span class="badge-invoice-ok">✓ 適格</span>`:activeIndices.length>0&&(results[activeIndices[0]].tax||'').match(/非課税|不課税/)?`<span class="badge-invoice-na">― 対象外</span>`:`<span class="badge-invoice-ng">✗ 不適格</span>`}
 </div>
 ${isMulti?`<div class="group-rows">${rowsHtml}${multiFootExtra}</div>`:rowsHtml}
 ${footHtml}`;
@@ -2434,17 +2445,23 @@ function restoreCard(i){
 async function saveEdit(i){
   const before={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax};
   const amtEl=document.getElementById('eamt'+i);
+  const titleEl=document.getElementById('etitle'+i);
+  const invEl=document.getElementById('einv'+i);
   const after={
     debit:document.getElementById('ed'+i).value,
     credit:document.getElementById('ec'+i).value,
     tax:document.getElementById('et'+i).value,
     memo:document.getElementById('em'+i).value,
-    amount:amtEl?amtEl.value:results[i].amount
+    amount:amtEl?amtEl.value:results[i].amount,
+    title:titleEl?titleEl.value:results[i].title,
+    invoice_number:invEl?invEl.value.trim():results[i].invoice_number
   };
   const changed=before.debit!==after.debit||before.credit!==after.credit||before.tax!==after.tax;
   results[i].debit=after.debit;results[i].credit=after.credit;
   results[i].tax=after.tax;results[i].memo=after.memo;
   if(amtEl)results[i].amount=after.amount;
+  if(titleEl)results[i].title=after.title;
+  if(invEl)results[i].invoice_number=after.invoice_number||'';
   await approve(i);
   if(changed&&results[i].title&&results[i].title!=='不明'){
     showRuleToast(i, results[i], after);
@@ -2768,17 +2785,87 @@ document.addEventListener('DOMContentLoaded',()=>{
       const r=new FileReader();r.onload=ev=>processCsvFile(file.name,ev.target.result);r.readAsText(file,'UTF-8');
     });
   });
-});function openReceiptModal(url){
-  const modal=document.getElementById('receiptModal');
+});
+
+// ===== 原本フローティングウィンドウ =====
+function openReceiptModal(url){
+  const f=document.getElementById('receiptFloat');
   const img=document.getElementById('receiptModalImg');
   img.src=url;
-  modal.classList.add('open');
+  f.classList.add('open');
 }
 function closeReceiptModal(){
-  document.getElementById('receiptModal').classList.remove('open');
+  document.getElementById('receiptFloat').classList.remove('open');
 }
-// ESCキーで閉じる
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeReceiptModal();});
+
+// ドラッグ移動
+(function(){
+  const el=document.getElementById('receiptFloat');
+  const bar=document.getElementById('receiptFloatBar');
+  const resizer=document.getElementById('receiptFloatResize');
+  if(!el||!bar)return;
+  let dx=0,dy=0,sx=0,sy=0,dragging=false;
+  bar.addEventListener('mousedown',e=>{
+    dragging=true;sx=e.clientX;sy=e.clientY;
+    const r=el.getBoundingClientRect();dx=r.left;dy=r.top;
+    el.style.transform='none';el.style.left=dx+'px';el.style.top=dy+'px';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    el.style.left=(dx+e.clientX-sx)+'px';
+    el.style.top=(dy+e.clientY-sy)+'px';
+  });
+  document.addEventListener('mouseup',()=>{dragging=false;});
+  // リサイズ
+  let resizing=false,rsx=0,rsy=0,rw=0,rh=0;
+  resizer.addEventListener('mousedown',e=>{
+    resizing=true;rsx=e.clientX;rsy=e.clientY;
+    const r=el.getBoundingClientRect();rw=r.width;rh=r.height;
+    e.preventDefault();e.stopPropagation();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!resizing)return;
+    el.style.width=Math.max(280,rw+e.clientX-rsx)+'px';
+    el.style.height=Math.max(200,rh+e.clientY-rsy)+'px';
+  });
+  document.addEventListener('mouseup',()=>{resizing=false;});
+})();
+
+// ===== セッションリセット =====
+function resetSession(){
+  if(!confirm('今セッションの仕訳をすべてクリアしますか？'))return;
+  results=[];deleted=new Set();approved=new Set();_renderedGroupCount=0;
+  document.getElementById('cards').innerHTML='';
+  document.getElementById('bottomPanel').className='bottom-panel';
+  document.getElementById('btnContinueScan').className='btn-continue-scan';
+  document.getElementById('btnResetSession').style.display='none';
+  updateBottom();showToast('仕訳をクリアしました');
+}
+
+// ===== 登録番号入力→適格バッジ連動 =====
+function onInvoiceInput(i, val){
+  results[i].invoice_number=val.trim();
+  // バッジをリアルタイム更新
+  const card=document.getElementById('cg'+_getGroupId(i));
+  if(card){
+    const ok=card.querySelector('.badge-invoice-ok,.badge-invoice-ng,.badge-invoice-na');
+    if(ok){
+      if(val.trim()){ok.className='badge-invoice-ok';ok.textContent='✓ 適格';}
+      else{
+        const tax=results[i].tax||'';
+        if(tax.match(/非課税|不課税/)){ok.className='badge-invoice-na';ok.textContent='― 対象外';}
+        else{ok.className='badge-invoice-ng';ok.textContent='✗ 不適格';}
+      }
+    }
+  }
+}
+function _getGroupId(itemIdx){
+  const groups=buildGroups();
+  for(let gi=0;gi<groups.length;gi++){if(groups[gi].indices.includes(itemIdx))return gi;}
+  return -1;
+}
 </script>
 </div><!-- /main-area -->
 </div><!-- /layout -->
@@ -2792,11 +2879,17 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeReceiptModal();
     <button class="complete-btn" onclick="document.getElementById('completeModal').className='complete-modal'">閉じる</button>
   </div>
 </div>
-<div class="receipt-modal" id="receiptModal" onclick="if(event.target===this)closeReceiptModal()">
-  <div class="receipt-modal-inner">
-    <img id="receiptModalImg" src="" alt="領収書原本">
-    <button class="receipt-modal-close" onclick="closeReceiptModal()">閉じる</button>
+<div class="receipt-float" id="receiptFloat" style="top:80px;left:50%;transform:translateX(-50%);width:420px;">
+  <div class="receipt-float-bar" id="receiptFloatBar">
+    <span class="receipt-float-title">領収書原本</span>
+    <div class="receipt-float-btns">
+      <button class="receipt-float-close" onclick="closeReceiptModal()">✕ 閉じる</button>
+    </div>
   </div>
+  <div class="receipt-float-body">
+    <img id="receiptModalImg" src="" alt="領収書原本">
+  </div>
+  <svg class="receipt-float-resize" id="receiptFloatResize" viewBox="0 0 14 14"><path d="M12 12L4 12M12 12L12 4M12 12L6 6" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
 </div>
 </body>
 </html>
