@@ -204,6 +204,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .card-info{flex:1;min-width:0;}
 .card-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .card-meta{font-size:11px;color:#888;margin-top:2px;}
+.card-amount{font-size:17px;font-weight:700;color:#1a1a1a;margin-top:2px;letter-spacing:-0.3px;}
 .badge{font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;}
 .bh{background:#EAF3DE;color:#3B6D11;}.bm{background:#FAEEDA;color:#854F0B;}.bl{background:#FCEBEB;color:#A32D2D;}
 .badge-master{background:#E6F1FB;color:#185FA5;font-size:10px;padding:3px 9px;border-radius:999px;font-weight:600;flex-shrink:0;}
@@ -234,7 +235,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .btn-reanalyze{padding:6px 10px;background:#fff;border:1px solid #8B5CF6;border-radius:7px;font-size:11px;color:#8B5CF6;cursor:pointer;margin-left:auto;}
 .btn-reanalyze:hover{background:#F5F3FF;}
 .btn-reanalyze:disabled{opacity:0.5;cursor:not-allowed;}
-.rule-learn-toast{background:#fff;border:1px solid #C4B5FD;border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px;}
+.rule-learn-toast{background:#fff;border:1px solid #C4B5FD;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 16px rgba(124,58,237,0.13);margin-bottom:0;}
+.rule-learn-toast::after{content:'';display:block;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid #C4B5FD;margin:4px 0 -4px 24px;}
 .rlt-top{display:flex;align-items:flex-start;gap:8px;}
 .rlt-icon{width:28px;height:28px;border-radius:6px;background:#EDE9FE;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .rlt-title{font-size:12px;font-weight:600;color:#3C3489;margin-bottom:2px;}
@@ -517,6 +519,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .pricing-nav-btn:hover{background:#e0dfd8;color:#185FA5;}
 .pricing-nav-btn.active{background:#fff;color:#185FA5;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
 </style>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
@@ -738,7 +741,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.6</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.7</div>
   </div>
 </div>
 
@@ -812,7 +815,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.6 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.7 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2148,6 +2151,7 @@ function renderCards(){
   <div class="reason-box"><div class="reason-lbl">AIの根拠</div>${esc(r.reason)}</div>
 </div>
 <div class="edit-area" id="ep${i}">
+  <div class="erow"><label>金額</label><input id="eamt${i}" value="${esc(r.amount)}" placeholder="¥0"></div>
   <div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div>
   <div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div>
   <div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div>
@@ -2194,7 +2198,8 @@ function renderCards(){
   </div>
   <div class="card-info">
     <div class="card-name">${esc(r0.title)}${isRepeat?'<span class="badge-repeat">📌 前回と同じ</span>':''}</div>
-    <div class="card-meta">${esc(r0.date)}${isMulti&&totalStr?' · '+totalStr:' · '+esc(r0.amount)}</div>
+    <div class="card-meta">${esc(r0.date)}</div>
+    <div class="card-amount">${isMulti&&totalStr?totalStr:esc(r0.amount)}</div>
   </div>
   ${isMulti?`<span class="badge-multi">${indices.length}件</span>`:(r0.masterApplied?'<span class="badge-master">マスタ適用</span>':`<span class="badge ${results[indices[0]].confidence==='high'?'bh':results[indices[0]].confidence==='mid'?'bm':'bl'}">${results[indices[0]].confidence==='high'?'高信頼':results[indices[0]].confidence==='mid'?'要確認':'低信頼'}</span>`)}
   ${isDup&&!allApproved?'<span class="badge-dup">⚠ 重複の可能性</span>':''}
@@ -2351,15 +2356,18 @@ function restoreCard(i){
 }
 async function saveEdit(i){
   const before={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax};
+  const amtEl=document.getElementById('eamt'+i);
   const after={
     debit:document.getElementById('ed'+i).value,
     credit:document.getElementById('ec'+i).value,
     tax:document.getElementById('et'+i).value,
-    memo:document.getElementById('em'+i).value
+    memo:document.getElementById('em'+i).value,
+    amount:amtEl?amtEl.value:results[i].amount
   };
   const changed=before.debit!==after.debit||before.credit!==after.credit||before.tax!==after.tax;
   results[i].debit=after.debit;results[i].credit=after.credit;
   results[i].tax=after.tax;results[i].memo=after.memo;
+  if(amtEl)results[i].amount=after.amount;
   await approve(i);
   if(changed&&results[i].title&&results[i].title!=='不明'){
     showRuleToast(i, results[i], after);
@@ -2374,15 +2382,15 @@ function showRuleToast(cardIdx, item, rule){
   const toast=document.createElement('div');
   toast.id=toastId;toast.className='rule-learn-toast';
   toast.innerHTML=`<div class="rlt-top"><div class="rlt-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L8.5 5H13L9.5 7.5L11 12L7 9.5L3 12L4.5 7.5L1 5H5.5L7 1Z" fill="#7C3AED"/></svg></div><div><div class="rlt-title">${isUpdate?'ルールを更新しますか？':'このルールを学習しますか？'}</div><div class="rlt-sub">次回から自動で適用されます</div></div></div><div class="rlt-preview"><b>${esc(item.title)}</b> が出たら<br>借方：<b>${esc(rule.debit)}</b> ／ 税区分：<b>${esc(rule.tax)}</b> を自動セット</div><div class="rlt-actions"><button class="rlt-btn-yes" onclick="doLearnRule(${cardIdx},'${escAttr(item.title)}','${escAttr(rule.debit)}','${escAttr(rule.credit)}','${escAttr(rule.tax)}')">${isUpdate?'更新する':'学習する'}</button><button class="rlt-btn-no" onclick="document.getElementById('${toastId}').remove()">しない</button></div>`;
+  // 対象カードの直前に挿入（カード上に吹き出し矢印が向く）
   const cards=document.getElementById('cards');
   if(!cards)return;
-  // グループカード(cg*)の中に対象インデックスのok/footがあればその直前に挿入
   let targetCard=null;
   cards.querySelectorAll('[id^="cg"]').forEach(el=>{
     if(el.querySelector('#ok'+cardIdx)||el.querySelector('#foot'+cardIdx))targetCard=el;
   });
-  if(targetCard){cards.insertBefore(toast,targetCard);}
-  else{cards.insertBefore(toast,cards.firstChild);}
+  const ref=targetCard||cards.firstChild;
+  cards.insertBefore(toast,ref);
   toast.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 async function doLearnRule(cardIdx, title, debit, credit, tax){
