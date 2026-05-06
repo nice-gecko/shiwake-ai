@@ -818,7 +818,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.4</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.5</div>
   </div>
 </div>
 
@@ -897,7 +897,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.4 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.5 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1116,8 +1116,9 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <div class="guide-step-desc" id="g2desc">承認済みのみ、または全件を選んで出力できます。</div>
           <div class="csv-btns">
             <div class="csv-format-wrap">
-              <select id="csvFormat">
-                <option value="yayoi">弥生会計</option>
+              <select id="csvFormat" onchange="onCsvFormatChange()">
+                <option value="yayoi_txt">弥生テキスト形式（推奨）</option>
+                <option value="yayoi">弥生会計（CSV）</option>
                 <option value="freee">freee</option>
                 <option value="mf">マネーフォワード</option>
                 <option value="bugyo">勘定奉行</option>
@@ -1134,7 +1135,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <div class="guide-num">3</div>
         <div>
           <div class="guide-step-title">弥生会計にインポートする</div>
-          <div class="guide-step-desc">弥生会計 →「ファイル」→「インポート」→「仕訳日記帳」でCSVを読み込みます。</div>
+          <div class="guide-step-desc" id="g3desc">弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でテキストファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。</div>
         </div>
       </div>
     </div>
@@ -3061,8 +3062,70 @@ function fmtAmtInput(el){
   // カーソルを末尾に
   el.setSelectionRange(el.value.length,el.value.length);
 }
+// フォーマット切替時にステップ3説明を変更
+function onCsvFormatChange(){
+  const fmt=document.getElementById('csvFormat').value;
+  const el=document.getElementById('g3desc');
+  if(!el)return;
+  if(fmt==='yayoi_txt'){
+    el.innerHTML='弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でテキストファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。';
+  } else {
+    el.innerHTML='弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でCSVを読み込みます。';
+  }
+}
+
+// 弥生テキスト形式の税区分変換
+function toYayoiTax(tax){
+  if(!tax)return '';
+  if(tax.includes('課税仕入')&&tax.includes('10%'))return '課税仕入れ10%';
+  if(tax.includes('課税仕入')&&tax.includes('8%'))return '課税仕入れ8%軽減';
+  if(tax.includes('非課税'))return '非課税仕入れ';
+  if(tax.includes('不課税')||tax.includes('対象外'))return '対象外';
+  return tax;
+}
+
+// 弥生テキスト形式1行生成
+function toYayoiLine(r){
+  const amt=cleanAmt(r.amount)||'0';
+  const date=(r.date||'').replace(/\//g,'/');
+  const cols=[
+    '2000','','',date,
+    r.debit||'','','',toYayoiTax(r.tax),amt,'',
+    r.credit||'','','','',amt,'',
+    r.memo||'','','0',''
+  ];
+  return cols.map(c=>c.includes(',')||c.includes('"')?'"'+c.replace(/"/g,'""')+'"':c).join(',');
+}
+
+// 弥生テキスト形式：貸方科目別にファイルを分けてダウンロード
+function exportYayoiTxt(mode){
+  const rows=getRows(mode);
+  const CREDIT_GROUPS={
+    '現金':    rows.filter(r=>(r.credit||'').includes('現金')),
+    '未払金':  rows.filter(r=>(r.credit||'').includes('未払金')),
+    '預金':    rows.filter(r=>(r.credit||'').match(/預金|銀行/)),
+    'その他':  rows.filter(r=>!(r.credit||'').includes('現金')&&!(r.credit||'').includes('未払金')&&!(r.credit||'').match(/預金|銀行/))
+  };
+  let downloadCount=0;
+  Object.entries(CREDIT_GROUPS).forEach(([label,group])=>{
+    if(group.length===0)return;
+    const txt=group.map(r=>toYayoiLine(r)).join('\n');
+    const fname='弥生_'+label+'_'+mode+'.txt';
+    setTimeout(()=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));
+      a.download=fname;
+      a.click();
+    }, downloadCount*300);
+    downloadCount++;
+  });
+  if(downloadCount===0){showToast('出力対象の仕訳がありません');return;}
+  showToast('弥生テキスト形式で'+downloadCount+'ファイルをダウンロードしました',3000);
+}
+
 function exportCSV(mode){
   const fmt=document.getElementById('csvFormat').value;
+  if(fmt==='yayoi_txt'){exportYayoiTxt(mode);return;}
   const rows=getRows(mode);
   let headers,lines,filename;
   // 登録番号・控除割合を各フォーマットに追加
