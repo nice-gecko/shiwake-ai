@@ -270,12 +270,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .group-row:last-child{border-bottom:none;}
 .group-row-deleted{opacity:0.4;}
 .group-row-title-line{display:flex;align-items:center;gap:5px;margin-bottom:1px;}
-.group-row-title{font-size:11px;font-weight:600;color:#333;}
+.group-row-title{font-size:13px;font-weight:600;color:#1a1a1a;}
 .group-row-inv-ok{font-size:9px;background:#E1F5EE;color:#0F6E56;padding:1px 5px;border-radius:4px;font-weight:600;flex-shrink:0;}
 .group-row-inv-ng{font-size:9px;background:#FEF0F0;color:#A32D2D;padding:1px 5px;border-radius:4px;font-weight:600;flex-shrink:0;}
 .group-row-left{display:flex;flex-direction:column;gap:2px;flex:1;}
 .group-row-tax{font-size:11px;color:#888;}
-.group-row-memo{font-size:13px;color:#333;}
+.group-row-memo{font-size:11px;color:#888;}
 .group-row-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .group-row-amount{font-size:13px;font-weight:600;color:#222;}
 .group-row-debit{font-size:11px;color:#1D9E75;background:#F0FBF6;padding:2px 6px;border-radius:4px;}
@@ -760,7 +760,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.0</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.1</div>
   </div>
 </div>
 
@@ -834,7 +834,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.0 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.1 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1896,6 +1896,28 @@ async function toB64WithCompress(f){
 }
 
 // 画像を90°回転してBase64で返す
+// 回転後の画像が5MB超の場合に圧縮
+async function compressB64IfNeeded(b64, mediaType){
+  const MAX=4.5*1024*1024;
+  if(b64.length*0.75<=MAX)return {b64,mediaType};
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      const maxPx=2048;
+      if(w>maxPx||h>maxPx){const ratio=Math.min(maxPx/w,maxPx/h);w=Math.round(w*ratio);h=Math.round(h*ratio);}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      let quality=0.85;
+      const tryC=()=>{const d=canvas.toDataURL('image/jpeg',quality);const b=d.split(',')[1];if(b.length*0.75<=MAX||quality<0.35){res({b64:b,mediaType:'image/jpeg'});}else{quality-=0.1;tryC();}};
+      tryC();
+    };
+    img.onerror=rej;
+    img.src='data:'+mediaType+';base64,'+b64;
+  });
+}
+
 function rotateImageB64(b64, mediaType, degrees) {
   return new Promise(res => {
     const img = new Image();
@@ -1918,7 +1940,11 @@ function setProgress(pct,title,status){
   document.getElementById('progTitle').textContent=title;
   document.getElementById('progStatus').textContent=status;
 }
-function showErr(msg){const b=document.getElementById('errBox');b.textContent=msg;b.className='err show';}
+function showErr(msg){
+  const b=document.getElementById('errBox');b.textContent=msg;b.className='err show';
+  // エラー後もキャンセルボタンは表示し続ける（処理が続いている場合があるため）
+  const cb=document.getElementById('cancelBtn');if(cb)cb.style.display='';
+}
 function hideErr(){document.getElementById('errBox').className='err';}
 function onRunClick(){startProcess(false);}
 function cancelProcess(){
@@ -1991,21 +2017,24 @@ async function processOneFile(f){
     const detectedOrientation = data.orientation || 'normal';
     if(detectedOrientation==='mixed'){
       setProgress(65,'90°回転で追加解析中...',f.name);
-      const b64r90=await rotateImageB64(b64,f.type,90);
-      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const b64r90raw=await rotateImageB64(b64,imgMediaType,90);
+      const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
+      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, f.type);appendNewCards();
+      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
       setProgress(85,'270°回転で追加解析中...',f.name);
-      const b64r270=await rotateImageB64(b64,f.type,270);
-      const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:f.type}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
+      const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
+      const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data3=await resp3.json();
-      if(!data3.error)addItems(data3.items, data3.line_item_mode, b64r270, f.type);appendNewCards();
+      if(!data3.error)addItems(data3.items, data3.line_item_mode, b64r270, mt270);appendNewCards();
     } else if(detectedOrientation==='rotate'){
       setProgress(65,'回転補正で再解析中...',f.name);
-      const b64r90=await rotateImageB64(b64,f.type,90);
-      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:f.type}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
+      const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
+      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
       const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, f.type);appendNewCards();
+      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
     }
     // normal の場合は追加解析なし
     setProgress(100,'完了','');
