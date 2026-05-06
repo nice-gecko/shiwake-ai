@@ -12,7 +12,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .layout{display:flex;flex:1;}
 
 /* サイドバー */
-.sidebar{width:220px;flex-shrink:0;background:#f0efe9;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:0;min-height:100vh;}
+.sidebar{width:240px;flex-shrink:0;background:#f0efe9;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:0;min-height:100vh;}
 .sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid #e0dfd8;}
 .sidebar-logo-mark{display:flex;align-items:center;gap:8px;}
 .sidebar-logo-icon{width:26px;height:26px;background:#185FA5;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -20,7 +20,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-copy{margin-top:10px;padding:12px 14px;background:#e8e7e0;border-radius:8px;text-align:left;}
 .sidebar-catch{font-size:13px;font-weight:600;color:#555;line-height:1.65;margin-bottom:6px;}
 .sidebar-subcopy{display:flex;flex-direction:column;gap:3px;margin-top:4px;}
-.sidebar-subcopy-item{font-size:11px;color:#888;white-space:normal;overflow:visible;text-overflow:unset;line-height:1.5;}
+.sidebar-subcopy-item{font-size:10px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;}
 .sidebar-sub{font-size:10px;color:#666;line-height:1.5;}
 .sidebar-nav{padding:12px 8px;flex:1;}
 .sidebar-section-label{font-size:9px;color:#999;letter-spacing:0.07em;text-transform:uppercase;padding:6px 10px 4px;}
@@ -782,7 +782,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.9</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6</div>
   </div>
 </div>
 
@@ -861,7 +861,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.9 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1514,81 +1514,110 @@ function initPerspective(){
   img.onload=()=>{
     const canvas=document.getElementById('perspCanvas');
     const wrap=document.getElementById('perspWrap');
-    const maxW=wrap.clientWidth-40;
-    const maxH=wrap.clientHeight-40;
+    // wrapサイズが0の場合はwindowサイズで代替（iOS Safari対策）
+    const maxW=(wrap.clientWidth||window.innerWidth)-40;
+    const maxH=(wrap.clientHeight||(window.innerHeight*0.65))-40;
     const scale=Math.min(maxW/img.width,maxH/img.height,1);
-    canvas.width=img.width*scale;
-    canvas.height=img.height*scale;
+    canvas.width=Math.round(img.width*scale);
+    canvas.height=Math.round(img.height*scale);
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
     ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    const rect=canvas.getBoundingClientRect();
-    const wrapRect=wrap.getBoundingClientRect();
-    const ox=rect.left-wrapRect.left;
-    const oy=rect.top-wrapRect.top;
-    // 自動エッジ検出（描画済みctxから直接getImageData）
-    const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const corners=autoDetectCorners(imgData,canvas.width,canvas.height);
-    perspCorners=[
-      {x:ox+corners[0][0],y:oy+corners[0][1]},
-      {x:ox+corners[1][0],y:oy+corners[1][1]},
-      {x:ox+corners[2][0],y:oy+corners[2][1]},
-      {x:ox+corners[3][0],y:oy+corners[3][1]}
-    ];
-    updateHandles();
-    drawPerspOverlay(ctx,canvas,ox,oy);
+    // getBoundingClientRectはrAF後に正確になる（iOS Safari対策）
+    requestAnimationFrame(()=>{
+      const rect=canvas.getBoundingClientRect();
+      const wrapRect=wrap.getBoundingClientRect();
+      const ox=rect.left-wrapRect.left;
+      const oy=rect.top-wrapRect.top;
+      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+      const corners=autoDetectCorners(imgData,canvas.width,canvas.height);
+      perspCorners=[
+        {x:ox+corners[0][0],y:oy+corners[0][1]},
+        {x:ox+corners[1][0],y:oy+corners[1][1]},
+        {x:ox+corners[2][0],y:oy+corners[2][1]},
+        {x:ox+corners[3][0],y:oy+corners[3][1]}
+      ];
+      updateHandles();
+      drawPerspOverlay(ctx,canvas,ox,oy);
+    });
   };
   img.src=scanRawUrl;
 }
 
 function autoDetectCorners(imgData,w,h){
-  // imgData: ImageDataオブジェクト（ctxから事前取得済み）
-  const fallback=(()=>{const p=Math.min(w,h)*0.08;return [[p,p],[w-p,p],[w-p,h-p],[p,h-p]];});
-  try {
+  const fallback=()=>{const p=Math.min(w,h)*0.07;return[[p,p],[w-p,p],[w-p,h-p],[p,h-p]];};
+  try{
     const data=imgData.data;
-    // グレースケール
+    // グレースケール（高速整数演算）
     const gray=new Uint8Array(w*h);
     for(let i=0;i<w*h;i++){
       gray[i]=(data[i*4]*77+data[i*4+1]*150+data[i*4+2]*29)>>8;
     }
-    // Sobelエッジ
+    // Sobelエッジ（画像全体）
     const edge=new Uint8Array(w*h);
-    let maxEdge=0;
+    let maxEdge=1;
     for(let y=1;y<h-1;y++){
       for(let x=1;x<w-1;x++){
-        const gx=(-gray[(y-1)*w+(x-1)]+gray[(y-1)*w+(x+1)]
-                  -2*gray[y*w+(x-1)]+2*gray[y*w+(x+1)]
-                  -gray[(y+1)*w+(x-1)]+gray[(y+1)*w+(x+1)]);
-        const gy=(-gray[(y-1)*w+(x-1)]-2*gray[(y-1)*w+x]-gray[(y-1)*w+(x+1)]
-                  +gray[(y+1)*w+(x-1)]+2*gray[(y+1)*w+x]+gray[(y+1)*w+(x+1)]);
-        const mag=Math.sqrt(gx*gx+gy*gy);
-        if(mag>maxEdge)maxEdge=mag;
-        edge[y*w+x]=Math.min(255,mag);
+        const gx=
+          -gray[(y-1)*w+x-1]+gray[(y-1)*w+x+1]
+          -2*gray[y*w+x-1]+2*gray[y*w+x+1]
+          -gray[(y+1)*w+x-1]+gray[(y+1)*w+x+1];
+        const gy=
+          -gray[(y-1)*w+x-1]-2*gray[(y-1)*w+x]-gray[(y-1)*w+x+1]
+          +gray[(y+1)*w+x-1]+2*gray[(y+1)*w+x]+gray[(y+1)*w+x+1];
+        const m=(gx*gx+gy*gy)>>1; // 近似magnitude（sqrtなし）
+        if(m>maxEdge)maxEdge=m;
+        edge[y*w+x]=m>65025?255:(m>>8); // 255にクリップ
       }
     }
-    // 動的閾値（最大エッジ強度の20%）
-    const threshold=Math.max(30, maxEdge*0.20);
-    const pct=(arr,p)=>{if(!arr.length)return null;const s=[...arr].sort((a,b)=>a-b);return s[Math.floor(s.length*p)];};
-    // 4方向走査（中央50%帯だけ見る→背景に引っ張られにくい）
-    const leftEdges=[],rightEdges=[],topEdges=[],bottomEdges=[];
-    const ys=Math.floor(h*0.25),ye=Math.floor(h*0.75);
-    const xs=Math.floor(w*0.25),xe=Math.floor(w*0.75);
-    const stepH=Math.max(1,Math.floor((ye-ys)/60));
-    for(let y=ys;y<ye;y+=stepH){
-      for(let x=1;x<w/2;x++){if(edge[y*w+x]>threshold){leftEdges.push(x);break;}}
-      for(let x=w-2;x>w/2;x--){if(edge[y*w+x]>threshold){rightEdges.push(x);break;}}
+    // 動的閾値：最大エッジの15%（暗い領収書でも検出）
+    const thr=Math.max(15,(maxEdge>>8)*0.15);
+
+    // 4方向を画像全体で走査
+    // 左端：各行で左から最初に閾値超えたx → 最小側20%ile
+    // 右端：各行で右から最初に閾値超えたx → 最大側80%ile
+    // 上端・下端：各列で同様
+    const stepY=Math.max(1,Math.floor(h/120));
+    const stepX=Math.max(1,Math.floor(w/120));
+    const Lv=[],Rv=[],Tv=[],Bv=[];
+
+    for(let y=2;y<h-2;y+=stepY){
+      // 左端走査：左端5%は無視（フレーム雑音除去）
+      for(let x=Math.floor(w*0.03);x<w*0.6;x++){
+        if(edge[y*w+x]>thr){Lv.push(x);break;}
+      }
+      // 右端走査
+      for(let x=Math.floor(w*0.97);x>w*0.4;x--){
+        if(edge[y*w+x]>thr){Rv.push(x);break;}
+      }
     }
-    const stepV=Math.max(1,Math.floor((xe-xs)/60));
-    for(let x=xs;x<xe;x+=stepV){
-      for(let y=1;y<h/2;y++){if(edge[y*w+x]>threshold){topEdges.push(y);break;}}
-      for(let y=h-2;y>h/2;y--){if(edge[y*w+x]>threshold){bottomEdges.push(y);break;}}
+    for(let x=2;x<w-2;x+=stepX){
+      // 上端走査
+      for(let y=Math.floor(h*0.03);y<h*0.6;y++){
+        if(edge[y*w+x]>thr){Tv.push(y);break;}
+      }
+      // 下端走査
+      for(let y=Math.floor(h*0.97);y>h*0.4;y--){
+        if(edge[y*w+x]>thr){Bv.push(y);break;}
+      }
     }
-    const L=pct(leftEdges,0.20)??w*0.08;
-    const R=pct(rightEdges,0.80)??w*0.92;
-    const T=pct(topEdges,0.20)??h*0.08;
-    const B=pct(bottomEdges,0.80)??h*0.92;
-    if((R-L)<w*0.15||(B-T)<h*0.15) return fallback();
+
+    const pct=(arr,p)=>{
+      if(!arr.length)return null;
+      const s=[...arr].sort((a,b)=>a-b);
+      return s[Math.floor(s.length*p)];
+    };
+
+    // 中央付近のパーセンタイルで外れ値除去
+    const L=pct(Lv,0.25)??w*0.07;
+    const R=pct(Rv,0.75)??w*0.93;
+    const T=pct(Tv,0.25)??h*0.07;
+    const B=pct(Bv,0.75)??h*0.93;
+
+    // 検出矩形が画像の20%未満なら失敗とみなしフォールバック
+    if((R-L)<w*0.20||(B-T)<h*0.20) return fallback();
+
     return [[L,T],[R,T],[R,B],[L,B]];
-  } catch(e){
+  }catch(e){
     return fallback();
   }
 }
@@ -2408,7 +2437,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
 </div>
 <div class="edit-area" id="ep${i}">
   <div class="erow"><label>取引先</label><input id="etitle${i}" value="${esc(r.title||'')}" placeholder="取引先名"></div>
-  <div class="erow"><label>金額</label><input id="eamt${i}" value="${esc(r.amount)}" placeholder="¥0"></div>
+  <div class="erow"><label>金額</label><input id="eamt${i}" value="${esc(r.amount)}" placeholder="¥0" oninput="fmtAmtInput(this)"></div>
   <div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div>
   <div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div>
   <div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div>
@@ -2436,7 +2465,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
   const multiFootExtra=isMulti?`
 <div class="group-total-row"><span>合計</span><span>${totalStr}</span></div>
 <div class="group-edit-area" id="gep${gi}" style="display:none;">
-  ${indices.map(i=>{const r=results[i];return `<div class="group-edit-item"><div style="font-size:11px;color:#888;margin-bottom:4px;">${esc(r.title||'')} ${esc(r.tax)}</div><div class="erow"><label>金額</label><input id="eamt${i}" value="${esc(r.amount)}" placeholder="¥0"></div><div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div><div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div><div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div><div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div></div>`;}).join('<hr style="margin:8px 0;border:none;border-top:1px solid #eee;">')}
+  ${indices.map(i=>{const r=results[i];return `<div class="group-edit-item"><div style="font-size:11px;color:#888;margin-bottom:4px;">${esc(r.title||'')} ${esc(r.tax)}</div><div class="erow"><label>金額</label><input id="eamt${i}" value="${esc(r.amount)}" placeholder="¥0" oninput="fmtAmtInput(this)"></div><div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div><div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div><div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div><div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div></div>`;}).join('<hr style="margin:8px 0;border:none;border-top:1px solid #eee;">')}
   <button class="btn-save" onclick="saveGroupEdit(${JSON.stringify(indices)})">保存して承認</button>
 </div>`:'';
 
@@ -2731,6 +2760,17 @@ function getRows(mode){
   return results.filter((_,i)=>!deleted.has(i)&&(mode!=='approved'||approved.has(i)));
 }
 function cleanAmt(s){ return (s||'').replace(/[¥,￥]/g,''); }
+function fmtAmtInput(el){
+  // 数字以外除去→カンマ整形→¥付与
+  const raw=el.value.replace(/[¥￥,]/g,'').replace(/[^\d]/g,'');
+  if(raw===''){el.value='';return;}
+  const num=parseInt(raw,10);
+  if(isNaN(num)){el.value='';return;}
+  const pos=el.selectionStart;
+  el.value='¥'+num.toLocaleString('ja-JP');
+  // カーソルを末尾に
+  el.setSelectionRange(el.value.length,el.value.length);
+}
 function exportCSV(mode){
   const fmt=document.getElementById('csvFormat').value;
   const rows=getRows(mode);
@@ -3005,13 +3045,13 @@ function openReceiptModal(url, b64, mime){
   _floatCurrentUrl=url;
   _floatCurrentB64=b64||'';
   _floatCurrentMime=mime||'image/jpeg';
-  // 初期位置：画面中央（transform無し・絶対px指定）
+  // 初期位置：左上寄り（カードの左側に重ならない位置）
   if(!fl.classList.contains('open')){
     const W=window.innerWidth,H=window.innerHeight;
-    const w=420,h=500;
+    const w=360,h=480;
     fl.style.width=w+'px';fl.style.height=h+'px';
-    fl.style.left=Math.max(0,(W-w)/2)+'px';
-    fl.style.top=Math.max(0,(H-h)/2)+'px';
+    fl.style.left='16px';
+    fl.style.top='80px';
     fl.style.transform='none';
   }
   fl.classList.add('open');
