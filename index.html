@@ -481,6 +481,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ai-stat-value{font-size:20px;font-weight:700;color:#185FA5;line-height:1.2;}
 .ai-stat-label{font-size:11px;color:#888;margin-top:3px;line-height:1.4;}
 .ai-stat-value span{font-size:12px;font-weight:500;color:#185FA5;}
+/* インセンティブカウンター */
+.incentive-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-bottom:14px;}
+.incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.incentive-title{font-size:12px;font-weight:600;color:#555;}
+.incentive-badge{font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:10px;font-weight:600;}
+.incentive-counts{display:flex;gap:10px;margin-bottom:10px;}
+.incentive-count-item{flex:1;background:#F8F7F3;border-radius:8px;padding:10px 12px;}
+.incentive-count-value{font-size:20px;font-weight:700;color:#185FA5;line-height:1.2;}
+.incentive-count-value span{font-size:11px;font-weight:500;}
+.incentive-count-label{font-size:10px;color:#888;margin-top:2px;}
+.incentive-progress-wrap{margin-top:2px;}
+.incentive-progress-label{display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:4px;}
+.incentive-progress-bar{height:6px;background:#e8e7e0;border-radius:3px;overflow:hidden;}
+.incentive-progress-fill{height:100%;background:linear-gradient(90deg,#185FA5,#1D9E75);border-radius:3px;transition:width 0.6s ease;}
+.incentive-next{font-size:11px;color:#888;margin-top:6px;text-align:right;}
+.incentive-next strong{color:#185FA5;}
+@keyframes countPop{0%{transform:scale(1);}50%{transform:scale(1.25);}100%{transform:scale(1);}}
+.incentive-count-value.pop{animation:countPop 0.35s ease;}
 
 /* 承認アニメーション */
 @keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
@@ -645,15 +663,16 @@ async function getUser(uid) {
   } catch(e) { return null; }
 }
 
-// 月次処理件数をサーバー経由でインクリメント
+// 月次処理件数をサーバー経由でインクリメント（レスポンスを返す）
 async function incrementMonthlyCount(uid, n) {
   try {
-    await fetch('/api/user/count', {
+    const res = await fetch('/api/user/count', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid, amount: n })
     });
-  } catch(e) { console.warn('incrementMonthlyCount failed:', e); }
+    return await res.json();
+  } catch(e) { console.warn('incrementMonthlyCount failed:', e); return null; }
 }
 
 window._supabaseUser = null;
@@ -874,7 +893,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.0 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.1 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -934,19 +953,43 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       カメラで撮影する
     </button>
     <div class="mobile-scan-link"><a onclick="document.getElementById('fi').click()">またはファイルを選択</a></div>
+    <!-- 通常プラン用スタッツ（代理店以外） -->
     <div class="ai-stats" id="aiStats">
       <div class="ai-stat-card">
-        <div class="ai-stat-value" id="statSaved">0 <span>分</span></div>
-        <div class="ai-stat-label">今月の節約時間<br>（手作業換算）</div>
-      </div>
-      <div class="ai-stat-card">
-        <div class="ai-stat-value" id="statProcessed">0 <span>件</span></div>
-        <div class="ai-stat-label">今月の自動処理</div>
+        <div class="ai-stat-value" id="statProcessed">0 <span>枚</span></div>
+        <div class="ai-stat-label">今月の処理枚数</div>
       </div>
       <div class="ai-stat-card">
         <div class="ai-stat-value" id="statMasterCount">0 <span>社</span></div>
-        <div class="ai-stat-label">学習済みの取引先<br>（カウントアップ中）</div>
+        <div class="ai-stat-label">学習済みの取引先</div>
       </div>
+    </div>
+    <!-- 代理店プラン用インセンティブカウンター -->
+    <div class="incentive-card" id="incentiveCard" style="display:none;">
+      <div class="incentive-header">
+        <span class="incentive-title">🎁 スタッフインセンティブ</span>
+        <span class="incentive-badge" id="incentiveBadge">¥500 / 1,000枚</span>
+      </div>
+      <div class="incentive-counts">
+        <div class="incentive-count-item">
+          <div class="incentive-count-value" id="incTotal">0 <span>枚</span></div>
+          <div class="incentive-count-label">累計処理枚数</div>
+        </div>
+        <div class="incentive-count-item">
+          <div class="incentive-count-value" id="incUnredeemed">0 <span>枚</span></div>
+          <div class="incentive-count-label">未換金枚数</div>
+        </div>
+      </div>
+      <div class="incentive-progress-wrap">
+        <div class="incentive-progress-label">
+          <span>次のギフト券まで</span>
+          <span id="incProgressLabel">0 / 1,000枚</span>
+        </div>
+        <div class="incentive-progress-bar">
+          <div class="incentive-progress-fill" id="incProgressFill" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="incentive-next" id="incNext">あと <strong>1,000枚</strong> で ¥500 のAmazonギフト券</div>
     </div>
     <!-- 縦型ステッパー -->
     <div class="v-stepper">
@@ -1996,30 +2039,81 @@ async function clearAllMaster(){
   await loadMasterFromServer();
 }
 
+// インセンティブ状態をlocalStorageに保持
+let _incentiveState = { total: 0, unredeemed: 0, threshold: 1000, amount: 500, is_agency: false };
+
 function updateAiStats(){
-  // 今月処理件数をlocalStorageから集計
-  const monthKey = new Date().toISOString().slice(0,7); // "2025-06"
+  const monthKey = new Date().toISOString().slice(0,7);
   const processed = parseInt(localStorage.getItem('shiwake_month_count_'+monthKey)||'0');
-  const saved = processed * 3; // 1件3分換算
   const masterCount = Object.keys(masterData||{}).length;
 
-  const elSaved = document.getElementById('statSaved');
   const elProcessed = document.getElementById('statProcessed');
-  const elMaster = document.getElementById('statMasterCount');
-  if(elSaved) elSaved.innerHTML = saved+'<span> 分</span>';
-  if(elProcessed) elProcessed.innerHTML = processed+'<span> 件</span>';
-  if(elMaster) elMaster.innerHTML = masterCount+'<span> 社</span>';
+  const elMaster    = document.getElementById('statMasterCount');
+  if(elProcessed) elProcessed.innerHTML = processed+'<span> 枚</span>';
+  if(elMaster)    elMaster.innerHTML    = masterCount+'<span> 社</span>';
+
+  // インセンティブカード表示切替
+  const ic = document.getElementById('incentiveCard');
+  const as = document.getElementById('aiStats');
+  if(!ic || !as) return;
+  const s = _incentiveState;
+  if(s.is_agency){
+    ic.style.display = '';
+    as.style.display = 'none';
+    // 数値更新
+    const elTotal      = document.getElementById('incTotal');
+    const elUnredeemed = document.getElementById('incUnredeemed');
+    const elFill       = document.getElementById('incProgressFill');
+    const elLabel      = document.getElementById('incProgressLabel');
+    const elNext       = document.getElementById('incNext');
+    const elBadge      = document.getElementById('incentiveBadge');
+    const progress = s.unredeemed % s.threshold;
+    const pct      = Math.min(100, Math.round(progress / s.threshold * 100));
+    const remaining = s.threshold - progress;
+    if(elTotal)      elTotal.innerHTML      = s.total.toLocaleString()+'<span> 枚</span>';
+    if(elUnredeemed) elUnredeemed.innerHTML = s.unredeemed.toLocaleString()+'<span> 枚</span>';
+    if(elFill)       elFill.style.width     = pct+'%';
+    if(elLabel)      elLabel.textContent    = progress.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
+    if(elNext)       elNext.innerHTML       = 'あと <strong>'+remaining.toLocaleString()+'枚</strong> で ¥'+s.amount.toLocaleString()+' のAmazonギフト券';
+    if(elBadge)      elBadge.textContent    = '¥'+s.amount.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
+  } else {
+    ic.style.display = 'none';
+    as.style.display = '';
+  }
+}
+
+function _popIncentiveValue(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
 }
 
 function addMonthlyCount(n){
+  // カード1枚 = 1カウント（nは常に1で呼ばれる）
   const monthKey = new Date().toISOString().slice(0,7);
   const key = 'shiwake_month_count_'+monthKey;
   const cur = parseInt(localStorage.getItem(key)||'0');
   localStorage.setItem(key, cur+n);
-  updateAiStats();
-  // Supabaseにも同期
+  // Supabaseに同期してレスポンスでincentive状態を更新
   if(window._firebaseUser){
-    incrementSupabaseCount(window._firebaseUser.uid, n).catch(e=>console.warn('Supabase count sync failed:', e));
+    incrementSupabaseCount(window._firebaseUser.uid, n).then(res=>{
+      if(res && res.is_agency){
+        _incentiveState = {
+          total:      res.incentive_total,
+          unredeemed: res.incentive_unredeemed,
+          threshold:  res.incentive_threshold,
+          amount:     res.incentive_amount,
+          is_agency:  true
+        };
+        _popIncentiveValue('incTotal');
+        _popIncentiveValue('incUnredeemed');
+      }
+      updateAiStats();
+    }).catch(e=>console.warn('Supabase count sync failed:', e));
+  } else {
+    updateAiStats();
   }
 }
 
@@ -2412,7 +2506,7 @@ async function processOneFile(f){
         results.push(...data.items);
         saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
         syncSessionAppend(data.items);
-        addMonthlyCount(data.items.length);
+        addMonthlyCount(1);
         renderCards();updateBottom();
       }catch(e){
         if(e.name==='AbortError')return;
@@ -2506,7 +2600,7 @@ async function startProcess(resume){
         results.push(...data.items);
         saveState(key,{items:[...results],lastChunk:ci,totalChunks,savedAt:new Date().toISOString()});
         syncSessionAppend(data.items);
-        addMonthlyCount(data.items.length);
+        addMonthlyCount(1);
         renderCards();updateBottom();
       }catch(e){
         if(e.name==='AbortError')return;
