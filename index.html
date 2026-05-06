@@ -760,7 +760,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.1</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.2</div>
   </div>
 </div>
 
@@ -834,7 +834,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.1 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.2 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2220,7 +2220,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
   const multiFootExtra=isMulti?`
 <div class="group-total-row"><span>合計</span><span>${totalStr}</span></div>
 <div class="group-edit-area" id="gep${gi}" style="display:none;">
-  ${indices.map(i=>{const r=results[i];return `<div class="group-edit-item"><div style="font-size:11px;color:#888;margin-bottom:4px;">${esc(r.tax)} ${esc(r.amount)}</div><div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div><div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div><div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div><div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div></div>`;}).join('<hr style="margin:8px 0;border:none;border-top:1px solid #eee;">')}
+  ${indices.map(i=>{const r=results[i];return `<div class="group-edit-item"><div style="font-size:11px;color:#888;margin-bottom:4px;">${esc(r.title||'')} ${esc(r.tax)}</div><div class="erow"><label>金額</label><input id="eamt${i}" value="${esc(r.amount)}" placeholder="¥0"></div><div class="erow"><label>借方</label><select id="ed${i}">${aOpts(r.debit)}</select></div><div class="erow"><label>貸方</label><select id="ec${i}">${aOpts(r.credit)}</select></div><div class="erow"><label>税区分</label><select id="et${i}">${tOpts(r.tax)}</select></div><div class="erow"><label>摘要</label><input id="em${i}" value="${esc(r.memo)}"></div></div>`;}).join('<hr style="margin:8px 0;border:none;border-top:1px solid #eee;">')}
   <button class="btn-save" onclick="saveGroupEdit(${JSON.stringify(indices)})">保存して承認</button>
 </div>`:'';
 
@@ -2306,10 +2306,12 @@ function restoreGroup(indices){
 // グループ編集保存
 function saveGroupEdit(indices){
   indices.forEach(i=>{
+    const eamt=document.getElementById('eamt'+i);
     const ed=document.getElementById('ed'+i);
     const ec=document.getElementById('ec'+i);
     const et=document.getElementById('et'+i);
     const em=document.getElementById('em'+i);
+    if(eamt)results[i].amount=eamt.value;
     if(ed)results[i].debit=ed.value;
     if(ec)results[i].credit=ec.value;
     if(et)results[i].tax=et.value;
