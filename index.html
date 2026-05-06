@@ -77,7 +77,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .main{max-width:680px;margin:0 auto;padding:24px 16px;}
 .main-area{overflow-y:auto;}
 .main-subcopy{font-size:12px;color:#888;line-height:1.6;margin-bottom:14px;padding:0 2px;}
-.panel{display:none;}.panel.active{display:block;}
+.panel{display:none;opacity:0;transition:opacity 0.15s ease;}
+.panel.active{display:block;opacity:1;}
 .doc-type-btn{padding:9px 6px;border-radius:8px;border:1.5px solid #e0dfd8;background:#fff;font-size:11px;color:#555;cursor:pointer;text-align:center;line-height:1.4;transition:all 0.15s;width:100%;}
 .doc-type-btn:hover{border-color:#185FA5;color:#185FA5;background:#EBF4FD;}
 .doc-type-btn.active{border-color:#185FA5;background:#185FA5;color:#fff;font-weight:600;}
@@ -781,7 +782,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.8</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.5.9</div>
   </div>
 </div>
 
@@ -860,7 +861,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.8 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.5.9 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2153,44 +2154,49 @@ async function processOneFile(f){
     setProgress(100,`✅ 完了 — ${results.length}件の仕訳を生成しました`,`全${totalChunks}チャンク処理完了`);
     setTimeout(()=>{document.getElementById('prog').className='prog';document.getElementById('progSpinner').style.animation='none';document.getElementById('progPulse').style.display='none';},2500);
   } else {
-    setProgress(40,'画像を解析中...',f.name);
-    const {b64,mediaType:imgMediaType}=await toB64WithCompress(f);
-    const srcUrl=URL.createObjectURL(f);
-    const addItems=(items, lineItemMode, srcB64, srcMediaType)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
+    try {
+      setProgress(40,'画像を解析中...',f.name);
+      const {b64,mediaType:imgMediaType}=await toB64WithCompress(f);
+      const srcUrl=URL.createObjectURL(f);
+      const addItems=(items, lineItemMode, srcB64, srcMediaType)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
 
-    // まず通常向きで解析（Haikuがorientationを返す）
-    const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-    const data=await resp.json();
-    if(data.error){showErr(data.error);return;}
-    addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();
+      // まず通常向きで解析（Haikuがorientationを返す）
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const data=await resp.json();
+      if(data.error){showErr(data.error);return;}
+      addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();
 
-    // Haikuが判定したorientationに従って追加解析
-    const detectedOrientation = data.orientation || 'normal';
-    if(detectedOrientation==='mixed'){
-      setProgress(65,'90°回転で追加解析中...',f.name);
-      const b64r90raw=await rotateImageB64(b64,imgMediaType,90);
-      const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
-      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-      const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
-      setProgress(85,'270°回転で追加解析中...',f.name);
-      const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
-      const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
-      const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-      const data3=await resp3.json();
-      if(!data3.error)addItems(data3.items, data3.line_item_mode, b64r270, mt270);appendNewCards();
-    } else if(detectedOrientation==='rotate'){
-      setProgress(65,'回転補正で再解析中...',f.name);
-      const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
-      const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
-      const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
-      const data2=await resp2.json();
-      if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
+      // Haikuが判定したorientationに従って追加解析
+      const detectedOrientation = data.orientation || 'normal';
+      if(detectedOrientation==='mixed'){
+        setProgress(65,'90°回転で追加解析中...',f.name);
+        const b64r90raw=await rotateImageB64(b64,imgMediaType,90);
+        const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const data2=await resp2.json();
+        if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
+        setProgress(85,'270°回転で追加解析中...',f.name);
+        const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
+        const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
+        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const data3=await resp3.json();
+        if(!data3.error)addItems(data3.items, data3.line_item_mode, b64r270, mt270);appendNewCards();
+      } else if(detectedOrientation==='rotate'){
+        setProgress(65,'回転補正で再解析中...',f.name);
+        const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
+        const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const data2=await resp2.json();
+        if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
+      }
+    } catch(e) {
+      if(e.name==='AbortError')return;
+      showErr(`⚠️ 処理エラー: ${e.message}`);
+    } finally {
+      document.getElementById('cancelBtn').style.display='none';
+      setProgress(100,'完了','');
+      setTimeout(()=>{document.getElementById('prog').className='prog';stopProgLabelAnim();},1500);
     }
-    // normal の場合は追加解析なし
-    document.getElementById('cancelBtn').style.display='none';
-    setProgress(100,'完了','');
-    setTimeout(()=>{document.getElementById('prog').className='prog';},1500);
   }
 }
 
