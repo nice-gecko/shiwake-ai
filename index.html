@@ -1033,7 +1033,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <div id="cards"></div>
     <div class="bottom-panel" id="bottomPanel">
-      <button class="btn-continue-scan" id="btnContinueScan" onclick="continueScan()">📷 続けてスキャン</button>
+      <button class="btn-continue-scan" id="btnContinueScan" onclick="continueUpload()">📎 続けてアップロード</button>
       <div class="bp-counts">
         <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
         <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
@@ -1540,14 +1540,79 @@ function initPerspective(){
 }
 
 function autoDetectCorners(ctx,w,h){
-  // スマートデフォルト：画像の10%内側にハンドルを配置
-  // 自動検出より確実で、微調整だけで使えるようにする
-  const pad=Math.min(w,h)*0.10;
-  return [[pad,pad],[w-pad,pad],[w-pad,h-pad],[pad,h-pad]];
+  // 輝度差による矩形自動検出
+  try {
+    const imgData=ctx.getImageData(0,0,w,h).data;
+    // グレースケール化＋エッジマップ作成
+    const gray=new Uint8Array(w*h);
+    for(let i=0;i<w*h;i++){
+      const r=imgData[i*4],g=imgData[i*4+1],b=imgData[i*4+2];
+      gray[i]=Math.round(0.299*r+0.587*g+0.114*b);
+    }
+    // Sobelエッジ検出
+    const edge=new Uint8Array(w*h);
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const gx=(-gray[(y-1)*w+(x-1)]+gray[(y-1)*w+(x+1)]
+                  -2*gray[y*w+(x-1)]+2*gray[y*w+(x+1)]
+                  -gray[(y+1)*w+(x-1)]+gray[(y+1)*w+(x+1)]);
+        const gy=(-gray[(y-1)*w+(x-1)]-2*gray[(y-1)*w+x]-gray[(y-1)*w+(x+1)]
+                  +gray[(y+1)*w+(x-1)]+2*gray[(y+1)*w+x]+gray[(y+1)*w+(x+1)]);
+        edge[y*w+x]=Math.min(255,Math.round(Math.sqrt(gx*gx+gy*gy)));
+      }
+    }
+    const threshold=60;
+    // 4方向から走査して最も外側のエッジを探す
+    // 左端（各行で左から最初にエッジが来るx）
+    let leftEdges=[],rightEdges=[],topEdges=[],bottomEdges=[];
+    const step=Math.max(1,Math.floor(h/80));
+    for(let y=Math.floor(h*0.05);y<h*0.95;y+=step){
+      for(let x=Math.floor(w*0.03);x<w*0.5;x++){
+        if(edge[y*w+x]>threshold){leftEdges.push(x);break;}
+      }
+      for(let x=Math.floor(w*0.97);x>w*0.5;x--){
+        if(edge[y*w+x]>threshold){rightEdges.push(x);break;}
+      }
+    }
+    const stepX=Math.max(1,Math.floor(w/80));
+    for(let x=Math.floor(w*0.05);x<w*0.95;x+=stepX){
+      for(let y=Math.floor(h*0.03);y<h*0.5;y++){
+        if(edge[y*w+x]>threshold){topEdges.push(y);break;}
+      }
+      for(let y=Math.floor(h*0.97);y>h*0.5;y--){
+        if(edge[y*w+x]>threshold){bottomEdges.push(y);break;}
+      }
+    }
+    // 外れ値を除いた中央値付近でクリップ
+    const pct=(arr,p)=>{if(!arr.length)return null;const s=[...arr].sort((a,b)=>a-b);return s[Math.floor(s.length*p)];};
+    const L=pct(leftEdges,0.15)??w*0.08;
+    const R=pct(rightEdges,0.85)??w*0.92;
+    const T=pct(topEdges,0.15)??h*0.08;
+    const B=pct(bottomEdges,0.85)??h*0.92;
+    // 検出領域が小さすぎる場合はデフォルトにフォールバック
+    if((R-L)<w*0.2||(B-T)<h*0.2){
+      const pad=Math.min(w,h)*0.08;
+      return [[pad,pad],[w-pad,pad],[w-pad,h-pad],[pad,h-pad]];
+    }
+    // 少し内側に入れる（エッジライン上より内側が自然）
+    const m=3;
+    return [[L+m,T+m],[R-m,T+m],[R-m,B-m],[L+m,B-m]];
+  } catch(e) {
+    const pad=Math.min(w,h)*0.08;
+    return [[pad,pad],[w-pad,pad],[w-pad,h-pad],[pad,h-pad]];
+  }
 }
 
 function continueScan(){
   const input=document.getElementById('scanInput');
+  if(!input) return;
+  input.value='';
+  input.click();
+}
+
+function continueUpload(){
+  // パース補正モーダルを経由しない単純ファイル選択
+  const input=document.getElementById('fi');
   if(!input) return;
   input.value='';
   input.click();
