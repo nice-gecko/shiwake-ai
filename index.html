@@ -20,7 +20,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-copy{margin-top:10px;padding:12px 14px;background:#e8e7e0;border-radius:8px;text-align:left;}
 .sidebar-catch{font-size:13px;font-weight:600;color:#555;line-height:1.65;margin-bottom:6px;}
 .sidebar-subcopy{display:flex;flex-direction:column;gap:3px;margin-top:4px;}
-.sidebar-subcopy-item{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;}
+.sidebar-subcopy-item{font-size:11px;color:#888;white-space:normal;overflow:visible;text-overflow:unset;line-height:1.5;}
 .sidebar-sub{font-size:10px;color:#666;line-height:1.5;}
 .sidebar-nav{padding:12px 8px;flex:1;}
 .sidebar-section-label{font-size:9px;color:#999;letter-spacing:0.07em;text-transform:uppercase;padding:6px 10px 4px;}
@@ -1519,14 +1519,15 @@ function initPerspective(){
     const scale=Math.min(maxW/img.width,maxH/img.height,1);
     canvas.width=img.width*scale;
     canvas.height=img.height*scale;
-    const ctx=canvas.getContext('2d');
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
     ctx.drawImage(img,0,0,canvas.width,canvas.height);
     const rect=canvas.getBoundingClientRect();
     const wrapRect=wrap.getBoundingClientRect();
     const ox=rect.left-wrapRect.left;
     const oy=rect.top-wrapRect.top;
-    // 自動エッジ検出
-    const corners=autoDetectCorners(ctx,canvas.width,canvas.height);
+    // 自動エッジ検出（描画済みctxから直接getImageData）
+    const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const corners=autoDetectCorners(imgData,canvas.width,canvas.height);
     perspCorners=[
       {x:ox+corners[0][0],y:oy+corners[0][1]},
       {x:ox+corners[1][0],y:oy+corners[1][1]},
@@ -1539,18 +1540,19 @@ function initPerspective(){
   img.src=scanRawUrl;
 }
 
-function autoDetectCorners(ctx,w,h){
-  // 輝度差による矩形自動検出
+function autoDetectCorners(imgData,w,h){
+  // imgData: ImageDataオブジェクト（ctxから事前取得済み）
+  const fallback=(()=>{const p=Math.min(w,h)*0.08;return [[p,p],[w-p,p],[w-p,h-p],[p,h-p]];});
   try {
-    const imgData=ctx.getImageData(0,0,w,h).data;
-    // グレースケール化＋エッジマップ作成
+    const data=imgData.data;
+    // グレースケール
     const gray=new Uint8Array(w*h);
     for(let i=0;i<w*h;i++){
-      const r=imgData[i*4],g=imgData[i*4+1],b=imgData[i*4+2];
-      gray[i]=Math.round(0.299*r+0.587*g+0.114*b);
+      gray[i]=(data[i*4]*77+data[i*4+1]*150+data[i*4+2]*29)>>8;
     }
-    // Sobelエッジ検出
+    // Sobelエッジ
     const edge=new Uint8Array(w*h);
+    let maxEdge=0;
     for(let y=1;y<h-1;y++){
       for(let x=1;x<w-1;x++){
         const gx=(-gray[(y-1)*w+(x-1)]+gray[(y-1)*w+(x+1)]
@@ -1558,48 +1560,36 @@ function autoDetectCorners(ctx,w,h){
                   -gray[(y+1)*w+(x-1)]+gray[(y+1)*w+(x+1)]);
         const gy=(-gray[(y-1)*w+(x-1)]-2*gray[(y-1)*w+x]-gray[(y-1)*w+(x+1)]
                   +gray[(y+1)*w+(x-1)]+2*gray[(y+1)*w+x]+gray[(y+1)*w+(x+1)]);
-        edge[y*w+x]=Math.min(255,Math.round(Math.sqrt(gx*gx+gy*gy)));
+        const mag=Math.sqrt(gx*gx+gy*gy);
+        if(mag>maxEdge)maxEdge=mag;
+        edge[y*w+x]=Math.min(255,mag);
       }
     }
-    const threshold=60;
-    // 4方向から走査して最も外側のエッジを探す
-    // 左端（各行で左から最初にエッジが来るx）
-    let leftEdges=[],rightEdges=[],topEdges=[],bottomEdges=[];
-    const step=Math.max(1,Math.floor(h/80));
-    for(let y=Math.floor(h*0.05);y<h*0.95;y+=step){
-      for(let x=Math.floor(w*0.03);x<w*0.5;x++){
-        if(edge[y*w+x]>threshold){leftEdges.push(x);break;}
-      }
-      for(let x=Math.floor(w*0.97);x>w*0.5;x--){
-        if(edge[y*w+x]>threshold){rightEdges.push(x);break;}
-      }
-    }
-    const stepX=Math.max(1,Math.floor(w/80));
-    for(let x=Math.floor(w*0.05);x<w*0.95;x+=stepX){
-      for(let y=Math.floor(h*0.03);y<h*0.5;y++){
-        if(edge[y*w+x]>threshold){topEdges.push(y);break;}
-      }
-      for(let y=Math.floor(h*0.97);y>h*0.5;y--){
-        if(edge[y*w+x]>threshold){bottomEdges.push(y);break;}
-      }
-    }
-    // 外れ値を除いた中央値付近でクリップ
+    // 動的閾値（最大エッジ強度の20%）
+    const threshold=Math.max(30, maxEdge*0.20);
     const pct=(arr,p)=>{if(!arr.length)return null;const s=[...arr].sort((a,b)=>a-b);return s[Math.floor(s.length*p)];};
-    const L=pct(leftEdges,0.15)??w*0.08;
-    const R=pct(rightEdges,0.85)??w*0.92;
-    const T=pct(topEdges,0.15)??h*0.08;
-    const B=pct(bottomEdges,0.85)??h*0.92;
-    // 検出領域が小さすぎる場合はデフォルトにフォールバック
-    if((R-L)<w*0.2||(B-T)<h*0.2){
-      const pad=Math.min(w,h)*0.08;
-      return [[pad,pad],[w-pad,pad],[w-pad,h-pad],[pad,h-pad]];
+    // 4方向走査（中央50%帯だけ見る→背景に引っ張られにくい）
+    const leftEdges=[],rightEdges=[],topEdges=[],bottomEdges=[];
+    const ys=Math.floor(h*0.25),ye=Math.floor(h*0.75);
+    const xs=Math.floor(w*0.25),xe=Math.floor(w*0.75);
+    const stepH=Math.max(1,Math.floor((ye-ys)/60));
+    for(let y=ys;y<ye;y+=stepH){
+      for(let x=1;x<w/2;x++){if(edge[y*w+x]>threshold){leftEdges.push(x);break;}}
+      for(let x=w-2;x>w/2;x--){if(edge[y*w+x]>threshold){rightEdges.push(x);break;}}
     }
-    // 少し内側に入れる（エッジライン上より内側が自然）
-    const m=3;
-    return [[L+m,T+m],[R-m,T+m],[R-m,B-m],[L+m,B-m]];
-  } catch(e) {
-    const pad=Math.min(w,h)*0.08;
-    return [[pad,pad],[w-pad,pad],[w-pad,h-pad],[pad,h-pad]];
+    const stepV=Math.max(1,Math.floor((xe-xs)/60));
+    for(let x=xs;x<xe;x+=stepV){
+      for(let y=1;y<h/2;y++){if(edge[y*w+x]>threshold){topEdges.push(y);break;}}
+      for(let y=h-2;y>h/2;y--){if(edge[y*w+x]>threshold){bottomEdges.push(y);break;}}
+    }
+    const L=pct(leftEdges,0.20)??w*0.08;
+    const R=pct(rightEdges,0.80)??w*0.92;
+    const T=pct(topEdges,0.20)??h*0.08;
+    const B=pct(bottomEdges,0.80)??h*0.92;
+    if((R-L)<w*0.15||(B-T)<h*0.15) return fallback();
+    return [[L,T],[R,T],[R,B],[L,B]];
+  } catch(e){
+    return fallback();
   }
 }
 
