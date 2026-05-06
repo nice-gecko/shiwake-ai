@@ -756,7 +756,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.8</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.4.9</div>
   </div>
 </div>
 
@@ -830,7 +830,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       CSV統合・変換
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.8 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.4.9 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2118,7 +2118,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
     <span class="rk">摘要</span><span class="rv" id="mem${i}">${esc(r.memo)}</span>
   </div>
   ${r.invoice_number?`<div style="font-size:10px;color:#888;margin-top:4px;">登録番号：${esc(r.invoice_number)}</div>`:''}
-  ${!r.invoice_number?`<div class="deduction-row"><span class="deduction-label">仕入税額控除割合</span><select class="deduction-select" id="ded${i}" onchange="results[${i}].deduction=this.value"><option value="80" ${(r.deduction||'80')==='80'?'selected':''}>80%（〜2026年10月）</option><option value="50" ${r.deduction==='50'?'selected':''}>50%（〜2029年10月）</option><option value="0" ${r.deduction==='0'?'selected':''}>0%（2029年10月〜）</option></select></div>`:''}
+  ${!r.invoice_number&&(r.tax||'').includes('課税仕入')?`<div class="deduction-row"><span class="deduction-label">仕入税額控除割合</span><select class="deduction-select" id="ded${i}" onchange="results[${i}].deduction=this.value"><option value="80" ${(r.deduction||'80')==='80'?'selected':''}>80%（〜2026年10月）</option><option value="50" ${r.deduction==='50'?'selected':''}>50%（〜2029年10月）</option><option value="0" ${r.deduction==='0'?'selected':''}>0%（2029年10月〜）</option></select></div>`:''}
   <div class="reason-box"><div class="reason-lbl">AIの根拠</div>${esc(r.reason)}</div>
 </div>
 <div class="edit-area" id="ep${i}">
