@@ -8,6 +8,7 @@ const { getSession, appendToSession, saveSession, deleteSession } = require('./s
 // インセンティブ設定（後から変更可能）
 const INCENTIVE_THRESHOLD = 1000; // 何枚でギフト券1枚
 const INCENTIVE_AMOUNT    = 500;  // ギフト券の金額（円）
+const INCENTIVE_ALL_PLANS = true; // true=全プラン表示（テスト用）、false=代理店のみ
 
 // Stripe設定
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
@@ -500,8 +501,8 @@ const server = http.createServer(async (req, res) => {
         const cur = row.monthly_count || 0;
         const incTotal = (row.incentive_total || 0) + n;
         const incUnredeemed = (row.incentive_unredeemed || 0) + n;
-        // 代理店プランのみincentiveを加算
-        const isAgency = ['agency_light','agency_std','agency_prem'].includes(row.stripe_plan);
+        // INCENTIVE_ALL_PLANS=trueなら全プラン対象（テスト用）
+        const isAgency = INCENTIVE_ALL_PLANS || ['agency_light','agency_std','agency_prem'].includes(row.stripe_plan);
         const patch = { monthly_count: cur + n };
         if (isAgency) {
           patch.incentive_total      = incTotal;
@@ -583,14 +584,16 @@ const server = http.createServer(async (req, res) => {
           const session = event.data.object;
           const uid = session.metadata?.firebase_uid;
           const customerId = session.customer;
+          const planKey = session.metadata?.plan_key || null;
           if (uid) {
             await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
               is_paid: true,
               is_free_trial: false,
               stripe_customer_id: customerId,
+              stripe_plan: planKey,
               paid_at: new Date().toISOString()
             });
-            console.log(`有料会員に更新: ${uid}`);
+            console.log(`有料会員に更新: ${uid} plan=${planKey}`);
           }
         }
         if (event.type === 'customer.subscription.deleted') {
