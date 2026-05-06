@@ -485,6 +485,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ai-stat-value{font-size:20px;font-weight:700;color:#185FA5;line-height:1.2;}
 .ai-stat-label{font-size:11px;color:#888;margin-top:3px;line-height:1.4;}
 .ai-stat-value span{font-size:12px;font-weight:500;color:#185FA5;}
+/* スタッフ管理パネル */
+.staff-invite-form{background:#f8f7f3;border-radius:10px;padding:14px 16px;margin-bottom:16px;}
+.staff-invite-row{display:flex;gap:8px;margin-top:8px;}
+.staff-invite-input{flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fff;}
+.staff-invite-btn{padding:9px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.staff-invite-btn:hover{background:#0C447C;}
+.staff-invite-result{margin-top:10px;padding:10px 12px;background:#E6F1FB;border-radius:8px;font-size:12px;color:#185FA5;word-break:break-all;}
+.staff-list{display:flex;flex-direction:column;gap:8px;}
+.staff-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}
+.staff-card-info{flex:1;}
+.staff-card-name{font-size:13px;font-weight:600;color:#1a1a1a;}
+.staff-card-email{font-size:11px;color:#888;margin-top:1px;}
+.staff-card-stats{font-size:11px;color:#185FA5;margin-top:3px;}
+.staff-empty{text-align:center;padding:24px;color:#aaa;font-size:13px;}
+/* 招待バナー（ログイン画面） */
+.invite-banner{background:#E6F1FB;border-radius:10px;padding:12px 14px;margin-bottom:14px;text-align:center;}
+.invite-banner-title{font-size:14px;font-weight:600;color:#185FA5;margin-bottom:4px;}
+.invite-banner-sub{font-size:12px;color:#555;}
 /* インセンティブカウンター */
 .incentive-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-bottom:14px;}
 .incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -637,6 +655,29 @@ if (urlParams.get('payment') === 'cancel') {
   setTimeout(() => showToast('決済がキャンセルされました。'), 1000);
   history.replaceState({}, '', '/');
 }
+// 招待コードがあればログイン画面に招待バナーを表示
+const _inviteCode = urlParams.get('invite');
+if (_inviteCode) {
+  window.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const r = await fetch('/api/invite?code='+_inviteCode);
+      const d = await r.json();
+      if (d.ok) {
+        const banner = document.getElementById('inviteBanner');
+        if (banner) {
+          document.getElementById('inviteBannerTitle').textContent = d.owner_name+' からの招待';
+          document.getElementById('inviteBannerSub').textContent = d.invite.email+' として登録してください';
+          banner.style.display = '';
+        }
+        // メールアドレスを自動入力
+        const emailEl = document.getElementById('authEmail');
+        if (emailEl) emailEl.value = d.invite.email;
+        // 新規登録タブに切替
+        if (window.switchAuthTab) switchAuthTab('signup');
+      }
+    } catch(e) { console.warn('invite check error:', e); }
+  });
+}
 </script>
 
 <!-- Supabase連携（サーバー経由） -->
@@ -770,9 +811,34 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       if (appContent)  appContent.style.display  = '';
       if (userAvatar)  userAvatar.src = user.photoURL || '';
       if (userName)    userName.textContent = user.displayName || user.email;
+      // 招待コードがURLにあれば承認処理
+      const inviteCode = new URLSearchParams(location.search).get('invite');
+      if (inviteCode) {
+        try {
+          const r = await fetch('/api/invite/accept', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ code: inviteCode, uid: user.uid, email: user.email, display_name: user.displayName || user.email })
+          });
+          const d = await r.json();
+          if (d.ok) {
+            window.history.replaceState({}, '', '/');
+            showToast('✓ スタッフとして登録されました', 3000);
+          }
+        } catch(e) { console.warn('invite accept error:', e); }
+      }
       // Supabaseにユーザー登録・取得
       window._supabaseUser = await upsertUser(user);
       window._firebaseUser = user;
+      // role判定：オーナーならスタッフ管理メニューを表示
+      const role = window._supabaseUser?.role || 'owner';
+      window._userRole = role;
+      const navStaff = document.getElementById('navStaff');
+      if (navStaff) navStaff.style.display = role === 'owner' ? '' : 'none';
+      // スタッフの場合はオーナーのマスタを使う
+      if (role === 'staff' && window._supabaseUser?.owner_id) {
+        window._ownerUid = window._supabaseUser.owner_id;
+      }
     } else {
       // 未ログイン → ログイン画面
       if (loginScreen) loginScreen.style.display = '';
@@ -790,7 +856,11 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <svg viewBox="0 0 16 16" fill="none" width="26" height="26"><rect x="2" y="1" width="12" height="14" rx="2" stroke="white" stroke-width="1.3"/><line x1="5" y1="5" x2="11" y2="5" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke="white" stroke-width="1.1" stroke-linecap="round"/><line x1="5" y1="11" x2="8.5" y2="11" stroke="white" stroke-width="1.1" stroke-linecap="round"/></svg>
     </div>
     <div class="login-title">証憑仕訳AI</div>
-    <div class="login-sub">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
+    <div id="inviteBanner" class="invite-banner" style="display:none;">
+      <div class="invite-banner-title" id="inviteBannerTitle"></div>
+      <div class="invite-banner-sub" id="inviteBannerSub"></div>
+    </div>
+    <div class="login-sub" id="loginSub">領収書を投げ込むだけで、<br>仕訳CSVが出てくる</div>
     <div class="login-free">🎉 今なら無料期間中</div>
 
     <!-- Googleログイン -->
@@ -818,7 +888,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.5</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.6</div>
   </div>
 </div>
 
@@ -896,8 +966,12 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="5.5" x2="13" y2="5.5" stroke="currentColor" stroke-width="1"/><line x1="5.5" y1="2" x2="5.5" y2="13" stroke="currentColor" stroke-width="1"/></svg>
       CSV統合・変換
     </div>
+    <div class="sidebar-nav-item" id="navStaff" style="display:none;" onclick="switchTab('staff')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 13c0-3 2.5-4.5 5.5-4.5S13 10 13 13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      スタッフ管理
+    </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.5 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.6 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1264,6 +1338,22 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </div>
 
+  <!-- スタッフ管理パネル -->
+  <div class="panel" id="panel-staff">
+    <p class="main-subcopy">スタッフを招待してアカウントを共有できます。処理件数・インセンティブはスタッフごとに管理されます。</p>
+    <div class="staff-invite-form">
+      <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:4px;">スタッフを招待する</div>
+      <div style="font-size:12px;color:#888;">招待リンクをスタッフに送ってください。リンクから登録するとこの事務所のスタッフとして登録されます。</div>
+      <div class="staff-invite-row">
+        <input class="staff-invite-input" id="inviteEmail" type="email" placeholder="スタッフのメールアドレス">
+        <button class="staff-invite-btn" onclick="sendInvite()">招待リンクを生成</button>
+      </div>
+      <div id="inviteResult" style="display:none;" class="staff-invite-result"></div>
+    </div>
+    <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;">スタッフ一覧</div>
+    <div class="staff-list" id="staffList"><div class="staff-empty">まだスタッフがいません</div></div>
+  </div>
+
   <!-- スキャンパネル -->
   <div class="panel" id="panel-scan">
     <p class="main-subcopy">スマホのカメラで領収書を撮影し、そのまま仕訳処理へ送れます。</p>
@@ -1520,10 +1610,12 @@ function switchTab(tab){
   if(tab==='scan')items[1].classList.add('active');
   if(tab==='master')items[2].classList.add('active');
   if(tab==='csvmerge')items[3].classList.add('active');
+  if(tab==='staff')items[4]?.classList.add('active');
   if(tab==='pricing'&&pricingBtn)pricingBtn.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.className='panel');
   document.getElementById('panel-'+tab).className='panel active';
   if(tab==='master')loadMasterFromServer();
+  if(tab==='staff')loadStaffList();
   // スマホ：タブ切替でサイドバーを閉じる
   closeSidebar();
 }
@@ -2122,6 +2214,59 @@ function addMonthlyCount(n){
   }
 }
 
+
+
+// ===== スタッフ管理 =====
+
+async function sendInvite(){
+  const email = document.getElementById('inviteEmail').value.trim();
+  if(!email){showToast('メールアドレスを入力してください');return;}
+  const uid = window._firebaseUser?.uid;
+  if(!uid){showToast('ログインが必要です');return;}
+  const btn = document.querySelector('.staff-invite-btn');
+  btn.textContent = '生成中...'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/invite', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({owner_uid: uid, email})
+    });
+    const d = await r.json();
+    if(!d.ok) throw new Error(d.error||'エラー');
+    const resultEl = document.getElementById('inviteResult');
+    resultEl.style.display = '';
+    resultEl.innerHTML = `<strong>招待リンクを生成しました</strong><br>${d.invite_url}<br><br><button onclick="navigator.clipboard.writeText('${d.invite_url}').then(()=>showToast('コピーしました'))" style="margin-top:6px;padding:5px 12px;background:#185FA5;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;">コピー</button>`;
+    document.getElementById('inviteEmail').value = '';
+  } catch(e){
+    showToast('招待の生成に失敗しました: '+e.message);
+  } finally {
+    btn.textContent = '招待リンクを生成'; btn.disabled = false;
+  }
+}
+
+async function loadStaffList(){
+  const uid = window._firebaseUser?.uid;
+  if(!uid) return;
+  const listEl = document.getElementById('staffList');
+  if(!listEl) return;
+  try {
+    const r = await fetch('/api/staff?owner_uid='+uid);
+    const d = await r.json();
+    if(!d.staff || d.staff.length === 0){
+      listEl.innerHTML = '<div class="staff-empty">まだスタッフがいません<br><span style="font-size:11px;color:#bbb;">上の招待フォームからスタッフを招待してください</span></div>';
+      return;
+    }
+    listEl.innerHTML = d.staff.map(s=>`
+      <div class="staff-card">
+        <div class="staff-card-info">
+          <div class="staff-card-name">${esc(s.display_name||s.email)}</div>
+          <div class="staff-card-email">${esc(s.email)}</div>
+          <div class="staff-card-stats">累計 ${(s.incentive_total||0).toLocaleString()}枚 · 今月 ${(s.monthly_count||0).toLocaleString()}枚</div>
+        </div>
+      </div>`).join('');
+  } catch(e){
+    listEl.innerHTML = '<div class="staff-empty">読み込みに失敗しました</div>';
+  }
+}
 
 // ===== マスタ2タブ =====
 let _masterTab='vendor';

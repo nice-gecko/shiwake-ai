@@ -800,6 +800,104 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+
+  // ===== 招待・スタッフ管理API =====
+
+  // POST /api/invite → 招待コード生成・メール送信
+  if (req.method === 'POST' && req.url === '/api/invite') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { owner_uid, email } = JSON.parse(body);
+        if (!owner_uid || !email) { res.writeHead(400); res.end(JSON.stringify({ error: 'owner_uid and email required' })); return; }
+        // オーナー確認
+        const ownerData = await supabaseQuery(`/users?id=eq.${owner_uid}&select=role,email,display_name`);
+        const owner = ownerData?.[0];
+        if (!owner || owner.role === 'staff') { res.writeHead(403); res.end(JSON.stringify({ error: 'owner only' })); return; }
+        // 招待コード生成（UUID相当）
+        const code = Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36);
+        // 既存の招待があれば削除
+        await supabaseQuery(`/invites?owner_id=eq.${owner_uid}&email=eq.${encodeURIComponent(email)}&status=eq.pending`, 'DELETE');
+        // 新規招待を作成
+        await supabaseQuery('/invites', 'POST', { id: code, owner_id: owner_uid, email, status: 'pending' });
+        const inviteUrl = `https://shiwake-ai.onrender.com/?invite=${code}`;
+        console.log(`招待作成: ${email} → ${inviteUrl}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, code, invite_url: inviteUrl, owner_name: owner.display_name || owner.email }));
+      } catch(e) {
+        console.error('Invite error:', e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/invite?code=xxx → 招待コード検証
+  if (req.method === 'GET' && req.url.startsWith('/api/invite?')) {
+    const code = new URL(req.url, 'http://localhost').searchParams.get('code');
+    if (!code) { res.writeHead(400); res.end(JSON.stringify({ error: 'code required' })); return; }
+    try {
+      const data = await supabaseQuery(`/invites?id=eq.${code}&select=*`);
+      const invite = data?.[0];
+      if (!invite) { res.writeHead(404); res.end(JSON.stringify({ error: '招待コードが無効です' })); return; }
+      if (invite.status !== 'pending') { res.writeHead(400); res.end(JSON.stringify({ error: 'この招待は既に使用されています' })); return; }
+      // オーナー名も取得
+      const ownerData = await supabaseQuery(`/users?id=eq.${invite.owner_id}&select=display_name,email`);
+      const ownerName = ownerData?.[0]?.display_name || ownerData?.[0]?.email || '事務所';
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, invite, owner_name: ownerName }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // POST /api/invite/accept → 招待承認・スタッフ登録
+  if (req.method === 'POST' && req.url === '/api/invite/accept') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { code, uid, email, display_name } = JSON.parse(body);
+        if (!code || !uid || !email) { res.writeHead(400); res.end(JSON.stringify({ error: 'code, uid, email required' })); return; }
+        // 招待コード確認
+        const data = await supabaseQuery(`/invites?id=eq.${code}&select=*`);
+        const invite = data?.[0];
+        if (!invite || invite.status !== 'pending') { res.writeHead(400); res.end(JSON.stringify({ error: '招待コードが無効または使用済みです' })); return; }
+        // スタッフとして登録
+        await supabaseQuery(
+          '/users?on_conflict=id', 'POST',
+          { id: uid, email, display_name: display_name || email, role: 'staff', owner_id: invite.owner_id },
+          { 'Prefer': 'resolution=merge-duplicates,return=representation' }
+        );
+        // 招待を使用済みに
+        await supabaseQuery(`/invites?id=eq.${code}`, 'PATCH', { status: 'accepted' });
+        console.log(`スタッフ登録: ${email} → owner: ${invite.owner_id}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, owner_id: invite.owner_id }));
+      } catch(e) {
+        console.error('Invite accept error:', e.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/staff?owner_uid=xxx → スタッフ一覧取得
+  if (req.method === 'GET' && req.url.startsWith('/api/staff?')) {
+    const owner_uid = new URL(req.url, 'http://localhost').searchParams.get('owner_uid');
+    if (!owner_uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'owner_uid required' })); return; }
+    try {
+      const data = await supabaseQuery(`/users?owner_id=eq.${owner_uid}&role=eq.staff&select=id,email,display_name,incentive_total,incentive_unredeemed,monthly_count`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ staff: data || [] }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   res.writeHead(404); res.end();
 });
 
