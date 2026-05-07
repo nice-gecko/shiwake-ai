@@ -896,8 +896,9 @@ window.incrementSupabaseCount = incrementMonthlyCount;
             const mode = getAdminViewMode();
             isAgency = mode === 'incentive'; // adminはデフォルト通常表示・切替で見れる
           } else {
-            isAgency = window.INCENTIVE_ALL_PLANS_CLIENT ||
-              ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(u.stripe_plan);
+            isAgency = window.INCENTIVE_ALL_PLANS_CLIENT
+              || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(u.stripe_plan)
+              || !!u.incentive_plan; // インセンティブオプション購入済み
           }
           if (isAgency) {
             _incentiveState = {
@@ -978,7 +979,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.7.1</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.7.2</div>
   </div>
 </div>
 
@@ -1067,7 +1068,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       📊 キャッシュ統計
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.7.1 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.7.2 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2919,7 +2920,7 @@ async function processOneFile(f){
       setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
       try{
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data=await resp.json();
         if(data.error)throw new Error(data.error);
         results.push(...data.items);
@@ -2961,7 +2962,7 @@ async function processOneFile(f){
       };
 
       // まず通常向きで解析（Haikuがorientationを返す）
-      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
       const data=await resp.json();
       if(data.error){showErr(data.error);return;}
       addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();notifyResultFeedback(data);
@@ -2972,20 +2973,20 @@ async function processOneFile(f){
         setProgress(65,'90°回転で追加解析中...',f.name);
         const b64r90raw=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data2=await resp2.json();
         if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90, mt90);notifyResultFeedback(data2);}appendNewCards();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
         const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
-        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
+        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data3=await resp3.json();
         if(!data3.error){addItems(data3.items, data3.line_item_mode, b64r270, mt270);notifyResultFeedback(data3);}appendNewCards();
       } else if(detectedOrientation==='rotate'){
         setProgress(65,'回転補正で再解析中...',f.name);
         const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data2=await resp2.json();
         if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);notifyResultFeedback(data2);}appendNewCards();
       }
@@ -3031,7 +3032,7 @@ async function startProcess(resume){
       setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
       try{
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data=await resp.json();
         if(data.error)throw new Error(data.error);
         results.push(...data.items);

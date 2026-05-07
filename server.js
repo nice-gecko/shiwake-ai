@@ -27,7 +27,7 @@ function findMasterMatch(rawTitle, master) {
 // インセンティブ設定（後から変更可能）
 const INCENTIVE_THRESHOLD = 1000; // 何枚でギフト券1枚
 const INCENTIVE_AMOUNT    = 500;  // ギフト券の金額（円）
-const INCENTIVE_ALL_PLANS = true; // true=全プラン表示（テスト用）、false=代理店のみ
+const INCENTIVE_ALL_PLANS = false; // 本番: 代理店・チームプランのみ（adminは画面で切替可能）
 
 // Stripe設定
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
@@ -709,14 +709,19 @@ const server = http.createServer(async (req, res) => {
       try {
         const { uid, amount } = JSON.parse(body);
         const n = amount || 1;
-        // 現在の値を取得
-        const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count,incentive_total,incentive_unredeemed,stripe_plan`);
+        // 現在の値を取得（incentive_planも含む）
+        const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count,incentive_total,incentive_unredeemed,stripe_plan,incentive_plan`);
         const row = current?.[0] || {};
         const cur = row.monthly_count || 0;
         const incTotal = (row.incentive_total || 0) + n;
         const incUnredeemed = (row.incentive_unredeemed || 0) + n;
-        // INCENTIVE_ALL_PLANS=trueなら全プラン対象（テスト用）
-        const isAgency = INCENTIVE_ALL_PLANS || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(row.stripe_plan);
+        // インセンティブ対象判定:
+        //   1. INCENTIVE_ALL_PLANS=true（テスト時のみ）
+        //   2. 代理店・チームプラン
+        //   3. インセンティブオプション購入済み（incentive_plan）
+        const isAgency = INCENTIVE_ALL_PLANS
+          || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(row.stripe_plan)
+          || (row.incentive_plan && STRIPE_PLANS[row.incentive_plan]?.is_option === true);
         const patch = { monthly_count: cur + n };
         if (isAgency) {
           patch.incentive_total      = incTotal;
@@ -822,15 +827,27 @@ const server = http.createServer(async (req, res) => {
           const uid = session.metadata?.firebase_uid;
           const customerId = session.customer;
           const planKey = session.metadata?.plan_key || null;
+          // プランがインセンティブオプションかどうか判定
+          const isIncentiveOption = planKey && STRIPE_PLANS[planKey]?.is_option === true;
           if (uid) {
-            await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
-              is_paid: true,
-              is_free_trial: false,
-              stripe_customer_id: customerId,
-              stripe_plan: planKey,
-              paid_at: new Date().toISOString()
-            });
-            console.log(`有料会員に更新: ${uid} plan=${planKey}`);
+            if (isIncentiveOption) {
+              // インセンティブオプション購入: incentive_planのみ更新（既存のstripe_planは保持）
+              await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
+                incentive_plan: planKey,
+                incentive_purchased_at: new Date().toISOString()
+              });
+              console.log(`インセンティブオプション購入: ${uid} plan=${planKey}`);
+            } else {
+              // 通常プラン購入: 既存ロジック
+              await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
+                is_paid: true,
+                is_free_trial: false,
+                stripe_customer_id: customerId,
+                stripe_plan: planKey,
+                paid_at: new Date().toISOString()
+              });
+              console.log(`有料会員に更新: ${uid} plan=${planKey}`);
+            }
           }
         }
         if (event.type === 'customer.subscription.deleted') {
@@ -971,7 +988,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { imageDataList, fileNames, chunkIndex, totalChunks, docType, line_item_mode: requestedMode, uid, masterUid } = JSON.parse(body);
+        const { imageDataList, fileNames, chunkIndex, totalChunks, docType, line_item_mode: requestedMode, uid, masterUid, catRules } = JSON.parse(body);
         const apiKey = process.env.ANTHROPIC_API_KEY || '';
         if (!apiKey) throw new Error('APIキーが設定されていません');
 
@@ -1033,6 +1050,12 @@ const server = http.createServer(async (req, res) => {
             Object.entries(master)
               .map(([title, rule]) => `・${title} → 借方:${rule.debit} 貸方:${rule.credit} 税:${rule.tax}`)
               .join('\n');
+        }
+        // カテゴリルール（ユーザー定義の最優先ルール）
+        if (catRules && Array.isArray(catRules) && catRules.length > 0) {
+          const catRuleText = `\n\n【ユーザー定義カテゴリルール（最優先）】\n以下の条件に合致する取引先は、マスタより優先してこのルールを適用してください：\n` +
+            catRules.map(r => `・${r.condition} → 借方「${r.debit}」・${r.tax}`).join('\n');
+          masterText = (masterText || '') + catRuleText;
         }
 
         // ===== ステップ3: Sonnetへ画像を渡す =====
