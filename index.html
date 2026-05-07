@@ -472,6 +472,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .scan-modal-footer{display:flex;gap:10px;padding:12px 16px;background:#1a1a1a;flex-shrink:0;}
 .scan-footer-btn{flex:1;padding:12px;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;}
 .scan-footer-btn.cancel{background:#333;color:#aaa;}
+.scan-footer-btn.skip{background:#555;color:#fff;}
 .scan-footer-btn.apply{background:#185FA5;color:#fff;}
 
 /* パース補正キャンバス */
@@ -479,6 +480,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 
 .perspective-canvas{max-width:100%;max-height:calc(100vh - 230px);touch-action:none;}
 .persp-handle{position:absolute;width:24px;height:24px;border-radius:50%;background:#6fa8fc;border:2px solid #fff;cursor:grab;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.5);touch-action:none;}
+.persp-handle.persp-handle-mid{width:18px;height:18px;background:#fff;border:2px solid #6fa8fc;}
 
 
 /* スマホ専用カメラボタン（仕訳パネル内） */
@@ -986,7 +988,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.22</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.7.0</div>
   </div>
 </div>
 
@@ -1072,7 +1074,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       👁 インセンティブ表示に切替
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.22 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.7.0 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1130,7 +1132,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   </div>
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
-    <button class="mobile-scan-btn" onclick="openCameraOverlay()">
+    <button class="mobile-scan-btn" onclick="document.getElementById(&quot;scanInput&quot;).click()">
       <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
       カメラで撮影する
     </button>
@@ -1633,7 +1635,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <div class="panel" id="panel-scan">
     <p class="main-subcopy">スマホのカメラで領収書を撮影し、そのまま仕訳処理へ送れます。</p>
     <div class="scan-area">
-      <button class="scan-btn" onclick="openCameraOverlay()">
+      <button class="scan-btn" onclick="document.getElementById(&quot;scanInput&quot;).click()">
         <svg viewBox="0 0 22 22" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M17 2h2a1 1 0 011 1v2M5 20H3a1 1 0 01-1-1v-2M17 20h2a1 1 0 001-1v-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="11" r="4" stroke="white" stroke-width="1.5"/><circle cx="11" cy="11" r="1.5" fill="white"/></svg>
         カメラで撮影 / 画像を選択
       </button>
@@ -1691,12 +1693,17 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <div class="persp-handle" id="ph1"></div>
       <div class="persp-handle" id="ph2"></div>
       <div class="persp-handle" id="ph3"></div>
+      <div class="persp-handle persp-handle-mid" id="ph4"></div>
+      <div class="persp-handle persp-handle-mid" id="ph5"></div>
+      <div class="persp-handle persp-handle-mid" id="ph6"></div>
+      <div class="persp-handle persp-handle-mid" id="ph7"></div>
     </div>
   </div>
-  <div class="scan-persp-hint">四隅のハンドルをドラッグして領収書の角に合わせてください</div>
+  <div class="scan-persp-hint">四隅・四辺のハンドルをドラッグして領収書の枠に合わせてください</div>
   <div class="scan-modal-footer">
-    <button class="scan-footer-btn cancel" onclick="closeScanModal()">キャンセル</button>
-    <button class="scan-footer-btn apply" onclick="applyScanEdit()">この画像で仕訳する →</button>
+    <button class="scan-footer-btn cancel" onclick="retakeScan()">撮り直し</button>
+    <button class="scan-footer-btn skip" onclick="applyScanEditSkip()">補正なしで進める</button>
+    <button class="scan-footer-btn apply" onclick="applyScanEdit()">OK</button>
   </div>
 </div>
 </div>
@@ -1935,7 +1942,28 @@ function onScanFile(input){
   const f=input.files[0];
   if(!f)return;
   scanRawUrl=URL.createObjectURL(f);
+  // 新カメラフロー: scanic 静止画検出 → 4点UI
   openScanModal(scanRawUrl);
+}
+
+// 撮り直し: input をリセットして再起動
+function retakeScan(){
+  closeScanModal();
+  const inp = document.getElementById('scanInput') || document.getElementById('fi');
+  if(inp){ inp.value=''; inp.click(); }
+}
+
+// 補正なしで進める: 元画像のままパイプラインへ
+async function applyScanEditSkip(){
+  const url = scanRawUrl;
+  closeScanModal();
+  if(!url) return;
+  try{
+    const blob = await fetch(url).then(r=>r.blob());
+    const file = new File([blob], 'camera_capture.jpg', {type: blob.type || 'image/jpeg'});
+    addFiles([file]);
+    if(typeof switchTab === 'function') switchTab('siwake');
+  }catch(e){ console.warn('skip補正失敗:', e); }
 }
 
 function openScanModal(url,fromCamera){
@@ -1958,7 +1986,7 @@ function closeScanModal(){
 
 function initPerspective(){
   const img=new Image();
-  img.onload=()=>{
+  img.onload=async ()=>{
     const canvas=document.getElementById('perspCanvas');
     const wrap=document.getElementById('perspWrap');
     const maxW=(wrap.clientWidth||window.innerWidth)-40;
@@ -1972,8 +2000,29 @@ function initPerspective(){
     const wrapRect=wrap.getBoundingClientRect();
     const ox=rect.left-wrapRect.left;
     const oy=rect.top-wrapRect.top;
-    const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const corners=autoDetectCorners(imgData,canvas.width,canvas.height);
+    // scanic で4点検出（失敗時は端いっぱい）
+    let corners=null;
+    try{
+      const sc=window._scanicFn||window._scanicScanner;
+      if(sc){
+        const r=await (sc.scan?sc.scan(img,{mode:'detect'}):sc(img,{mode:'detect'}));
+        if(r&&r.success&&r.corners){
+          const sx=canvas.width/img.naturalWidth;
+          const sy=canvas.height/img.naturalHeight;
+          corners=[
+            [r.corners.topLeft.x*sx,    r.corners.topLeft.y*sy],
+            [r.corners.topRight.x*sx,   r.corners.topRight.y*sy],
+            [r.corners.bottomRight.x*sx,r.corners.bottomRight.y*sy],
+            [r.corners.bottomLeft.x*sx, r.corners.bottomLeft.y*sy]
+          ];
+        }
+      }
+    }catch(e){ console.warn('scanic検出失敗:', e.message); }
+    if(!corners){
+      // 検出失敗 → 画像端いっぱい（無音フォールバック）
+      const m=4;
+      corners=[[m,m],[canvas.width-m,m],[canvas.width-m,canvas.height-m],[m,canvas.height-m]];
+    }
     perspCorners=[
       {x:ox+corners[0][0],y:oy+corners[0][1]},
       {x:ox+corners[1][0],y:oy+corners[1][1]},
@@ -2312,8 +2361,11 @@ function autoDetectCorners(imgData,w,h){
 }
 
 function continueUpload(){
-  // パース補正モーダルを経由しない単純ファイル選択
-  const input=document.getElementById('fi');
+  // モバイル(タッチデバイス)はカメラ起動、PCは一般ファイル選択
+  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const input = isTouch
+    ? document.getElementById('scanInput')
+    : document.getElementById('fi');
   if(!input) return;
   input.value='';
   input.click();
@@ -2321,11 +2373,20 @@ function continueUpload(){
 
 function updateHandles(){
   const wrap=document.getElementById('perspWrap');
-  const wrapRect=wrap.getBoundingClientRect();
   perspCorners.forEach((c,i)=>{
     const h=document.getElementById('ph'+i);
-    h.style.left=c.x+'px';
-    h.style.top=c.y+'px';
+    if(h){ h.style.left=c.x+'px'; h.style.top=c.y+'px'; }
+  });
+  // 中点ハンドル（4辺の中央: ph4=top, ph5=right, ph6=bottom, ph7=left）
+  const mids=[[0,1],[1,2],[2,3],[3,0]];
+  mids.forEach(([a,b],j)=>{
+    const h=document.getElementById('ph'+(4+j));
+    if(h){
+      const mx=(perspCorners[a].x+perspCorners[b].x)/2;
+      const my=(perspCorners[a].y+perspCorners[b].y)/2;
+      h.style.left=mx+'px';
+      h.style.top=my+'px';
+    }
   });
 }
 
@@ -2367,6 +2428,21 @@ function drawPerspOverlay(ctx,canvas,ox,oy){
   h.addEventListener('mousedown',e=>{e.preventDefault();startDrag(e.clientX,e.clientY);});
   h.addEventListener('touchstart',e=>{e.preventDefault();startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
 });
+// 中点ハンドル（辺ドラッグで両端の角を平行移動）
+['ph4','ph5','ph6','ph7'].forEach((id,j)=>{
+  const h=document.getElementById(id);
+  if(!h)return;
+  const pairs=[[0,1],[1,2],[2,3],[3,0]];
+  const startDrag=(cx,cy)=>{
+    dragHandle='mid'+j;
+    _midStartCx=cx; _midStartCy=cy;
+    _midStartCorners=pairs[j].map(idx=>({x:perspCorners[idx].x,y:perspCorners[idx].y}));
+    _midPair=pairs[j];
+  };
+  h.addEventListener('mousedown',e=>{e.preventDefault();startDrag(e.clientX,e.clientY);});
+  h.addEventListener('touchstart',e=>{e.preventDefault();startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
+});
+let _midStartCx=0,_midStartCy=0,_midStartCorners=null,_midPair=null;
 document.addEventListener('mousemove',e=>{if(dragHandle===null)return;moveHandle(e.clientX,e.clientY);});
 document.addEventListener('touchmove',e=>{if(dragHandle===null)return;e.preventDefault();moveHandle(e.touches[0].clientX,e.touches[0].clientY);},{passive:false});
 document.addEventListener('mouseup',()=>{dragHandle=null;});
@@ -2375,7 +2451,18 @@ document.addEventListener('touchend',()=>{dragHandle=null;});
 function moveHandle(cx,cy){
   const wrap=document.getElementById('perspWrap');
   const rect=wrap.getBoundingClientRect();
-  perspCorners[dragHandle]={x:cx-rect.left-dragOffX,y:cy-rect.top-dragOffY};
+  if(typeof dragHandle==='string' && dragHandle.startsWith('mid')){
+    // 中点ドラッグ: 両端の角を同じだけ平行移動
+    const dx=cx-_midStartCx;
+    const dy=cy-_midStartCy;
+    _midPair.forEach((idx,k)=>{
+      perspCorners[idx]={x:_midStartCorners[k].x+dx, y:_midStartCorners[k].y+dy};
+    });
+  } else if(typeof dragHandle==='number'){
+    perspCorners[dragHandle]={x:cx-rect.left-dragOffX,y:cy-rect.top-dragOffY};
+  } else {
+    return;
+  }
   updateHandles();
   const canvas=document.getElementById('perspCanvas');
   const canvasRect=canvas.getBoundingClientRect();
