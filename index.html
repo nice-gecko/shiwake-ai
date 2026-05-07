@@ -3252,8 +3252,33 @@ function renderCards(){
 }
 
 // グループ承認
-function approveGroup(indices){
+async function approveGroup(indices){
+  // 承認状態を更新
   indices.forEach(i=>{if(!deleted.has(i))approved.add(i);});
+  // 各仕訳をマスタに学習（同じtitleは1回だけ）
+  const learned = new Set();
+  for(const i of indices){
+    if(deleted.has(i)) continue;
+    const item = results[i];
+    if(!item || !item.title || item.title==='不明') continue;
+    if(learned.has(item.title)) continue;
+    learned.add(item.title);
+    try { await autoLearn(item); } catch(e){ console.warn('autoLearn失敗:', e); }
+  }
+  syncSessionSave();
+  // 同じ取引先の未承認カードにマスタを即時適用
+  indices.forEach(i=>{
+    if(deleted.has(i)) return;
+    const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
+    results.forEach((r,j)=>{
+      if(j!==i && r.title===results[i].title && !approved.has(j) && !deleted.has(j)){
+        results[j]={...r,...rule,masterApplied:true};
+      }
+    });
+  });
+  // マスタ学習トースト
+  const masterCount=Object.keys(masterData||{}).length;
+  showToast(`✓ 承認完了 · 学習済み取引先 ${masterCount}社`);
   renderCards();updateBottom();checkAllApproved();
 }
 // グループ削除
