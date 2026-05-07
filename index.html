@@ -557,6 +557,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 @keyframes countPop{0%{transform:scale(1);}40%{transform:scale(1.18);color:#1D9E75;}100%{transform:scale(1);}}
 .ds-main-value.pop{animation:countPop 0.35s ease;}
 @media (max-width:560px){.dashboard-grid{grid-template-columns:1fr;}}
+.master-extra{margin-top:10px;padding-top:10px;border-top:1px solid #f0eee6;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;}
+.master-extra-left{flex:1;min-width:0;}
+.master-extra-right{flex:0 0 auto;text-align:right;}
+.master-extra-label{font-size:10px;color:#888;margin-bottom:2px;}
+.master-extra-value{font-size:13px;font-weight:600;color:#0F6E56;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.master-extra-stars{font-size:14px;letter-spacing:1px;line-height:1.2;}
 
 /* 承認アニメーション */
 @keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
@@ -972,7 +978,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.20</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.21</div>
   </div>
 </div>
 
@@ -1058,7 +1064,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       👁 インセンティブ表示に切替
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.20 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.21 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1162,7 +1168,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
             <div class="incentive-progress-bar">
               <div class="incentive-progress-fill" id="incProgressFill" style="width:0%"></div>
             </div>
-            <div class="incentive-next" id="incNext">あと <strong>1,000枚</strong> で ¥500 のAmazonギフト券</div>
+            <div class="incentive-next" id="incNext">あと <strong>1,000枚</strong></div>
           </div>
         </div>
       </div>
@@ -1181,6 +1187,16 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <div class="ds-sub">
             <div class="ds-sub-label">マスタヒット率</div>
             <div class="ds-sub-value" id="incHitRate">0<span>%</span></div>
+          </div>
+        </div>
+        <div class="master-extra">
+          <div class="master-extra-left">
+            <div class="master-extra-label">最も使われているマスタ</div>
+            <div class="master-extra-value" id="topMasterName">—</div>
+          </div>
+          <div class="master-extra-right">
+            <div class="master-extra-label">育成度</div>
+            <div class="master-extra-stars" id="masterStars">☆☆☆☆☆</div>
           </div>
         </div>
       </div>
@@ -2531,6 +2547,26 @@ function updateAiStats(){
     const rate = stat.total > 0 ? Math.round(stat.hit / stat.total * 100) : 0;
     elHR.innerHTML = rate+'<span>%</span>';
   }
+  // 最も使われているマスタ
+  const elTop = document.getElementById('topMasterName');
+  if(elTop){
+    const usage = JSON.parse(localStorage.getItem('shiwake_master_usage')||'{}');
+    const sorted = Object.entries(usage).sort((a,b)=>b[1]-a[1]);
+    if(sorted.length > 0 && sorted[0][1] > 0){
+      elTop.textContent = `🥇 ${sorted[0][0]} (${sorted[0][1]}回)`;
+    } else {
+      elTop.textContent = 'まだ使用実績なし';
+      elTop.style.color = '#aaa';
+    }
+  }
+  // 育成度（20件で1個・100件超えで⭐に変化）
+  const elStars = document.getElementById('masterStars');
+  if(elStars){
+    const filled = Math.min(5, Math.floor(masterCount / 20));
+    const isMax = masterCount >= 100;
+    const star = isMax ? '⭐' : '★';
+    elStars.textContent = star.repeat(filled) + '☆'.repeat(5-filled);
+  }
 
   // 左カード切替
   const ic = document.getElementById('incentiveCard');
@@ -2554,7 +2590,7 @@ function updateAiStats(){
     if(elUnredeemed) elUnredeemed.innerHTML = s.unredeemed.toLocaleString()+'<span>枚</span>';
     if(elFill)       elFill.style.width     = pct+'%';
     if(elLabel)      elLabel.textContent    = progress.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
-    if(elNext)       elNext.innerHTML       = 'あと <strong>'+remaining.toLocaleString()+'枚</strong> で ¥'+s.amount.toLocaleString()+' のAmazonギフト券';
+    if(elNext)       elNext.innerHTML       = 'あと <strong>'+remaining.toLocaleString()+'枚</strong>';
     if(elBadge)      elBadge.textContent    = '¥'+s.amount.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
   } else {
     // 一般ユーザー：累計処理数のみ
@@ -3067,12 +3103,19 @@ async function processOneFile(f){
       const {b64,mediaType:imgMediaType}=await toB64WithCompress(f);
       const srcUrl=URL.createObjectURL(f);
       const addItems=(items, lineItemMode, srcB64, srcMediaType)=>{
-        // ヒット率集計（masterAppliedフラグから）
+        // ヒット率集計（masterAppliedフラグから）+ マスタ別使用回数カウント
         if(items && items.length){
           const stat = JSON.parse(localStorage.getItem('shiwake_master_hit_stat')||'{"hit":0,"total":0}');
           stat.total += items.length;
           stat.hit   += items.filter(it=>it.masterApplied).length;
           localStorage.setItem('shiwake_master_hit_stat', JSON.stringify(stat));
+          // 使用回数カウント（masterKeyベース）
+          const usage = JSON.parse(localStorage.getItem('shiwake_master_usage')||'{}');
+          items.filter(it=>it.masterApplied).forEach(it=>{
+            const key = it.masterKey || it.title;
+            if(key) usage[key] = (usage[key]||0) + 1;
+          });
+          localStorage.setItem('shiwake_master_usage', JSON.stringify(usage));
         }
         items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
       };
