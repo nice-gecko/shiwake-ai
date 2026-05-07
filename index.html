@@ -937,7 +937,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.10</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.11</div>
   </div>
 </div>
 
@@ -1020,7 +1020,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.10 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.11 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1239,8 +1239,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <div class="csv-btns">
             <div class="csv-format-wrap">
               <select id="csvFormat" onchange="onCsvFormatChange()">
-                <option value="yayoi_txt">弥生テキスト形式（推奨）</option>
-                <option value="yayoi">弥生会計（CSV）</option>
+                <option value="yayoi_txt">弥生会計（テキスト/CSV）</option>
                 <option value="freee">freee</option>
                 <option value="mf">マネーフォワード</option>
                 <option value="bugyo">勘定奉行</option>
@@ -3298,7 +3297,7 @@ function onCsvFormatChange(){
   if(creditWrap)creditWrap.style.display=isYayoi?'flex':'none';
   if(!el)return;
   if(fmt==='yayoi_txt'||fmt==='yayoi'){
-    el.innerHTML='弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。';
+    el.innerHTML='弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でファイルを読み込みます。ファイルの種類を「すべてのファイル(*.*)」に変更してから選択してください。<br>貸方科目ごとにファイルが分かれてダウンロードされます。';
   } else if(fmt==='freee'){
     el.innerHTML='freee →「取引入力」→「振替伝票」→「インポート」→「他社会計ソフトインポート」でCSVをアップロードします。';
   } else if(fmt==='mf'){
@@ -3371,7 +3370,7 @@ function exportYayoiTxt(mode){
     downloadCount++;
   });
   if(downloadCount===0){showToast('出力対象の仕訳がありません');return;}
-  showToast('弥生テキスト形式で'+downloadCount+'ファイルをダウンロードしました',3000);
+  showToast('弥生会計形式で'+downloadCount+'ファイルをダウンロードしました',3000);
 }
 
 function exportCSV(mode){
@@ -3811,7 +3810,7 @@ window.addEventListener('load',function(){
     </div>
     <div class="gf-panel active" id="gfp-yayoi">
       <div class="gf-steps">
-        <div class="gf-srow"><div class="gf-snum">1</div><div><div class="gf-slabel">フォーマット選択</div><div class="gf-spath"><code>弥生テキスト形式（推奨）</code> を選択</div></div></div>
+        <div class="gf-srow"><div class="gf-snum">1</div><div><div class="gf-slabel">フォーマット選択</div><div class="gf-spath"><code>弥生会計（テキスト/CSV）</code> を選択</div></div></div>
         <div class="gf-div"></div>
         <div class="gf-srow"><div class="gf-snum">2</div><div><div class="gf-slabel">ファイルをダウンロード</div><div class="gf-spath">「承認済みのみ」をクリック<br>貸方科目ごとにファイルが分割されます<br>例：<code>弥生_現金_approved.txt</code></div></div></div>
         <div class="gf-div"></div>
