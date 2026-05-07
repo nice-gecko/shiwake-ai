@@ -889,8 +889,15 @@ window.incrementSupabaseCount = incrementMonthlyCount;
             team_lite:'チームライト', team_std:'チームスタンダード', team_prem:'チームプレミアム'
           };
           window._userPlanName = PLAN_NAMES[u.stripe_plan] || (u.is_paid ? '有料プラン' : '無料トライアル');
-          const isAgency = window.INCENTIVE_ALL_PLANS_CLIENT ||
-            ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(u.stripe_plan);
+          // adminは画面切替を優先、他ユーザーはプラン判定
+          let isAgency;
+          if(isAdminUser()){
+            const mode = getAdminViewMode();
+            isAgency = mode === 'incentive'; // adminはデフォルト通常表示・切替で見れる
+          } else {
+            isAgency = window.INCENTIVE_ALL_PLANS_CLIENT ||
+              ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(u.stripe_plan);
+          }
           if (isAgency) {
             _incentiveState = {
               total:      u.incentive_total      || 0,
@@ -899,6 +906,19 @@ window.incrementSupabaseCount = incrementMonthlyCount;
               amount:     500,
               is_agency:  true
             };
+          } else {
+            _incentiveState.is_agency = false;
+          }
+          // adminには切替ボタン表示
+          const adminBtn = document.getElementById('adminViewToggle');
+          if(adminBtn){
+            if(isAdminUser()){
+              adminBtn.style.display = '';
+              const mode = getAdminViewMode();
+              adminBtn.textContent = mode === 'incentive' ? '👁 通常表示に切替' : '👁 インセンティブ表示に切替';
+            } else {
+              adminBtn.style.display = 'none';
+            }
           }
         }
       } catch(e) { console.warn('incentive init error:', e); }
@@ -1033,6 +1053,9 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div class="sidebar-nav-item" id="navStaff" style="display:none;" onclick="switchTab('staff')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 13c0-3 2.5-4.5 5.5-4.5S13 10 13 13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       スタッフ管理
+    </div>
+    <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
+      👁 インセンティブ表示に切替
     </div>
   </nav>
   <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.20 · Sonnet 4.6</div>
@@ -2450,7 +2473,48 @@ async function clearAllMaster(){
 }
 
 // インセンティブ状態をlocalStorageに保持
-const INCENTIVE_ALL_PLANS_CLIENT = true; // server.jsのINSENTIVE_ALL_PLANSと合わせる
+window.INCENTIVE_ALL_PLANS_CLIENT = false; // 本番はfalse・adminは画面で切替可能
+const ADMIN_EMAIL = 'easy.you.me@gmail.com';
+function isAdminUser(){
+  return window._firebaseUser?.email === ADMIN_EMAIL;
+}
+function getAdminViewMode(){
+  // 'incentive' / 'normal' / null（プラン通り）
+  return localStorage.getItem('shiwake_admin_view_mode');
+}
+function setAdminViewMode(mode){
+  if(mode) localStorage.setItem('shiwake_admin_view_mode', mode);
+  else localStorage.removeItem('shiwake_admin_view_mode');
+  updateAiStats();
+}
+window.toggleAdminView = function(){
+  const cur = getAdminViewMode();
+  const next = cur === 'incentive' ? 'normal' : 'incentive';
+  setAdminViewMode(next);
+  // is_agencyフラグを切り替え（adminのみ）
+  if(isAdminUser()){
+    _incentiveState.is_agency = (next === 'incentive');
+    if(next === 'incentive' && !_incentiveState.total){
+      // adminがインセンティブ表示初回切替時、Supabaseから取得
+      const uid = window._firebaseUser?.uid;
+      if(uid){
+        fetch('/api/user?uid='+uid).then(r=>r.json()).then(d=>{
+          const u = d?.user;
+          if(u){
+            _incentiveState = {
+              total: u.incentive_total||0, unredeemed: u.incentive_unredeemed||0,
+              threshold: 1000, amount: 500, is_agency: true
+            };
+            updateAiStats();
+          }
+        });
+      }
+    }
+  }
+  updateAiStats();
+  const btn = document.getElementById('adminViewToggle');
+  if(btn) btn.textContent = next === 'incentive' ? '👁 通常表示に切替' : '👁 インセンティブ表示に切替';
+};
 let _incentiveState = { total: 0, unredeemed: 0, threshold: 1000, amount: 500, is_agency: false };
 
 function updateAiStats(){
