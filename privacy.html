@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>プライバシーポリシー - 証憑仕訳AI</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.8;color:#333;background:#fff;}
+h1{font-size:24px;border-bottom:2px solid #444;padding-bottom:10px;margin-bottom:24px;}
+h2{font-size:18px;margin-top:32px;color:#222;}
+p{margin:12px 0;}
+ul{padding-left:24px;}
+li{margin:6px 0;}
+.meta{color:#888;font-size:13px;margin-bottom:24px;}
+.notice{background:#fff8e1;border-left:4px solid #ffb300;padding:12px 16px;margin:20px 0;font-size:14px;}
+.back{display:inline-block;margin-top:40px;color:#555;text-decoration:none;border-bottom:1px solid #aaa;}
+.back:hover{color:#000;}
+</style>
+</head>
+<body>
+<h1>プライバシーポリシー</h1>
+<p class="meta">最終更新日: 2026年5月7日<br>運営者: 合同会社和泉グミ (izumi-gummy LLC)</p>
+
+<p>合同会社和泉グミ（以下「運営者」）が提供する証憑仕訳AI（以下「本サービス」）は、ユーザーのプライバシーを尊重し、個人情報の保護に最大限の注意を払っています。本ポリシーは、本サービスがどのような情報をどのように扱うかを説明するものです。</p>
+
+<h2>1. 取得する情報</h2>
+<p>本サービスでは、以下の情報を取得します。</p>
+<ul>
+<li><strong>アカウント情報</strong>: メールアドレス、表示名、Firebase認証情報</li>
+<li><strong>証憑画像データ</strong>: ユーザーがアップロードしたレシート・領収書・請求書等の画像およびPDF</li>
+<li><strong>仕訳データ</strong>: AIが生成した仕訳および、ユーザーが承認・編集した仕訳結果</li>
+<li><strong>取引先マスタ</strong>: ユーザーが学習させた取引先名と勘定科目の対応情報</li>
+<li><strong>利用統計</strong>: 月間処理件数、累計処理件数、利用日時等</li>
+<li><strong>決済情報</strong>: 有料プランをご利用の場合、Stripe社のサービスを通じて決済情報を取り扱います（クレジットカード番号は本サービスのサーバーには保存されません）</li>
+</ul>
+
+<h2>2. 情報の利用目的</h2>
+<ul>
+<li>本サービスの提供および維持</li>
+<li>AI仕訳生成のための処理</li>
+<li>サービス品質の向上、機能改善</li>
+<li>料金の請求、支払い処理</li>
+<li>不正利用の防止</li>
+<li>ユーザーへの通知（重要なお知らせ・サービス変更等）</li>
+<li>お問い合わせへの対応</li>
+</ul>
+
+<h2>3. 第三者への情報提供</h2>
+<div class="notice">
+<strong>重要</strong>: 本サービスでは、AI処理のために、アップロードされた証憑画像をAnthropic, PBC（米国・以下「Anthropic社」）が提供するClaude APIに送信します。これは仕訳生成のために必要な処理です。
+</div>
+
+<p>本サービスは以下の第三者サービスを利用しています。</p>
+<ul>
+<li><strong>Anthropic社（Claude API）</strong>: 証憑画像の解析、仕訳生成<br>
+画像データはAPI処理のために送信されますが、Anthropic社のポリシーにより、APIに送信されたデータはAIモデルの学習には利用されません。詳細は<a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener">Anthropic社のプライバシーポリシー</a>をご確認ください。</li>
+<li><strong>Google Firebase</strong>: 認証、ユーザー管理</li>
+<li><strong>Supabase</strong>: ユーザーデータ・仕訳データの保管（PostgreSQLデータベース）</li>
+<li><strong>Stripe</strong>: 決済処理</li>
+<li><strong>SendGrid</strong>: メール通知の送信</li>
+<li><strong>Render</strong>: アプリケーションのホスティング</li>
+</ul>
+
+<p>上記以外の第三者に対し、ユーザーの同意なく個人情報を提供することはありません。ただし、法令に基づく場合や、人の生命・身体・財産の保護のために必要な場合はこの限りではありません。</p>
+
+<h2>4. データの保管期間</h2>
+<ul>
+<li><strong>アカウント情報・仕訳データ</strong>: アカウントが有効である間、保管します</li>
+<li><strong>アップロードされた証憑画像</strong>: AI処理完了後、サーバー上には保管されません（処理時のメモリ上のみ）</li>
+<li><strong>退会後のデータ</strong>: 退会後、合理的な期間内（30日以内を目安）にすべてのデータを削除します</li>
+<li><strong>法令により保管義務がある情報</strong>: 法令に定める期間保管します</li>
+</ul>
+
+<h2>5. データの保管場所</h2>
+<p>ユーザーデータは、Supabase、Firebase、Renderの各サービスのサーバーに保管されます。これらのサーバーは日本国外（主に米国）に所在する場合があります。</p>
+
+<h2>6. ユーザーの権利</h2>
+<p>ユーザーは、自己に関する個人情報について以下の権利を有します。</p>
+<ul>
+<li><strong>開示請求</strong>: 保有する個人情報の開示を求めることができます</li>
+<li><strong>訂正・削除請求</strong>: 不正確な情報の訂正、または情報の削除を求めることができます</li>
+<li><strong>利用停止請求</strong>: 個人情報の利用停止を求めることができます</li>
+<li><strong>退会</strong>: いつでもアカウント削除（退会）を行うことができます</li>
+</ul>
+<p>これらの請求については、下記のお問い合わせ先までご連絡ください。</p>
+
+<h2>7. Cookieおよび類似技術</h2>
+<p>本サービスでは、ユーザー体験の向上およびログイン状態の維持のために、ブラウザのlocalStorageおよびCookieを使用します。これらは、ユーザーが任意でブラウザの設定により無効化できますが、無効化した場合、本サービスの一部機能が利用できなくなる場合があります。</p>
+
+<h2>8. セキュリティ対策</h2>
+<p>本サービスは、ユーザーの個人情報を保護するため、業界標準のセキュリティ対策を実施しています。具体的には、HTTPS通信による暗号化、Firebase Authenticationによる認証、データベースへのアクセス制限などを行っています。</p>
+
+<h2>9. 未成年者の利用について</h2>
+<p>本サービスは、原則として事業者および個人事業主のご利用を想定しています。未成年者がご利用の場合は、保護者の同意を得た上でご利用ください。</p>
+
+<h2>10. プライバシーポリシーの変更</h2>
+<p>本ポリシーの内容は、法令の改正や本サービスの内容変更等に応じて、適宜変更することがあります。変更後のポリシーは、本サービス上に掲載した時点で効力を生じるものとします。重大な変更がある場合は、メール等でユーザーに通知します。</p>
+
+<h2>11. お問い合わせ先</h2>
+<p>本ポリシーに関するお問い合わせ、個人情報の開示・訂正・削除等のご請求は、下記までご連絡ください。<br>
+運営者: 合同会社和泉グミ<br>
+所在地: 東京都目黒区中根1-7-16-701<br>
+メール: support@shiwake-ai.com</p>
+
+<a href="/" class="back">← 証憑仕訳AIに戻る</a>
+</body>
+</html>

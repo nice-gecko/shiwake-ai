@@ -930,6 +930,17 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         }
       } catch(e) { console.warn('incentive init error:', e); }
       updateAiStats();
+      // 初回ログイン時にチュートリアル自動表示
+      try {
+        const tutorialKey = 'shiwake_tutorial_shown_v1';
+        if (!localStorage.getItem(tutorialKey)) {
+          localStorage.setItem(tutorialKey, '1');
+          // 初回のみ・少し遅延させてDOM準備後に開く
+          setTimeout(() => {
+            if (typeof openTutorialFloat === 'function') openTutorialFloat();
+          }, 800);
+        }
+      } catch(e) { console.warn('tutorial init error:', e); }
     } else {
       // 未ログイン → ログイン画面
       if (loginScreen) loginScreen.style.display = '';
@@ -974,12 +985,27 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div id="authPasswordConfirmWrap" style="display:none;">
       <input class="login-input" id="authPasswordConfirm" type="password" placeholder="パスワード（確認）">
     </div>
+    <div id="authTermsWrap" style="display:none;margin:8px 0;text-align:left;font-size:12px;color:#666;">
+      <label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="authTermsCheck" style="margin-top:3px;flex-shrink:0;">
+        <span><a href="/terms" target="_blank" style="color:#666;text-decoration:underline;">利用規約</a>および<a href="/privacy" target="_blank" style="color:#666;text-decoration:underline;">プライバシーポリシー</a>に同意します</span>
+      </label>
+    </div>
 
     <button class="btn-email-submit" id="authSubmitBtn" onclick="handleAuthSubmit()">ログイン</button>
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.7.2</div>
+    <div style="margin-top:8px;font-size:11px;color:#aaa;text-align:center;line-height:1.7;">
+      <a href="/terms" target="_blank" style="color:#999;text-decoration:none;">利用規約</a>
+      ・
+      <a href="/privacy" target="_blank" style="color:#999;text-decoration:none;">プライバシーポリシー</a>
+      <br>
+      <a href="/tokushoho" target="_blank" style="color:#999;text-decoration:none;">特商法表記</a>
+      ・
+      <a href="mailto:support@shiwake-ai.com" style="color:#999;text-decoration:none;">お問い合わせ</a>
+    </div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.8.0</div>
   </div>
 </div>
 
@@ -1068,7 +1094,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       📊 キャッシュ統計
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.7.2 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.8.0 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1097,6 +1123,15 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <span class="badge-free-trial" id="freeTrialBadge">🎉 無料期間中</span>
     <button class="btn-upgrade" id="upgradeBtn" onclick="startCheckout()" style="display:none;">有料プランにアップグレード</button>
+    <div style="margin-top:8px;font-size:10px;color:#aaa;text-align:center;line-height:1.6;">
+      <a href="/terms" target="_blank" style="color:#999;text-decoration:none;">利用規約</a>
+      ・
+      <a href="/privacy" target="_blank" style="color:#999;text-decoration:none;">プライバシー</a>
+      <br>
+      <a href="/tokushoho" target="_blank" style="color:#999;text-decoration:none;">特商法表記</a>
+      ・
+      <a href="mailto:support@shiwake-ai.com" style="color:#999;text-decoration:none;">お問い合わせ</a>
+    </div>
   </div>
 </aside>
 
@@ -1817,6 +1852,7 @@ function switchAuthTab(tab) {
   document.getElementById('tabSignup').className = 'login-tab' + (tab==='signup' ? ' active' : '');
   document.getElementById('authSubmitBtn').textContent = tab === 'login' ? 'ログイン' : 'アカウントを作成';
   document.getElementById('authPasswordConfirmWrap').style.display = tab === 'signup' ? '' : 'none';
+  document.getElementById('authTermsWrap').style.display = tab === 'signup' ? '' : 'none';
   document.getElementById('authError').textContent = '';
 }
 
@@ -1833,6 +1869,10 @@ function handleAuthSubmit() {
     const confirm = document.getElementById('authPasswordConfirm').value;
     if (password !== confirm) {
       document.getElementById('authError').textContent = 'パスワードが一致しません';
+      return;
+    }
+    if (!document.getElementById('authTermsCheck').checked) {
+      document.getElementById('authError').textContent = '利用規約・プライバシーポリシーへの同意が必要です';
       return;
     }
     emailSignup(email, password);

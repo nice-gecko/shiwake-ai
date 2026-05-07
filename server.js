@@ -611,6 +611,21 @@ const server = http.createServer(async (req, res) => {
     res.end(fs.readFileSync(path.join(__dirname, 'index.html')));
     return;
   }
+  if (req.method === 'GET' && (req.url === '/terms' || req.url === '/terms.html')) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(fs.readFileSync(path.join(__dirname, 'terms.html')));
+    return;
+  }
+  if (req.method === 'GET' && (req.url === '/privacy' || req.url === '/privacy.html')) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(fs.readFileSync(path.join(__dirname, 'privacy.html')));
+    return;
+  }
+  if (req.method === 'GET' && (req.url === '/tokushoho' || req.url === '/tokushoho.html' || req.url === '/legal')) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(fs.readFileSync(path.join(__dirname, 'tokushoho.html')));
+    return;
+  }
 
   // ===== マスタAPI =====
   if (req.method === 'GET' && (req.url === '/api/master' || req.url.startsWith('/api/master?'))) { getMasterRoutes(req, res); return; }
