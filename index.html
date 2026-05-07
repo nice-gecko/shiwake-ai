@@ -536,11 +536,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .incentive-title{font-size:12px;font-weight:600;color:#555;}
 .incentive-badge{font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:10px;font-weight:600;}
-.incentive-counts{display:flex;gap:10px;margin-bottom:10px;}
-.incentive-count-item{flex:1;background:#F8F7F3;border-radius:8px;padding:10px 12px;}
-.incentive-count-value{font-size:20px;font-weight:700;color:#185FA5;line-height:1.2;}
-.incentive-count-value span{font-size:11px;font-weight:500;}
-.incentive-count-label{font-size:10px;color:#888;margin-top:2px;}
+.incentive-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.incentive-count-item{background:#F5F8FB;border-radius:8px;padding:10px 12px;display:flex;align-items:baseline;gap:12px;}
+.inc-sub{flex:0 0 auto;}
+.inc-sub-label{font-size:10px;color:#888;margin-bottom:2px;}
+.inc-sub-value{font-size:14px;font-weight:600;color:#888;line-height:1;}
+.inc-sub-value span{font-size:10px;font-weight:500;}
+.inc-main{border-left:1px solid #e0e0e0;padding-left:12px;flex:1;}
+.inc-main-label{font-size:10px;color:#888;margin-bottom:2px;}
+.inc-main-value{font-size:24px;font-weight:700;color:#185FA5;line-height:1;}
+.inc-main-value span{font-size:12px;font-weight:500;color:#888;}
 .incentive-progress-wrap{margin-top:2px;}
 .incentive-progress-label{display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:4px;}
 .incentive-progress-bar{height:6px;background:#e8e7e0;border-radius:3px;overflow:hidden;}
@@ -1102,12 +1107,24 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       </div>
       <div class="incentive-counts">
         <div class="incentive-count-item">
-          <div class="incentive-count-value" id="incTotal">0 <span>枚</span></div>
-          <div class="incentive-count-label">累計処理枚数</div>
+          <div class="inc-sub">
+            <div class="inc-sub-label">累計処理数</div>
+            <div class="inc-sub-value" id="incTotal">0<span>枚</span></div>
+          </div>
+          <div class="inc-main">
+            <div class="inc-main-label">インセンティブ対象数</div>
+            <div class="inc-main-value" id="incUnredeemed">0<span>枚</span></div>
+          </div>
         </div>
         <div class="incentive-count-item">
-          <div class="incentive-count-value" id="incUnredeemed">0 <span>枚</span></div>
-          <div class="incentive-count-label">未換金枚数</div>
+          <div class="inc-sub" style="order:2;border-left:1px solid #e0e0e0;padding-left:12px;flex:0 0 auto;">
+            <div class="inc-sub-label">ヒット率</div>
+            <div class="inc-sub-value" id="incHitRate">0<span>%</span></div>
+          </div>
+          <div class="inc-main" style="border-left:none;padding-left:0;order:1;">
+            <div class="inc-main-label">🏪 学習済み取引先</div>
+            <div class="inc-main-value" id="incMasterCount">0<span>社</span></div>
+          </div>
         </div>
       </div>
       <div class="incentive-progress-wrap">
@@ -2433,6 +2450,8 @@ function updateAiStats(){
     // 数値更新
     const elTotal      = document.getElementById('incTotal');
     const elUnredeemed = document.getElementById('incUnredeemed');
+    const elMC         = document.getElementById('incMasterCount');
+    const elHR         = document.getElementById('incHitRate');
     const elFill       = document.getElementById('incProgressFill');
     const elLabel      = document.getElementById('incProgressLabel');
     const elNext       = document.getElementById('incNext');
@@ -2440,8 +2459,14 @@ function updateAiStats(){
     const progress = s.unredeemed % s.threshold;
     const pct      = Math.min(100, Math.round(progress / s.threshold * 100));
     const remaining = s.threshold - progress;
-    if(elTotal)      elTotal.innerHTML      = s.total.toLocaleString()+'<span> 枚</span>';
-    if(elUnredeemed) elUnredeemed.innerHTML = s.unredeemed.toLocaleString()+'<span> 枚</span>';
+    if(elTotal)      elTotal.innerHTML      = s.total.toLocaleString()+'<span>枚</span>';
+    if(elUnredeemed) elUnredeemed.innerHTML = s.unredeemed.toLocaleString()+'<span>枚</span>';
+    if(elMC)         elMC.innerHTML         = masterCount.toLocaleString()+'<span>社</span>';
+    if(elHR){
+      const stat = JSON.parse(localStorage.getItem('shiwake_master_hit_stat')||'{"hit":0,"total":0}');
+      const rate = stat.total > 0 ? Math.round(stat.hit / stat.total * 100) : 0;
+      elHR.innerHTML = rate+'<span>%</span>';
+    }
     if(elFill)       elFill.style.width     = pct+'%';
     if(elLabel)      elLabel.textContent    = progress.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
     if(elNext)       elNext.innerHTML       = 'あと <strong>'+remaining.toLocaleString()+'枚</strong> で ¥'+s.amount.toLocaleString()+' のAmazonギフト券';
@@ -2951,7 +2976,16 @@ async function processOneFile(f){
       setProgress(40,'画像を解析中...',f.name);
       const {b64,mediaType:imgMediaType}=await toB64WithCompress(f);
       const srcUrl=URL.createObjectURL(f);
-      const addItems=(items, lineItemMode, srcB64, srcMediaType)=>items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
+      const addItems=(items, lineItemMode, srcB64, srcMediaType)=>{
+        // ヒット率集計（masterAppliedフラグから）
+        if(items && items.length){
+          const stat = JSON.parse(localStorage.getItem('shiwake_master_hit_stat')||'{"hit":0,"total":0}');
+          stat.total += items.length;
+          stat.hit   += items.filter(it=>it.masterApplied).length;
+          localStorage.setItem('shiwake_master_hit_stat', JSON.stringify(stat));
+        }
+        items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
+      };
 
       // まず通常向きで解析（Haikuがorientationを返す）
       const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
