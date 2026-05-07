@@ -937,7 +937,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.18</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.19</div>
   </div>
 </div>
 
@@ -1020,7 +1020,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.18 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.19 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1895,22 +1895,26 @@ async function initPerspectiveFromCamera(){
   img.onload=()=>{
     const canvas=document.getElementById('perspCanvas');
     const wrap=document.getElementById('perspWrap');
-    const maxW=(wrap.clientWidth||window.innerWidth)-40;
-    const maxH=(wrap.clientHeight||(window.innerHeight*0.65))-40;
-    const scale=Math.min(maxW/img.width,maxH/img.height,1);
-    canvas.width=Math.round(img.width*scale);
-    canvas.height=Math.round(img.height*scale);
+    const maxW=wrap.clientWidth||window.innerWidth;
+    const maxH=wrap.clientHeight||(window.innerHeight*0.65);
+    // coverモード：黒枠なし・フルフレーム表示
+    const scale=Math.max(maxW/img.width,maxH/img.height);
+    canvas.width=maxW;
+    canvas.height=maxH;
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
-    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    // cover描画：中央に合わせてはみ出す部分はクリップ
+    const dw=img.width*scale,dh=img.height*scale;
+    const dx=(maxW-dw)/2,dy=(maxH-dh)/2;
+    ctx.drawImage(img,dx,dy,dw,dh);
     const rect=canvas.getBoundingClientRect();
     const wrapRect=wrap.getBoundingClientRect();
     const ox=rect.left-wrapRect.left;
     const oy=rect.top-wrapRect.top;
     if(_camLastCorners){
-      // 比率→perspCanvas座標に変換
+      // 比率→cover描画座標に変換
       perspCorners=_camLastCorners.map(([rx,ry])=>({
-        x:ox+rx*canvas.width,
-        y:oy+ry*canvas.height
+        x:ox+dx+rx*dw,
+        y:oy+dy+ry*dh
       }));
     }else{
       // フォールバック：再検出
@@ -2016,19 +2020,26 @@ function drawCamDetection(){
               [c.bottomRight.x/W,c.bottomRight.y/H],
               [c.bottomLeft.x/W, c.bottomLeft.y/H]
             ];
-            // 安定判定：前フレームと差が5%以内なら安定カウント+1
+            // 安定判定：前フレームと差が2%以内なら安定カウント+1
             if(_camPrevCorners){
               const stable=newCorners.every(([x,y],i)=>
-                Math.abs(x-_camPrevCorners[i][0])<0.05 &&
-                Math.abs(y-_camPrevCorners[i][1])<0.05
+                Math.abs(x-_camPrevCorners[i][0])<0.02 &&
+                Math.abs(y-_camPrevCorners[i][1])<0.02
               );
               _camStableCount=stable?_camStableCount+1:0;
-              // 3フレーム連続安定 → 自動シャッター
-              if(_camStableCount>=3){
-                _camStableCount=0;
-                _camLastCorners=newCorners;
-                captureCamera();
-                return;
+              // 5フレーム連続安定 → ブラーチェック → 自動シャッター
+              if(_camStableCount>=5){
+                // ブラーチェック（ラプラシアン分散）
+                const blurOk=checkBlur(video,120,90);
+                if(blurOk){
+                  _camStableCount=0;
+                  _camLastCorners=newCorners;
+                  captureCamera();
+                  return;
+                } else {
+                  // ぼけていたらカウントリセット（再待機）
+                  _camStableCount=0;
+                }
               }
             }
             _camPrevCorners=newCorners;
@@ -2097,6 +2108,31 @@ function captureCamera(){
     scanRawUrl=URL.createObjectURL(file);
     openScanModal(scanRawUrl,true); // ⑫fromCamera=true
   },'image/jpeg',0.92);
+}
+
+// ブラーチェック（ラプラシアン分散）：スコアが高いほどシャープ
+function checkBlur(video, w, h){
+  try{
+    const c=document.createElement('canvas');
+    c.width=w;c.height=h;
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(video,0,0,w,h);
+    const d=ctx.getImageData(0,0,w,h).data;
+    // グレースケール化
+    const g=new Float32Array(w*h);
+    for(let i=0;i<w*h;i++) g[i]=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
+    // ラプラシアン
+    let sum=0,sum2=0,n=0;
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const v=Math.abs(4*g[y*w+x]-g[(y-1)*w+x]-g[(y+1)*w+x]-g[y*w+x-1]-g[y*w+x+1]);
+        sum+=v;sum2+=v*v;n++;
+      }
+    }
+    const mean=sum/n;
+    const variance=sum2/n-mean*mean;
+    return variance>80; // 閾値：80以上でシャープと判定
+  }catch(e){return true;} // エラー時はOKとして通す
 }
 
 function autoDetectCorners(imgData,w,h){
@@ -2264,16 +2300,19 @@ async function applyScanEdit(){
     // perspCanvas表示スケール（表示px→canvas内部px）
     const scaleX=canvas.width/canvasRect.width;
     const scaleY=canvas.height/canvasRect.height;
-    // perspCanvas内部座標（縮小済み）
+    // perspCanvas内部座標
     const srcDisplay=perspCorners.map(c=>[(c.x-ox)*scaleX,(c.y-oy)*scaleY]);
 
     const img=new Image();
     img.onload=()=>{
-      // フル解像度スケール（perspCanvas→原画像）
-      const fullScaleX=img.width/canvas.width;
-      const fullScaleY=img.height/canvas.height;
-      // フル解像度座標に変換
-      const src=srcDisplay.map(([x,y])=>[x*fullScaleX, y*fullScaleY]);
+      // coverモードのオフセットを逆算してフル解像度座標に変換
+      const coverScale=Math.max(canvas.width/img.width,canvas.height/img.height);
+      const coverDx=(canvas.width-img.width*coverScale)/2;
+      const coverDy=(canvas.height-img.height*coverScale)/2;
+      const src=srcDisplay.map(([x,y])=>[
+        (x-coverDx)/coverScale,
+        (y-coverDy)/coverScale
+      ]);
 
       // 出力サイズ（フル解像度ベース）
       const w=Math.round(Math.max(dist(src[0],src[1]),dist(src[3],src[2])));
