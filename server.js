@@ -616,16 +616,35 @@ const server = http.createServer(async (req, res) => {
           res.end(JSON.stringify({ error: 'uid and email required' }));
           return;
         }
-        // upsert（存在すれば更新、なければ挿入）
-        const data = await supabaseQuery(
-          '/users?on_conflict=id',
-          'POST',
-          { id: uid, email, display_name: display_name || email },
-          { 'Prefer': 'resolution=merge-duplicates,return=representation' }
-        );
-        console.log(`ユーザーupsert: ${email}`);
+        // 1) まずidで存在確認
+        const byId = await supabaseQuery(`/users?id=eq.${uid}&select=*`);
+        if (byId && byId.length > 0) {
+          // 既存（id一致）→ 表示名のみ更新
+          const updated = await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { display_name: display_name || email });
+          console.log(`ユーザー更新(id一致): ${email}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, user: updated?.[0] || byId[0] }));
+          return;
+        }
+        // 2) emailで既存ユーザーがいるか確認（同じメールでUIDが変わった場合）
+        const byEmail = await supabaseQuery(`/users?email=eq.${encodeURIComponent(email)}&select=*`);
+        if (byEmail && byEmail.length > 0) {
+          // 既存（email一致・id違い）→ idを新しいUIDに付け替え + display_name更新
+          // ただし既存のレコードを削除して新規作成すると関連データを失う恐れがあるので、
+          // ここでは「既存ユーザーをそのまま返す」だけにする（idは古いまま）
+          // フロントは返却されたuser.idを使えば既存データを参照できる
+          console.log(`ユーザー既存(email一致): ${email}（既存idを返却）`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, user: byEmail[0], existed: true }));
+          return;
+        }
+        // 3) どちらも存在しない → 新規作成
+        const created = await supabaseQuery('/users', 'POST', {
+          id: uid, email, display_name: display_name || email
+        });
+        console.log(`ユーザー新規作成: ${email}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, user: data?.[0] || null }));
+        res.end(JSON.stringify({ ok: true, user: created?.[0] || null }));
       } catch(e) {
         console.error('User upsert error:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
