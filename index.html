@@ -937,7 +937,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.17</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.18</div>
   </div>
 </div>
 
@@ -1020,7 +1020,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.17 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.18 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1982,6 +1982,9 @@ function closeCameraOverlay(){
   const video=document.getElementById('camVideo');
   video.srcObject=null;
   _camCtx=null;
+  _camLastCorners=null;
+  _camPrevCorners=null;
+  _camStableCount=0;
   document.getElementById('camOverlay').className='cam-overlay';
 }
 
@@ -2251,39 +2254,49 @@ function moveHandle(cx,cy){
 
 async function applyScanEdit(){
   {
-    // パース補正：四隅からホモグラフィ変換
+    // パース補正：フル解像度で処理（表示サイズではなく原寸で変換）
     const canvas=document.getElementById('perspCanvas');
     const canvasRect=canvas.getBoundingClientRect();
     const wrap=document.getElementById('perspWrap');
     const wrapRect=wrap.getBoundingClientRect();
     const ox=canvasRect.left-wrapRect.left;
     const oy=canvasRect.top-wrapRect.top;
+    // perspCanvas表示スケール（表示px→canvas内部px）
     const scaleX=canvas.width/canvasRect.width;
     const scaleY=canvas.height/canvasRect.height;
-    const src=perspCorners.map(c=>[(c.x-ox)*scaleX,(c.y-oy)*scaleY]);
-    // 出力サイズ（左辺・上辺の長さで決定）
-    const w=Math.round(Math.max(dist(src[0],src[1]),dist(src[3],src[2])));
-    const h=Math.round(Math.max(dist(src[0],src[3]),dist(src[1],src[2])));
-    const dst=[[0,0],[w,0],[w,h],[0,h]];
-    const out=document.createElement('canvas');
-    out.width=w;out.height=h;
-    const octx=out.getContext('2d');
+    // perspCanvas内部座標（縮小済み）
+    const srcDisplay=perspCorners.map(c=>[(c.x-ox)*scaleX,(c.y-oy)*scaleY]);
+
     const img=new Image();
     img.onload=()=>{
-      // 簡易bilinear変換（CPUのみ）
+      // フル解像度スケール（perspCanvas→原画像）
+      const fullScaleX=img.width/canvas.width;
+      const fullScaleY=img.height/canvas.height;
+      // フル解像度座標に変換
+      const src=srcDisplay.map(([x,y])=>[x*fullScaleX, y*fullScaleY]);
+
+      // 出力サイズ（フル解像度ベース）
+      const w=Math.round(Math.max(dist(src[0],src[1]),dist(src[3],src[2])));
+      const h=Math.round(Math.max(dist(src[0],src[3]),dist(src[1],src[2])));
+      const dst=[[0,0],[w,0],[w,h],[0,h]];
+      const out=document.createElement('canvas');
+      out.width=w;out.height=h;
+      const octx=out.getContext('2d');
+
+      // フル解像度でdrawImage（縮小しない）
       const tmpC=document.createElement('canvas');
-      tmpC.width=canvas.width;tmpC.height=canvas.height;
+      tmpC.width=img.width;tmpC.height=img.height;
       const tmpCtx=tmpC.getContext('2d');
-      tmpCtx.drawImage(img,0,0,canvas.width,canvas.height);
-      const srcData=tmpCtx.getImageData(0,0,canvas.width,canvas.height);
+      tmpCtx.drawImage(img,0,0);
+      const srcData=tmpCtx.getImageData(0,0,img.width,img.height);
       const dstData=octx.createImageData(w,h);
       const H=getPerspMatrix(dst,src);
       for(let dy=0;dy<h;dy++){
         for(let dx=0;dx<w;dx++){
           const [sx,sy]=applyH(H,dx,dy);
           const sx0=Math.floor(sx),sy0=Math.floor(sy);
-          if(sx0<0||sy0<0||sx0>=canvas.width-1||sy0>=canvas.height-1)continue;
-          const fi=(sy0*canvas.width+sx0)*4;
+          if(sx0<0||sy0<0||sx0>=img.width-1||sy0>=img.height-1)continue;
+          const fi=(sy0*img.width+sx0)*4;
           const di=(dy*w+dx)*4;
           dstData.data[di]=srcData.data[fi];
           dstData.data[di+1]=srcData.data[fi+1];
