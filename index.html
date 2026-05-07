@@ -2000,20 +2000,24 @@ function initPerspective(){
     const wrapRect=wrap.getBoundingClientRect();
     const ox=rect.left-wrapRect.left;
     const oy=rect.top-wrapRect.top;
-    // scanic で4点検出（失敗時は端いっぱい）
+    // scanic で4点検出（canvas画像をそのまま渡す → 座標変換不要）
     let corners=null;
     try{
       const sc=window._scanicFn||window._scanicScanner;
       if(sc){
-        const r=await (sc.scan?sc.scan(img,{mode:'detect'}):sc(img,{mode:'detect'}));
+        // canvasに描画済みの縮小画像をImage化して渡す
+        const detectImg = new Image();
+        await new Promise((res,rej)=>{
+          detectImg.onload=res; detectImg.onerror=rej;
+          detectImg.src=canvas.toDataURL('image/jpeg',0.85);
+        });
+        const r=await (sc.scan?sc.scan(detectImg,{mode:'detect'}):sc(detectImg,{mode:'detect'}));
         if(r&&r.success&&r.corners){
-          const sx=canvas.width/img.naturalWidth;
-          const sy=canvas.height/img.naturalHeight;
           corners=[
-            [r.corners.topLeft.x*sx,    r.corners.topLeft.y*sy],
-            [r.corners.topRight.x*sx,   r.corners.topRight.y*sy],
-            [r.corners.bottomRight.x*sx,r.corners.bottomRight.y*sy],
-            [r.corners.bottomLeft.x*sx, r.corners.bottomLeft.y*sy]
+            [r.corners.topLeft.x,    r.corners.topLeft.y],
+            [r.corners.topRight.x,   r.corners.topRight.y],
+            [r.corners.bottomRight.x,r.corners.bottomRight.y],
+            [r.corners.bottomLeft.x, r.corners.bottomLeft.y]
           ];
         }
       }
