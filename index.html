@@ -981,7 +981,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.21</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.22</div>
   </div>
 </div>
 
@@ -1067,7 +1067,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       👁 インセンティブ表示に切替
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.21 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.22 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -3002,16 +3002,16 @@ async function toB64WithCompress(f){
   });
 }
 
-// 画像を90°回転してBase64で返す
-// 回転後の画像が5MB超の場合に圧縮
+// 画像を圧縮（全画像対象・長辺1568px・JPEG q0.85）
+// PDFは対象外
 async function compressB64IfNeeded(b64, mediaType){
-  const MAX=4.5*1024*1024;
-  if(b64.length*0.75<=MAX)return {b64,mediaType};
+  if(mediaType === 'application/pdf') return {b64, mediaType};
+  const MAX = 4.5 * 1024 * 1024;
   return new Promise((res,rej)=>{
     const img=new Image();
     img.onload=()=>{
       let w=img.width,h=img.height;
-      const maxPx=2048;
+      const maxPx=1568;
       if(w>maxPx||h>maxPx){const ratio=Math.min(maxPx/w,maxPx/h);w=Math.round(w*ratio);h=Math.round(h*ratio);}
       const canvas=document.createElement('canvas');
       canvas.width=w;canvas.height=h;
@@ -3472,30 +3472,82 @@ function renderCards(){
 }
 
 // グループ承認
+// マスタ追加確認モーダル
+function getMasterSkipList(){
+  return JSON.parse(localStorage.getItem('shiwake_master_skip_list')||'[]');
+}
+function addMasterSkip(titles){
+  const list = getMasterSkipList();
+  titles.forEach(t=>{ if(!list.includes(t)) list.push(t); });
+  localStorage.setItem('shiwake_master_skip_list', JSON.stringify(list));
+}
+function showMasterConfirm(titles){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('masterConfirmOverlay');
+    const list    = document.getElementById('masterConfirmList');
+    const skipCb  = document.getElementById('masterConfirmSkip');
+    const okBtn   = document.getElementById('masterConfirmOk');
+    const cnclBtn = document.getElementById('masterConfirmCancel');
+    if(!overlay||!list||!okBtn||!cnclBtn){ resolve({approve:true,skip:false}); return; }
+    list.innerHTML = titles.map(t=>`<div style="font-size:13px;font-weight:600;color:#1a1a1a;padding:4px 0;">📍 ${t}</div>`).join('');
+    skipCb.checked = false;
+    overlay.style.display = 'flex';
+    const cleanup = ()=>{
+      overlay.style.display = 'none';
+      okBtn.onclick = null;
+      cnclBtn.onclick = null;
+    };
+    okBtn.onclick = ()=>{ cleanup(); resolve({approve:true, skip:false}); };
+    cnclBtn.onclick = ()=>{ const skip=skipCb.checked; cleanup(); resolve({approve:false, skip}); };
+  });
+}
+
 async function approveGroup(indices){
   // 承認状態を更新
   indices.forEach(i=>{if(!deleted.has(i))approved.add(i);});
-  // 各仕訳をマスタに学習（同じtitleは1回だけ）
-  const learned = new Set();
+  // 学習対象の取引先を抽出（重複排除・スキップリスト除外・既登録除外）
+  const skipList = getMasterSkipList();
+  const candidates = [];
+  const seen = new Set();
   for(const i of indices){
     if(deleted.has(i)) continue;
     const item = results[i];
     if(!item || !item.title || item.title==='不明') continue;
-    if(learned.has(item.title)) continue;
-    learned.add(item.title);
-    try { await autoLearn(item); } catch(e){ console.warn('autoLearn失敗:', e); }
+    if(seen.has(item.title)) continue;
+    seen.add(item.title);
+    if(skipList.includes(item.title)) continue;
+    if(masterData && masterData[item.title]) continue; // 既登録
+    candidates.push(item);
+  }
+  // モーダル確認（候補がある場合のみ）
+  let approveLearning = true;
+  if(candidates.length > 0){
+    const titles = candidates.map(c=>c.title);
+    const result = await showMasterConfirm(titles);
+    approveLearning = result.approve;
+    if(!result.approve && result.skip){
+      addMasterSkip(titles);
+    }
+  }
+  // 学習実行
+  if(approveLearning){
+    for(const item of candidates){
+      try { await autoLearn(item); } catch(e){ console.warn('autoLearn失敗:', e); }
+    }
   }
   syncSessionSave();
-  // 同じ取引先の未承認カードにマスタを即時適用
-  indices.forEach(i=>{
-    if(deleted.has(i)) return;
-    const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
-    results.forEach((r,j)=>{
-      if(j!==i && r.title===results[i].title && !approved.has(j) && !deleted.has(j)){
-        results[j]={...r,...rule,masterApplied:true};
-      }
+  // 同じ取引先の未承認カードにマスタを即時適用（学習したものだけ）
+  if(approveLearning){
+    indices.forEach(i=>{
+      if(deleted.has(i)) return;
+      const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
+      results.forEach((r,j)=>{
+        if(j!==i && r.title===results[i].title && !approved.has(j) && !deleted.has(j)){
+          results[j]={...r,...rule,masterApplied:true};
+        }
+      });
     });
-  });
+  }
   // マスタ学習トースト
   const masterCount=Object.keys(masterData||{}).length;
   showToast(`✓ 承認完了 · 学習済み取引先 ${masterCount}社`);
@@ -4381,5 +4433,22 @@ window.addEventListener('load',function(){
   }catch(e){console.warn('scanic読み込み失敗:',e.message);}
 })();
 </script>
+<!-- マスタ登録確認モーダル -->
+<div id="masterConfirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;max-width:420px;width:90%;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1a1a1a;">🏪 マスタに追加しますか？</div>
+    <div style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.5;">次回からこの取引先のレシートは<br><strong style="color:#0F6E56;">自動で仕訳されます</strong></div>
+    <div id="masterConfirmList" style="background:#F8F8F4;border-radius:8px;padding:12px;margin-bottom:16px;max-height:160px;overflow-y:auto;"></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#666;margin-bottom:16px;cursor:pointer;">
+      <input type="checkbox" id="masterConfirmSkip" style="width:16px;height:16px;cursor:pointer;">
+      <span>今後この取引先は表示しない</span>
+    </label>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="masterConfirmCancel" style="padding:10px 18px;border:1px solid #ddd;background:#fff;color:#666;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;">いいえ</button>
+      <button id="masterConfirmOk" style="padding:10px 18px;border:none;background:#185FA5;color:#fff;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">マスタに追加</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
