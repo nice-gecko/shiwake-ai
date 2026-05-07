@@ -564,6 +564,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .master-extra-label{font-size:10px;color:#888;margin-bottom:2px;}
 .master-extra-value{font-size:13px;font-weight:600;color:#0F6E56;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .master-extra-stars{font-size:14px;letter-spacing:1px;line-height:1.2;}
+@keyframes masterFlash{0%{transform:scale(1);color:#0F6E56;}30%{transform:scale(1.3);color:#1ABE7E;text-shadow:0 0 12px rgba(26,190,126,0.6);}100%{transform:scale(1);color:#0F6E56;text-shadow:none;}}
+.master-flash{animation:masterFlash 0.8s ease;}
+@keyframes masterPlusPop{0%{opacity:0;transform:translate(-50%, -10px) scale(0.6);}20%{opacity:1;transform:translate(-50%, -28px) scale(1.1);}80%{opacity:1;transform:translate(-50%, -50px) scale(1);}100%{opacity:0;transform:translate(-50%, -70px) scale(0.9);}}
+.master-plus-pop{position:absolute;top:50%;left:50%;font-size:22px;font-weight:800;color:#1ABE7E;pointer-events:none;animation:masterPlusPop 1.2s ease forwards;text-shadow:0 2px 8px rgba(26,190,126,0.4);z-index:10;}
+.dash-card{position:relative;}
 
 /* 承認アニメーション */
 @keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
@@ -3472,81 +3477,58 @@ function renderCards(){
 }
 
 // グループ承認
-// マスタ追加確認モーダル
-function getMasterSkipList(){
-  return JSON.parse(localStorage.getItem('shiwake_master_skip_list')||'[]');
-}
-function addMasterSkip(titles){
-  const list = getMasterSkipList();
-  titles.forEach(t=>{ if(!list.includes(t)) list.push(t); });
-  localStorage.setItem('shiwake_master_skip_list', JSON.stringify(list));
-}
-function showMasterConfirm(titles){
-  return new Promise(resolve=>{
-    const overlay = document.getElementById('masterConfirmOverlay');
-    const list    = document.getElementById('masterConfirmList');
-    const skipCb  = document.getElementById('masterConfirmSkip');
-    const okBtn   = document.getElementById('masterConfirmOk');
-    const cnclBtn = document.getElementById('masterConfirmCancel');
-    if(!overlay||!list||!okBtn||!cnclBtn){ resolve({approve:true,skip:false}); return; }
-    list.innerHTML = titles.map(t=>`<div style="font-size:13px;font-weight:600;color:#1a1a1a;padding:4px 0;">📍 ${t}</div>`).join('');
-    skipCb.checked = false;
-    overlay.style.display = 'flex';
-    const cleanup = ()=>{
-      overlay.style.display = 'none';
-      okBtn.onclick = null;
-      cnclBtn.onclick = null;
-    };
-    okBtn.onclick = ()=>{ cleanup(); resolve({approve:true, skip:false}); };
-    cnclBtn.onclick = ()=>{ const skip=skipCb.checked; cleanup(); resolve({approve:false, skip}); };
-  });
+// 新規マスタ学習時のアニメーション（フラッシュ + +Nポップアップ）
+function flashMasterCount(n){
+  const el = document.getElementById('statMasterCount');
+  if(!el) return;
+  // 数字フラッシュ
+  el.classList.remove('master-flash');
+  void el.offsetWidth;
+  el.classList.add('master-flash');
+  // +N ポップアップ
+  const card = el.closest('.dash-card');
+  if(card){
+    const pop = document.createElement('div');
+    pop.className = 'master-plus-pop';
+    pop.textContent = '+' + n;
+    card.appendChild(pop);
+    setTimeout(()=>pop.remove(), 1200);
+  }
+  setTimeout(()=>el.classList.remove('master-flash'), 800);
 }
 
 async function approveGroup(indices){
   // 承認状態を更新
   indices.forEach(i=>{if(!deleted.has(i))approved.add(i);});
-  // 学習対象の取引先を抽出（重複排除・スキップリスト除外・既登録除外）
-  const skipList = getMasterSkipList();
-  const candidates = [];
-  const seen = new Set();
+  // 各仕訳をマスタに学習（同じtitleは1回だけ・新規のみ）
+  const learned = new Set();
+  const newlyLearned = [];
   for(const i of indices){
     if(deleted.has(i)) continue;
     const item = results[i];
     if(!item || !item.title || item.title==='不明') continue;
-    if(seen.has(item.title)) continue;
-    seen.add(item.title);
-    if(skipList.includes(item.title)) continue;
-    if(masterData && masterData[item.title]) continue; // 既登録
-    candidates.push(item);
-  }
-  // モーダル確認（候補がある場合のみ）
-  let approveLearning = true;
-  if(candidates.length > 0){
-    const titles = candidates.map(c=>c.title);
-    const result = await showMasterConfirm(titles);
-    approveLearning = result.approve;
-    if(!result.approve && result.skip){
-      addMasterSkip(titles);
-    }
-  }
-  // 学習実行
-  if(approveLearning){
-    for(const item of candidates){
-      try { await autoLearn(item); } catch(e){ console.warn('autoLearn失敗:', e); }
-    }
+    if(learned.has(item.title)) continue;
+    learned.add(item.title);
+    const isNew = !(masterData && masterData[item.title]);
+    try {
+      await autoLearn(item);
+      if(isNew) newlyLearned.push(item.title);
+    } catch(e){ console.warn('autoLearn失敗:', e); }
   }
   syncSessionSave();
-  // 同じ取引先の未承認カードにマスタを即時適用（学習したものだけ）
-  if(approveLearning){
-    indices.forEach(i=>{
-      if(deleted.has(i)) return;
-      const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
-      results.forEach((r,j)=>{
-        if(j!==i && r.title===results[i].title && !approved.has(j) && !deleted.has(j)){
-          results[j]={...r,...rule,masterApplied:true};
-        }
-      });
+  // 同じ取引先の未承認カードにマスタを即時適用
+  indices.forEach(i=>{
+    if(deleted.has(i)) return;
+    const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
+    results.forEach((r,j)=>{
+      if(j!==i && r.title===results[i].title && !approved.has(j) && !deleted.has(j)){
+        results[j]={...r,...rule,masterApplied:true};
+      }
     });
+  });
+  // 新規マスタ登録時のアニメーション（カウントアップ + フラッシュ + +N）
+  if(newlyLearned.length > 0){
+    flashMasterCount(newlyLearned.length);
   }
   // マスタ学習トースト
   const masterCount=Object.keys(masterData||{}).length;
@@ -4433,22 +4415,5 @@ window.addEventListener('load',function(){
   }catch(e){console.warn('scanic読み込み失敗:',e.message);}
 })();
 </script>
-<!-- マスタ登録確認モーダル -->
-<div id="masterConfirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;max-width:420px;width:90%;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1a1a1a;">🏪 マスタに追加しますか？</div>
-    <div style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.5;">次回からこの取引先のレシートは<br><strong style="color:#0F6E56;">自動で仕訳されます</strong></div>
-    <div id="masterConfirmList" style="background:#F8F8F4;border-radius:8px;padding:12px;margin-bottom:16px;max-height:160px;overflow-y:auto;"></div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#666;margin-bottom:16px;cursor:pointer;">
-      <input type="checkbox" id="masterConfirmSkip" style="width:16px;height:16px;cursor:pointer;">
-      <span>今後この取引先は表示しない</span>
-    </label>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="masterConfirmCancel" style="padding:10px 18px;border:1px solid #ddd;background:#fff;color:#666;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;">いいえ</button>
-      <button id="masterConfirmOk" style="padding:10px 18px;border:none;background:#185FA5;color:#fff;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">マスタに追加</button>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
