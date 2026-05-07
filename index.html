@@ -532,28 +532,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .invite-banner-title{font-size:14px;font-weight:600;color:#185FA5;margin-bottom:4px;}
 .invite-banner-sub{font-size:12px;color:#555;}
 /* インセンティブカウンター */
-.incentive-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-bottom:14px;}
-.incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.dashboard-left{display:flex;flex-direction:column;}
+.dash-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);display:flex;flex-direction:column;}
+.dash-card.simple-stat{justify-content:center;align-items:flex-start;flex:1;}
+.incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
 .incentive-title{font-size:12px;font-weight:600;color:#555;}
 .incentive-badge{font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:10px;font-weight:600;}
-.incentive-counts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
-.incentive-count-item{background:#F5F8FB;border-radius:8px;padding:10px 12px;display:flex;align-items:baseline;gap:12px;}
-.inc-sub{flex:0 0 auto;}
-.inc-sub-label{font-size:10px;color:#888;margin-bottom:2px;}
-.inc-sub-value{font-size:14px;font-weight:600;color:#888;line-height:1;}
-.inc-sub-value span{font-size:10px;font-weight:500;}
-.inc-main{border-left:1px solid #e0e0e0;padding-left:12px;flex:1;}
-.inc-main-label{font-size:10px;color:#888;margin-bottom:2px;}
-.inc-main-value{font-size:24px;font-weight:700;color:#185FA5;line-height:1;}
-.inc-main-value span{font-size:12px;font-weight:500;color:#888;}
-.incentive-progress-wrap{margin-top:2px;}
+.ds-row{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;}
+.ds-sub{flex:0 0 auto;}
+.ds-sub-label{font-size:10px;color:#888;margin-bottom:2px;}
+.ds-sub-value{font-size:14px;font-weight:600;color:#888;line-height:1;}
+.ds-sub-value span{font-size:10px;font-weight:500;}
+.ds-main-label{font-size:10px;color:#888;margin-bottom:2px;}
+.ds-main-value{font-size:26px;font-weight:700;color:#185FA5;line-height:1;}
+.ds-main-value span{font-size:12px;font-weight:500;color:#888;margin-left:2px;}
+.ds-row .ds-main{border-left:1px solid #e0e0e0;padding-left:14px;}
+.ds-row .ds-main:first-child{border-left:none;padding-left:0;}
+.incentive-progress-wrap{margin-top:6px;}
 .incentive-progress-label{display:flex;justify-content:space-between;font-size:10px;color:#888;margin-bottom:4px;}
 .incentive-progress-bar{height:6px;background:#e8e7e0;border-radius:3px;overflow:hidden;}
 .incentive-progress-fill{height:100%;background:linear-gradient(90deg,#185FA5,#1D9E75);border-radius:3px;transition:width 0.6s ease;}
 .incentive-next{font-size:11px;color:#888;margin-top:6px;text-align:right;}
 .incentive-next strong{color:#185FA5;}
-@keyframes countPop{0%{transform:scale(1);}50%{transform:scale(1.25);}100%{transform:scale(1);}}
-.incentive-count-value.pop{animation:countPop 0.35s ease;}
+@keyframes countPop{0%{transform:scale(1);}40%{transform:scale(1.18);color:#1D9E75;}100%{transform:scale(1);}}
+.ds-main-value.pop{animation:countPop 0.35s ease;}
+@media (max-width:560px){.dashboard-grid{grid-template-columns:1fr;}}
 
 /* 承認アニメーション */
 @keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
@@ -1088,55 +1092,63 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       カメラで撮影する
     </button>
     <div class="mobile-scan-link"><a onclick="document.getElementById('fi').click()">またはファイルを選択</a></div>
-    <!-- 通常プラン用スタッツ（代理店以外） -->
-    <div class="ai-stats" id="aiStats">
-      <div class="ai-stat-card">
-        <div class="ai-stat-value" id="statProcessed">0 <span>枚</span></div>
-        <div class="ai-stat-label">今月の処理枚数</div>
-      </div>
-      <div class="ai-stat-card">
-        <div class="ai-stat-value" id="statMasterCount">0 <span>社</span></div>
-        <div class="ai-stat-label">学習済みの取引先</div>
-      </div>
-    </div>
-    <!-- 代理店プラン用インセンティブカウンター -->
-    <div class="incentive-card" id="incentiveCard" style="display:none;">
-      <div class="incentive-header">
-        <span class="incentive-title">🎁 スタッフインセンティブ</span>
-        <span class="incentive-badge" id="incentiveBadge">¥500 / 1,000枚</span>
-      </div>
-      <div class="incentive-counts">
-        <div class="incentive-count-item">
-          <div class="inc-sub">
-            <div class="inc-sub-label">累計処理数</div>
-            <div class="inc-sub-value" id="incTotal">0<span>枚</span></div>
-          </div>
-          <div class="inc-main">
-            <div class="inc-main-label">インセンティブ対象数</div>
-            <div class="inc-main-value" id="incUnredeemed">0<span>枚</span></div>
+    <!-- ダッシュボード：左右2カード -->
+    <div class="dashboard-grid">
+      <!-- 左カード：プラン別 -->
+      <div class="dashboard-left">
+        <!-- 通常プラン用：累計処理数のみ -->
+        <div class="dash-card simple-stat" id="aiStats">
+          <div class="ds-main">
+            <div class="ds-main-label">累計処理数</div>
+            <div class="ds-main-value" id="statProcessed">0<span>枚</span></div>
           </div>
         </div>
-        <div class="incentive-count-item">
-          <div class="inc-sub" style="order:2;border-left:1px solid #e0e0e0;padding-left:12px;flex:0 0 auto;">
-            <div class="inc-sub-label">ヒット率</div>
-            <div class="inc-sub-value" id="incHitRate">0<span>%</span></div>
+        <!-- インセンティブプラン用 -->
+        <div class="dash-card" id="incentiveCard" style="display:none;">
+          <div class="incentive-header">
+            <span class="incentive-title">🎁 スタッフインセンティブ</span>
+            <span class="incentive-badge" id="incentiveBadge">¥500 / 1,000枚</span>
           </div>
-          <div class="inc-main" style="border-left:none;padding-left:0;order:1;">
-            <div class="inc-main-label">🏪 学習済み取引先</div>
-            <div class="inc-main-value" id="incMasterCount">0<span>社</span></div>
+          <div class="ds-row">
+            <div class="ds-sub">
+              <div class="ds-sub-label">累計処理数</div>
+              <div class="ds-sub-value" id="incTotal">0<span>枚</span></div>
+            </div>
+            <div class="ds-main">
+              <div class="ds-main-label">インセンティブ対象数</div>
+              <div class="ds-main-value" id="incUnredeemed">0<span>枚</span></div>
+            </div>
+          </div>
+          <div class="incentive-progress-wrap">
+            <div class="incentive-progress-label">
+              <span>次のインセンティブまで</span>
+              <span id="incProgressLabel">0 / 1,000枚</span>
+            </div>
+            <div class="incentive-progress-bar">
+              <div class="incentive-progress-fill" id="incProgressFill" style="width:0%"></div>
+            </div>
+            <div class="incentive-next" id="incNext">あと <strong>1,000枚</strong> で ¥500 のAmazonギフト券</div>
           </div>
         </div>
       </div>
-      <div class="incentive-progress-wrap">
-        <div class="incentive-progress-label">
-          <span>次のギフト券まで</span>
-          <span id="incProgressLabel">0 / 1,000枚</span>
+
+      <!-- 右カード：取引先マスタ（全ユーザー共通） -->
+      <div class="dash-card">
+        <div class="incentive-header">
+          <span class="incentive-title">🏪 取引先マスタ</span>
+          <span class="incentive-badge" style="background:#E1F5EE;color:#0F6E56;">育成中</span>
         </div>
-        <div class="incentive-progress-bar">
-          <div class="incentive-progress-fill" id="incProgressFill" style="width:0%"></div>
+        <div class="ds-row">
+          <div class="ds-main">
+            <div class="ds-main-label">学習済み取引先</div>
+            <div class="ds-main-value" id="statMasterCount" style="color:#0F6E56;">0<span>社</span></div>
+          </div>
+          <div class="ds-sub">
+            <div class="ds-sub-label">マスタヒット率</div>
+            <div class="ds-sub-value" id="incHitRate">0<span>%</span></div>
+          </div>
         </div>
       </div>
-      <div class="incentive-next" id="incNext">あと <strong>1,000枚</strong> で ¥500 のAmazonギフト券</div>
     </div>
     <!-- 縦型ステッパー -->
     <div class="v-stepper">
@@ -2434,24 +2446,27 @@ function updateAiStats(){
   const processed = parseInt(localStorage.getItem('shiwake_month_count_'+monthKey)||'0');
   const masterCount = Object.keys(masterData||{}).length;
 
-  const elProcessed = document.getElementById('statProcessed');
-  const elMaster    = document.getElementById('statMasterCount');
-  if(elProcessed) elProcessed.innerHTML = processed+'<span> 枚</span>';
-  if(elMaster)    elMaster.innerHTML    = masterCount+'<span> 社</span>';
+  // 右カード（取引先マスタ）は全ユーザー共通
+  const elMC = document.getElementById('statMasterCount');
+  if(elMC) elMC.innerHTML = masterCount.toLocaleString()+'<span>社</span>';
+  const elHR = document.getElementById('incHitRate');
+  if(elHR){
+    const stat = JSON.parse(localStorage.getItem('shiwake_master_hit_stat')||'{"hit":0,"total":0}');
+    const rate = stat.total > 0 ? Math.round(stat.hit / stat.total * 100) : 0;
+    elHR.innerHTML = rate+'<span>%</span>';
+  }
 
-  // インセンティブカード表示切替
+  // 左カード切替
   const ic = document.getElementById('incentiveCard');
   const as = document.getElementById('aiStats');
   if(!ic || !as) return;
   const s = _incentiveState;
   if(s.is_agency){
+    // インセンティブプラン
     ic.style.display = '';
     as.style.display = 'none';
-    // 数値更新
     const elTotal      = document.getElementById('incTotal');
     const elUnredeemed = document.getElementById('incUnredeemed');
-    const elMC         = document.getElementById('incMasterCount');
-    const elHR         = document.getElementById('incHitRate');
     const elFill       = document.getElementById('incProgressFill');
     const elLabel      = document.getElementById('incProgressLabel');
     const elNext       = document.getElementById('incNext');
@@ -2461,19 +2476,16 @@ function updateAiStats(){
     const remaining = s.threshold - progress;
     if(elTotal)      elTotal.innerHTML      = s.total.toLocaleString()+'<span>枚</span>';
     if(elUnredeemed) elUnredeemed.innerHTML = s.unredeemed.toLocaleString()+'<span>枚</span>';
-    if(elMC)         elMC.innerHTML         = masterCount.toLocaleString()+'<span>社</span>';
-    if(elHR){
-      const stat = JSON.parse(localStorage.getItem('shiwake_master_hit_stat')||'{"hit":0,"total":0}');
-      const rate = stat.total > 0 ? Math.round(stat.hit / stat.total * 100) : 0;
-      elHR.innerHTML = rate+'<span>%</span>';
-    }
     if(elFill)       elFill.style.width     = pct+'%';
     if(elLabel)      elLabel.textContent    = progress.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
     if(elNext)       elNext.innerHTML       = 'あと <strong>'+remaining.toLocaleString()+'枚</strong> で ¥'+s.amount.toLocaleString()+' のAmazonギフト券';
     if(elBadge)      elBadge.textContent    = '¥'+s.amount.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
   } else {
+    // 一般ユーザー：累計処理数のみ
     ic.style.display = 'none';
     as.style.display = '';
+    const elProcessed = document.getElementById('statProcessed');
+    if(elProcessed) elProcessed.innerHTML = processed.toLocaleString()+'<span>枚</span>';
   }
 }
 
@@ -2954,7 +2966,7 @@ async function processOneFile(f){
       setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
       try{
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType}),signal});
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data=await resp.json();
         if(data.error)throw new Error(data.error);
         results.push(...data.items);
@@ -2988,7 +3000,7 @@ async function processOneFile(f){
       };
 
       // まず通常向きで解析（Haikuがorientationを返す）
-      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
       const data=await resp.json();
       if(data.error){showErr(data.error);return;}
       addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();
@@ -2999,20 +3011,20 @@ async function processOneFile(f){
         setProgress(65,'90°回転で追加解析中...',f.name);
         const b64r90raw=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data2=await resp2.json();
         if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
         const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
-        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data3=await resp3.json();
         if(!data3.error)addItems(data3.items, data3.line_item_mode, b64r270, mt270);appendNewCards();
       } else if(detectedOrientation==='rotate'){
         setProgress(65,'回転補正で再解析中...',f.name);
         const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data2=await resp2.json();
         if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
       }
@@ -3058,7 +3070,7 @@ async function startProcess(resume){
       setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
       try{
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType}),signal});
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data=await resp.json();
         if(data.error)throw new Error(data.error);
         results.push(...data.items);
@@ -3403,7 +3415,9 @@ async function reanalyzeWithMode(cardIndex) {
         imageDataList: [{data: srcB64, mediaType: item._sourceMediaType}],
         fileNames: ['再解析'],
         chunkIndex: 0, totalChunks: 1,
-        line_item_mode: newMode
+        line_item_mode: newMode,
+        uid: (window._firebaseUser?.uid||null),
+        masterUid: (getMasterUid()||null)
       })
     });
     const data = await resp.json();
