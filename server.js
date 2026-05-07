@@ -716,6 +716,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({
           ok: true,
           monthly_count: cur + n,
+          total_count: cur + n, // monthly_countは実態として累計を保持しているのでエイリアス
           incentive_total: isAgency ? incTotal : (row.incentive_total || 0),
           incentive_unredeemed: isAgency ? incUnredeemed : (row.incentive_unredeemed || 0),
           incentive_threshold: INCENTIVE_THRESHOLD,
@@ -922,6 +923,7 @@ const server = http.createServer(async (req, res) => {
         let imageHash = null;
         if (imageDataList.length === 1 && cacheUid) {
           imageHash = computeHash(imageDataList[0].data);
+          console.log(`  🔑 hash: ${imageHash.slice(0,12)}... uid=${cacheUid.slice(0,8)}...`);
           const cachedItems = getHashedResult(cacheUid, imageHash);
           if (cachedItems && cachedItems.length > 0) {
             console.log(`  ⚡ ハッシュキャッシュヒット: ${cachedItems.length}件（API呼び出しなし）`);
@@ -934,6 +936,8 @@ const server = http.createServer(async (req, res) => {
             }));
             return;
           }
+        } else {
+          console.log(`  ⚠️ ハッシュキャッシュ無効: imageCount=${imageDataList.length} cacheUid=${cacheUid?'有':'無'}`);
         }
 
         // マスタを先に読み込む（cacheUid基準）

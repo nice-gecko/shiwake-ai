@@ -896,6 +896,8 @@ window.incrementSupabaseCount = incrementMonthlyCount;
             team_lite:'チームライト', team_std:'チームスタンダード', team_prem:'チームプレミアム'
           };
           window._userPlanName = PLAN_NAMES[u.stripe_plan] || (u.is_paid ? '有料プラン' : '無料トライアル');
+          // 累計処理数（全ユーザー共通・Supabase信頼源）
+          window._userTotalCount = u.monthly_count || 0;
           // adminは画面切替を優先、他ユーザーはプラン判定
           let isAgency;
           if(isAdminUser()){
@@ -2595,7 +2597,11 @@ function updateAiStats(){
     const progress = s.unredeemed % s.threshold;
     const pct      = Math.min(100, Math.round(progress / s.threshold * 100));
     const remaining = s.threshold - progress;
-    if(elTotal)      elTotal.innerHTML      = s.total.toLocaleString()+'<span>枚</span>';
+    if(elTotal){
+      // 累計処理数（Supabase monthly_countベース・全画面整合）
+      const total = (typeof window._userTotalCount === 'number') ? window._userTotalCount : s.total;
+      elTotal.innerHTML = total.toLocaleString()+'<span>枚</span>';
+    }
     if(elUnredeemed) elUnredeemed.innerHTML = s.unredeemed.toLocaleString()+'<span>枚</span>';
     if(elFill)       elFill.style.width     = pct+'%';
     if(elLabel)      elLabel.textContent    = progress.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
@@ -2604,17 +2610,11 @@ function updateAiStats(){
     // 一般ユーザー：累計処理数のみ
     ic.style.display = 'none';
     as.style.display = '';
-    // 累計処理数（全月の合計）
-    let total = 0;
-    for(let i=0; i<localStorage.length; i++){
-      const k = localStorage.key(i);
-      if(k && k.startsWith('shiwake_month_count_')){
-        total += parseInt(localStorage.getItem(k)||'0');
-      }
-    }
+    // 累計処理数（Supabase信頼源・初回ロード/カウント時に取得）
+    const total = (typeof window._userTotalCount === 'number') ? window._userTotalCount : processed;
     const elProcessed = document.getElementById('statProcessed');
     if(elProcessed) elProcessed.innerHTML = total.toLocaleString()+'<span>枚</span>';
-    // 今月
+    // 今月（localStorage）
     const elTM = document.getElementById('statThisMonth');
     if(elTM) elTM.textContent = processed.toLocaleString()+'枚';
     // 先月
@@ -2648,6 +2648,10 @@ function addMonthlyCount(n){
   // Supabaseに同期してレスポンスでincentive状態を更新
   if(window._firebaseUser){
     incrementSupabaseCount(window._firebaseUser.uid, n).then(res=>{
+      if(res){
+        // 累計（全ユーザー共通の信頼源）
+        window._userTotalCount = res.total_count || res.monthly_count || 0;
+      }
       if(res && res.is_agency){
         _incentiveState = {
           total:      res.incentive_total,
