@@ -1148,7 +1148,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <div class="dash-card" id="incentiveCard" style="display:none;">
           <div class="incentive-header">
             <span class="incentive-title">🎁 スタッフインセンティブ</span>
-            <span class="incentive-badge" id="incentiveBadge">¥500 / 1,000枚</span>
           </div>
           <div class="ds-row">
             <div class="ds-sub">
@@ -1163,12 +1162,12 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <div class="incentive-progress-wrap">
             <div class="incentive-progress-label">
               <span>次のインセンティブまで</span>
-              <span id="incProgressLabel">0 / 1,000枚</span>
+              <span id="incProgressLabel">0 / 0枚</span>
             </div>
             <div class="incentive-progress-bar">
               <div class="incentive-progress-fill" id="incProgressFill" style="width:0%"></div>
             </div>
-            <div class="incentive-next" id="incNext">あと <strong>1,000枚</strong></div>
+            <div class="incentive-next" id="incNext">あと <strong>0枚</strong></div>
           </div>
         </div>
       </div>
@@ -2582,7 +2581,6 @@ function updateAiStats(){
     const elFill       = document.getElementById('incProgressFill');
     const elLabel      = document.getElementById('incProgressLabel');
     const elNext       = document.getElementById('incNext');
-    const elBadge      = document.getElementById('incentiveBadge');
     const progress = s.unredeemed % s.threshold;
     const pct      = Math.min(100, Math.round(progress / s.threshold * 100));
     const remaining = s.threshold - progress;
@@ -2591,7 +2589,6 @@ function updateAiStats(){
     if(elFill)       elFill.style.width     = pct+'%';
     if(elLabel)      elLabel.textContent    = progress.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
     if(elNext)       elNext.innerHTML       = 'あと <strong>'+remaining.toLocaleString()+'枚</strong>';
-    if(elBadge)      elBadge.textContent    = '¥'+s.amount.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
   } else {
     // 一般ユーザー：累計処理数のみ
     ic.style.display = 'none';
