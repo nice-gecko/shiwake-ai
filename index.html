@@ -867,6 +867,27 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       if (role === 'staff' && window._supabaseUser?.owner_id) {
         window._ownerUid = window._supabaseUser.owner_id;
       }
+      // incentive状態をSupabaseから取得してupdateAiStatsを初期化
+      try {
+        const uid = user.uid;
+        const r = await fetch('/api/user?uid='+uid);
+        const d = await r.json();
+        const u = d?.user;
+        if (u) {
+          const isAgency = window.INCENTIVE_ALL_PLANS_CLIENT ||
+            ['agency_light','agency_std','agency_prem'].includes(u.stripe_plan);
+          if (isAgency) {
+            _incentiveState = {
+              total:      u.incentive_total      || 0,
+              unredeemed: u.incentive_unredeemed  || 0,
+              threshold:  1000,
+              amount:     500,
+              is_agency:  true
+            };
+          }
+        }
+      } catch(e) { console.warn('incentive init error:', e); }
+      updateAiStats();
     } else {
       // 未ログイン → ログイン画面
       if (loginScreen) loginScreen.style.display = '';
@@ -916,7 +937,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.8</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.9</div>
   </div>
 </div>
 
@@ -999,7 +1020,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.8 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.9 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1272,6 +1293,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <button class="master-tab" id="mtab-category" onclick="switchMasterTab('category')">カテゴリルール</button>
     </div>
     <div id="master-pane-vendor">
+      <div class="cat-rule-desc">仕訳を承認すると取引先ごとの勘定科目・税区分が自動登録されます。次回以降の同じ取引先に自動適用されます。</div>
       <table class="master-table">
         <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
         <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
@@ -2180,6 +2202,7 @@ async function clearAllMaster(){
 }
 
 // インセンティブ状態をlocalStorageに保持
+const INCENTIVE_ALL_PLANS_CLIENT = true; // server.jsのINSENTIVE_ALL_PLANSと合わせる
 let _incentiveState = { total: 0, unredeemed: 0, threshold: 1000, amount: 500, is_agency: false };
 
 function updateAiStats(){
