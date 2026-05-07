@@ -137,6 +137,9 @@ if (fs.existsSync(envPath)) {
   });
 }
 
+// プロンプトキャッシュ統計（プロセス起動以降の累計）
+const cumCacheStats = { write: 0, read: 0, input: 0, output: 0, requests: 0 };
+
 const SYSTEM = `あなたは日本の会計仕訳の専門家であり、OCRの専門家でもあります。証憑画像（レシート・領収書・手書き領収書・銀行通帳など）を分析し、弥生会計の勘定科目体系に従って仕訳を生成してください。
 
 【画像読み取りのガイドライン】
@@ -384,18 +387,25 @@ ${formatList}
 }
 
 // ===== タイプ別プロンプト生成 =====
-function buildSystemPrompt(formatKey, line_item_mode = 'total_only') {
+function buildSystemPromptParts(formatKey, line_item_mode = 'total_only') {
   const fmt = RECEIPT_FORMATS[formatKey] || RECEIPT_FORMATS['register_receipt'];
   const lineItemInstruction = line_item_mode === 'individual'
     ? `\n\n【内訳仕訳モード：個別仕訳】\nこの証憑は「個別仕訳モード」で処理してください。\n- 商品・カテゴリごとの内訳行を1件ずつ個別に仕訳してください\n- 「小計」「合計」「総合計」などの集計行は出力しないでください\n- 内訳行が存在しない場合のみ合計行を1件出力してください`
     : `\n\n【内訳仕訳モード：合計のみ】\nこの証憑は「合計のみモード」で処理してください。\n- 内訳行・品目明細・小計行はすべて除外してください\n- 【重要】税率が混在する場合（8%軽減と10%が両方ある場合）は税率ごとに分けて複数件出力してください\n  例：食料品合計（8%軽減）¥1,200 と 日用品合計（10%）¥300 → 2件出力\n- 税率が1種類のみの場合は合計1件のみ出力してください\n- 「合計」「金額」「領収金額」「乗車料金」「金」「￥」などの総合計行は参照するが、税率別内訳がある場合はその内訳金額を使用してください\n- 摘要には「食料品（軽減）」「日用品」など税率が分かる内容を記載してください`;
-  return SYSTEM + `
+  const formatPart = `
 
 【証憑タイプ】
 この証憑は「${fmt.name}」と判定されました。
 特徴：${fmt.features}
 読み取りポイント：${fmt.readingPoints}
 上記の特徴を踏まえて、より正確に読み取ってください。` + lineItemInstruction;
+  return { base: SYSTEM, format: formatPart };
+}
+
+// 互換性のための関数（既存呼び出し対応）
+function buildSystemPrompt(formatKey, line_item_mode = 'total_only') {
+  const parts = buildSystemPromptParts(formatKey, line_item_mode);
+  return parts.base + parts.format;
 }
 
 
@@ -457,12 +467,29 @@ ${titles}
   return items;
 }
 
-async function callClaudeWithFormat(apiKey, content, systemPrompt) {
-  // プロンプトキャッシュ（1h TTL）：systemPromptをキャッシュブロック化
-  // 1時間以内に再アクセスがあればTTLリセット → 連続利用ほど節約効果が大きい
-  const systemBlocks = [
-    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral', ttl: '1h' } }
-  ];
+async function callClaudeWithFormat(apiKey, content, systemPromptOrParts, masterText) {
+  // 3層キャッシュブロック構造（変更頻度の低い順）:
+  //   1. 基底SYSTEM (最も静的・全リクエスト共通)
+  //   2. フォーマット+モード (証憑タイプごと変化)
+  //   3. マスタ (マスタ追加・変更時のみ作り直し)
+  // それぞれを独立した cache_control ブロックにすることで、
+  // マスタ変更時に基底SYSTEMのキャッシュが無効化されない。
+  let systemBlocks;
+  if (typeof systemPromptOrParts === 'string') {
+    // 旧スタイル（互換性）
+    systemBlocks = [
+      { type: 'text', text: systemPromptOrParts, cache_control: { type: 'ephemeral', ttl: '1h' } }
+    ];
+  } else {
+    // 新スタイル {base, format} + masterText
+    systemBlocks = [
+      { type: 'text', text: systemPromptOrParts.base, cache_control: { type: 'ephemeral', ttl: '1h' } },
+      { type: 'text', text: systemPromptOrParts.format, cache_control: { type: 'ephemeral', ttl: '1h' } }
+    ];
+    if (masterText) {
+      systemBlocks.push({ type: 'text', text: masterText, cache_control: { type: 'ephemeral', ttl: '1h' } });
+    }
+  }
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -482,6 +509,12 @@ async function callClaudeWithFormat(apiKey, content, systemPrompt) {
     const it = data.usage.input_tokens || 0;
     const ot = data.usage.output_tokens || 0;
     if (cw > 0 || cr > 0) console.log(`  📦 cache write:${cw} read:${cr} input:${it} output:${ot}`);
+    // 統計を集積
+    cumCacheStats.write += cw;
+    cumCacheStats.read += cr;
+    cumCacheStats.input += it;
+    cumCacheStats.output += ot;
+    cumCacheStats.requests += 1;
   }
   const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
   const startIdx = raw.indexOf('[');
@@ -890,6 +923,19 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ===== 既存API =====
+  // ===== admin: キャッシュ統計 =====
+  if (req.method === 'GET' && req.url.startsWith('/api/admin/cache-stats')) {
+    const totalIn = cumCacheStats.input + cumCacheStats.write + cumCacheStats.read;
+    const cacheRate = totalIn > 0 ? Math.round((cumCacheStats.read / totalIn) * 100) : 0;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      ...cumCacheStats,
+      cacheHitRate: cacheRate,
+      avgInputPerRequest: cumCacheStats.requests > 0 ? Math.round(totalIn / cumCacheStats.requests) : 0
+    }));
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/api/split-pdf') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -977,14 +1023,16 @@ const server = http.createServer(async (req, res) => {
         }
         if (!line_item_mode) line_item_mode = 'total_only';
 
-        // ===== ステップ2: systemプロンプトを構築（マスタもsystemに含める＝キャッシュに乗せる） =====
-        // マスタをsystemに含めることで、プロンプトキャッシュの恩恵を最大化
-        let systemPromptWithMaster = buildSystemPrompt(formatKey || 'register_receipt', line_item_mode);
+        // ===== ステップ2: systemプロンプトを構築（3層キャッシュブロック構造） =====
+        // 基底SYSTEM + フォーマット + マスタを別ブロックにすることで
+        // マスタ変更時に基底SYSTEMのキャッシュが無効化されない
+        const systemParts = buildSystemPromptParts(formatKey || 'register_receipt', line_item_mode);
+        let masterText = null;
         if (masterKeys.length > 0) {
-          const masterText = Object.entries(master)
-            .map(([title, rule]) => `・${title} → 借方:${rule.debit} 貸方:${rule.credit} 税:${rule.tax}`)
-            .join('\n');
-          systemPromptWithMaster += `\n\n【学習済み取引先マスタ】\n以下の取引先は過去の承認済み仕訳実績です。同じ取引先名（または部分一致）が出た場合は、この勘定科目を優先して使用してください：\n${masterText}`;
+          masterText = `\n\n【学習済み取引先マスタ】\n以下の取引先は過去の承認済み仕訳実績です。同じ取引先名（または部分一致）が出た場合は、この勘定科目を優先して使用してください：\n` +
+            Object.entries(master)
+              .map(([title, rule]) => `・${title} → 借方:${rule.debit} 貸方:${rule.credit} 税:${rule.tax}`)
+              .join('\n');
         }
 
         // ===== ステップ3: Sonnetへ画像を渡す =====
@@ -1000,11 +1048,11 @@ const server = http.createServer(async (req, res) => {
         content.push({ type: 'text', text: 'JSON配列のみ返してください。バッククォートや説明文は不要です。' });
 
         // タイプ別プロンプトでSonnetを呼ぶ（0件時のみ1回リトライ）
-        let rawItems = await callClaudeWithFormat(apiKey, content, systemPromptWithMaster);
+        let rawItems = await callClaudeWithFormat(apiKey, content, systemParts, masterText);
         console.log(`  1回目: ${rawItems.length}件`);
         if (rawItems.length === 0) {
           console.log(`  0件のため再試行...`);
-          rawItems = await callClaudeWithFormat(apiKey, content, systemPromptWithMaster);
+          rawItems = await callClaudeWithFormat(apiKey, content, systemParts, masterText);
           console.log(`  2回目: ${rawItems.length}件`);
         }
 

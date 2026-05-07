@@ -921,6 +921,11 @@ window.incrementSupabaseCount = incrementMonthlyCount;
               adminBtn.style.display = 'none';
             }
           }
+          // adminにはキャッシュ統計ボタンも
+          const cacheBtn = document.getElementById('adminCacheStats');
+          if(cacheBtn){
+            cacheBtn.style.display = isAdminUser() ? '' : 'none';
+          }
         }
       } catch(e) { console.warn('incentive init error:', e); }
       updateAiStats();
@@ -1057,6 +1062,9 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
       👁 インセンティブ表示に切替
+    </div>
+    <div class="sidebar-nav-item" id="adminCacheStats" style="display:none;color:#888;font-size:11px;" onclick="showCacheStats()">
+      📊 キャッシュ統計
     </div>
   </nav>
   <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.7.1 · Sonnet 4.6</div>
@@ -2249,6 +2257,29 @@ function setAdminViewMode(mode){
   else localStorage.removeItem('shiwake_admin_view_mode');
   updateAiStats();
 }
+// admin用: キャッシュ統計を表示
+window.showCacheStats = async function(){
+  try{
+    const r = await fetch('/api/admin/cache-stats');
+    const d = await r.json();
+    const msg = `📊 プロンプトキャッシュ統計（プロセス起動以降）
+
+リクエスト数: ${d.requests.toLocaleString()}回
+入力トークン合計: ${(d.input + d.write + d.read).toLocaleString()}
+  - 通常入力: ${d.input.toLocaleString()}
+  - キャッシュ書込: ${d.write.toLocaleString()} (1.25-2x価格)
+  - キャッシュ読込: ${d.read.toLocaleString()} (0.1x価格・90%オフ)
+出力トークン: ${d.output.toLocaleString()}
+
+キャッシュヒット率: ${d.cacheHitRate}%
+1リクエストあたり平均入力: ${d.avgInputPerRequest.toLocaleString()} トークン
+
+※サーバー再起動でリセットされます`;
+    alert(msg);
+  }catch(e){
+    showToast('統計取得失敗: '+e.message);
+  }
+};
 window.toggleAdminView = function(){
   const cur = getAdminViewMode();
   const next = cur === 'incentive' ? 'normal' : 'incentive';
