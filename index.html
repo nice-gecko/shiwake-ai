@@ -875,7 +875,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         const u = d?.user;
         if (u) {
           const isAgency = window.INCENTIVE_ALL_PLANS_CLIENT ||
-            ['agency_light','agency_std','agency_prem'].includes(u.stripe_plan);
+            ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(u.stripe_plan);
           if (isAgency) {
             _incentiveState = {
               total:      u.incentive_total      || 0,
@@ -937,7 +937,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.12</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.15</div>
   </div>
 </div>
 
@@ -1020,7 +1020,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.12 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.15 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1069,7 +1069,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <span class="step-arrow">›</span>
     <div class="step-item">
       <div class="step-circle pending" id="sc3">3</div>
-      <span class="step-label" id="sl3">CSVを出力</span>
+      <span class="step-label" id="sl3">ファイルを出力</span>
     </div>
   </div>
   <!-- 仕訳処理パネル -->
@@ -1349,6 +1349,52 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <div class="pricing-card-desc">60IDまで利用可能。大規模事務所・税理士法人向け。</div>
       </div>
       <div class="pricing-agency-note">💼 代理店プランのお問い合わせ・請求書払いは<br>easy.you.me@gmail.com までご連絡ください。</div>
+      <div class="pricing-section-title" style="margin-top:24px;">チームプラン（事務所内スタッフで使う）</div>
+      <div class="pricing-card" onclick="startCheckout('team_lite')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">チームライト</span>
+          <span class="pricing-card-price">¥20,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">5IDまで利用可能。小規模事務所のスタッフ向け。インセンティブオプション対応。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('team_std')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">チームスタンダード</span>
+          <span class="pricing-card-price">¥50,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">15IDまで利用可能。中規模事務所のスタッフ向け。インセンティブオプション対応。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('team_prem')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">チームプレミアム</span>
+          <span class="pricing-card-price">¥100,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">30IDまで利用可能。大規模事務所・税理士法人向け。インセンティブオプション対応。</div>
+      </div>
+      <div class="pricing-agency-note">👥 チームプランのお問い合わせ・請求書払いは<br>easy.you.me@gmail.com までご連絡ください。</div>
+      <div class="pricing-section-title" style="margin-top:24px;">インセンティブオプション（チームプランに追加）</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">チームプランに追加できるオプションです。スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与します。オーナーアカウントに1つ追加するだけで全スタッフに適用されます。</div>
+      <div class="pricing-card" onclick="startCheckout('incentive_lite')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">インセンティブ ライト</span>
+          <span class="pricing-card-price">¥5,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与。チームライトプランに追加できます。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('incentive_std')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">インセンティブ スタンダード</span>
+          <span class="pricing-card-price">¥10,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与。チームスタンダードプランに追加できます。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('incentive_prem')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">インセンティブ プレミアム</span>
+          <span class="pricing-card-price">¥20,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与。チームプレミアムプランに追加できます。</div>
+      </div>
     </div>
   </div>
 
@@ -2196,7 +2242,7 @@ function updateStepBar(step){
 // マスタ管理
 async function clearAllMaster(){
   if(!confirm('仕訳ルール学習を全件削除しますか？\nこの操作は元に戻せません。'))return;
-  await fetch('/api/master/clear',{method:'POST'});
+  const _muid=getMasterUid(); await fetch('/api/master/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:_muid})});
   await loadMasterFromServer();
 }
 
@@ -2403,8 +2449,14 @@ function getCatRulePrompt(){
   return '\n\n【ユーザー定義カテゴリルール（最優先）】\n'+catRules.map(r=>`- ${r.condition} → 借方「${r.debit}」・${r.tax}`).join('\n');
 }
 
+// マスタ操作に使うUID（スタッフはオーナーのUID、オーナーは自分のUID）
+function getMasterUid(){
+  return window._ownerUid || window._firebaseUser?.uid || null;
+}
+
 async function loadMasterFromServer(){
-  const res=await fetch('/api/master');
+  const uid = getMasterUid();
+  const res=await fetch('/api/master'+(uid?`?uid=${uid}`:''));
   masterData=await res.json();
   renderMaster();
   document.getElementById('masterCount').textContent=Object.keys(masterData).length;
@@ -2454,14 +2506,14 @@ async function saveMasterRule(){
   const title=editingTitle||document.getElementById('mTitle').value.trim();
   if(!title)return alert('取引先名を入力してください');
   const rule={debit:document.getElementById('mDebit').value,credit:document.getElementById('mCredit').value,tax:document.getElementById('mTax').value};
-  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[title]:rule})});
+  await fetch('/api/master'+(getMasterUid()?`?uid=${getMasterUid()}`:''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[title]:rule})});
   await loadMasterFromServer();
   closeModal();
 }
 
 async function deleteMasterRule(title){
   if(!confirm(`「${title}」のルールを削除しますか？`))return;
-  await fetch('/api/master',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+  await fetch('/api/master'+(getMasterUid()?`?uid=${getMasterUid()}`:''),{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
   await loadMasterFromServer();
 }
 
@@ -2491,7 +2543,7 @@ async function autoLearn(item){
   const rule={debit:item.debit,credit:item.credit,tax:item.tax};
   const existingKey=findExistingKey(item.title, masterData);
   const key=existingKey||item.title;
-  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:rule})});
+  await fetch('/api/master'+(getMasterUid()?`?uid=${getMasterUid()}`:''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:rule})});
   await loadMasterFromServer();
 }
 
@@ -3231,7 +3283,7 @@ async function doLearnFromCard(cardIdx){
   if(!la)return;
   const {title,debit,credit,tax}=la.dataset;
   const existingKey=findExistingKey(title,masterData)||title;
-  await fetch('/api/master',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[existingKey]:{debit,credit,tax}})});
+  await fetch('/api/master'+(getMasterUid()?`?uid=${getMasterUid()}`:''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[existingKey]:{debit,credit,tax}})});
   await loadMasterFromServer();
   const yesEl=document.getElementById('la-yes'+cardIdx);
   if(yesEl){yesEl.textContent='✓ 完了';yesEl.style.background='#5DCAA5';yesEl.style.color='#04342C';}
@@ -3252,7 +3304,7 @@ function updateBottom(){
   g1.textContent=ok===active&&active>0?'✓':'1';
   g2.className='guide-num'+(pend===0&&active>0?' done':'');
   document.getElementById('g1desc').textContent=pend>0?`${ok}件承認済み・${pend}件未処理。承認すると仕訳ルール学習に自動登録されます。`:'全件確認済みです。';
-  document.getElementById('g2desc').textContent=pend>0?`まだ${pend}件未処理があります。`:'準備完了。CSVを出力してください。';
+  document.getElementById('g2desc').textContent=pend>0?`まだ${pend}件未処理があります。`:'準備完了。ファイルを出力してください。';
   // ステップバー更新
   if(results.length===0)updateStepBar(1);
   else if(pend>0)updateStepBar(2);

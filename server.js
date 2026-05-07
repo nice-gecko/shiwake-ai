@@ -19,7 +19,52 @@ const STRIPE_PLANS = {
   agency_light: { price_id: 'price_1TQlwT2ZetSuudnL4cxHabfQ', name: '代理店ライト',       limit: null, seats: 10 },
   agency_std:   { price_id: 'price_1TQlxt2ZetSuudnLIzU5Auw7', name: '代理店スタンダード', limit: null, seats: 30 },
   agency_prem:  { price_id: 'price_1TQlzN2ZetSuudnLbtzI77fc', name: '代理店プレミアム',   limit: null, seats: 60 },
+  team_lite:    { price_id: 'price_1TUHY92ZetSuudnLZqREfOOb', name: 'チームライト',        limit: null, seats: 5 },
+  team_std:     { price_id: 'price_1TUHYi2ZetSuudnLaedNUIMq', name: 'チームスタンダード', limit: null, seats: 15 },
+  team_prem:    { price_id: 'price_1TUHZF2ZetSuudnL7g1HzVDM', name: 'チームプレミアム',   limit: null, seats: 30 },
+  incentive_lite: { price_id: 'price_1TUI5s2ZetSuudnLDdCVo6P2', name: 'インセンティブオプション ライト',        limit: null, is_option: true },
+  incentive_std:  { price_id: 'price_1TUI762ZetSuudnLZPo5BGON', name: 'インセンティブオプション スタンダード', limit: null, is_option: true },
+  incentive_prem: { price_id: 'price_1TUI7v2ZetSuudnLYL0b0VjT', name: 'インセンティブオプション プレミアム',   limit: null, is_option: true },
 };
+
+// ===== SendGridメール送信 =====
+async function sendEmail(to, subject, html) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = process.env.SENDGRID_FROM_EMAIL || 'noreply@shiwake-ai.com';
+  if (!apiKey) { console.warn('SENDGRID_API_KEY未設定'); return; }
+  try {
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: from, name: '証憑仕訳AI' },
+        subject,
+        content: [{ type: 'text/html', value: html }]
+      })
+    });
+    if (!res.ok) console.error('SendGrid error:', res.status, await res.text());
+    else console.log(`メール送信完了: ${to} / ${subject}`);
+  } catch(e) {
+    console.error('SendGrid例外:', e.message);
+  }
+}
+
+async function sendIncentiveNotification(ownerEmail, staffName, unredeemedCount) {
+  const adminEmail = process.env.ADMIN_EMAIL || 'easy.you.me@gmail.com';
+  const subject = `【証憑仕訳AI】インセンティブ付与対象: ${staffName}さんが${unredeemedCount}件到達`;
+  const html = `
+<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+  <h2 style="color:#185FA5;">🎁 インセンティブ付与対象のお知らせ</h2>
+  <p><strong>${staffName}</strong>さんの処理件数が<strong>${unredeemedCount}件</strong>に到達しました。</p>
+  <p>Amazonギフト券（¥${INCENTIVE_AMOUNT}相当）の付与をお願いします。</p>
+  <hr style="margin:16px 0;">
+  <p style="font-size:12px;color:#888;">証憑仕訳AI / shiwake-ai.com</p>
+</div>`;
+  await sendEmail(ownerEmail, subject, html);
+  await sendEmail(adminEmail, subject, html);
+}
+
 const STRIPE_SUCCESS_URL = 'https://shiwake-ai.onrender.com/?payment=success';
 const STRIPE_CANCEL_URL = 'https://shiwake-ai.onrender.com/?payment=cancel';
 
@@ -562,13 +607,35 @@ const server = http.createServer(async (req, res) => {
         const incTotal = (row.incentive_total || 0) + n;
         const incUnredeemed = (row.incentive_unredeemed || 0) + n;
         // INCENTIVE_ALL_PLANS=trueなら全プラン対象（テスト用）
-        const isAgency = INCENTIVE_ALL_PLANS || ['agency_light','agency_std','agency_prem'].includes(row.stripe_plan);
+        const isAgency = INCENTIVE_ALL_PLANS || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(row.stripe_plan);
         const patch = { monthly_count: cur + n };
         if (isAgency) {
           patch.incentive_total      = incTotal;
           patch.incentive_unredeemed = incUnredeemed;
         }
         await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patch);
+
+        // 1000件到達チェック → オーナーとadminにメール通知
+        if (isAgency) {
+          const prevUnredeemed = row.incentive_unredeemed || 0;
+          const crossed = Math.floor(prevUnredeemed / INCENTIVE_THRESHOLD) < Math.floor(incUnredeemed / INCENTIVE_THRESHOLD);
+          if (crossed) {
+            try {
+              // スタッフ情報とオーナー情報を取得
+              const staffRow = (await supabaseQuery(`/users?id=eq.${uid}&select=display_name,email,owner_id,role`))?.[0] || {};
+              const staffName = staffRow.display_name || staffRow.email || uid;
+              let ownerEmail = staffRow.email;
+              if (staffRow.role === 'staff' && staffRow.owner_id) {
+                const ownerRow = (await supabaseQuery(`/users?id=eq.${staffRow.owner_id}&select=email`))?.[0];
+                if (ownerRow?.email) ownerEmail = ownerRow.email;
+              }
+              await sendIncentiveNotification(ownerEmail, staffName, incUnredeemed);
+            } catch(e) {
+              console.error('インセンティブ通知エラー:', e.message);
+            }
+          }
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
