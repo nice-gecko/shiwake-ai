@@ -937,7 +937,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.15</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.16</div>
   </div>
 </div>
 
@@ -1020,7 +1020,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.15 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.16 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1032,6 +1032,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </div>
   <div style="padding:6px 10px 8px;border-top:1px solid #e0dfd8;">
+    <button onclick="openTutorialFloat()" class="pricing-nav-btn" style="margin-bottom:6px;">
+      <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7.5" cy="10" r="0.8" fill="currentColor"/></svg>
+      はじめてガイド
+    </button>
     <button onclick="switchTab('pricing')" class="pricing-nav-btn">
       <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="1.5" y1="6" x2="13.5" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="9" x2="7" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
       料金プラン
@@ -1396,6 +1400,70 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <div class="pricing-card-desc">スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与。チームプレミアムプランに追加できます。</div>
       </div>
     </div>
+  </div>
+
+  <!-- チュートリアルフロート -->
+  <div class="guide-float" id="tutorialFloat" style="right:24px;bottom:24px;left:auto;top:auto;width:300px;min-height:auto;">
+    <div class="guide-float-bar" id="tutorialFloatBar">
+      <span class="guide-float-title">💡 はじめてガイド</span>
+      <button class="guide-float-close" onclick="closeTutorialFloat()">✕</button>
+    </div>
+    <div class="guide-float-body" style="padding:14px 16px;">
+      <div style="font-size:11px;color:#888;margin-bottom:14px;">撮影から会計ソフトへの取込みまでの流れ</div>
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:28px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#E6F1FB;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;">1</div>
+            <div style="width:2px;flex:1;min-height:14px;background:#e0dfd8;margin:4px 0;"></div>
+          </div>
+          <div style="flex:1;padding-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:5px;margin-bottom:3px;">領収書・レシートを撮影</div>
+            <div style="font-size:11px;color:#888;line-height:1.6;">スキャンタブ → カメラで撮影<br>またはJPG・PNG・PDFをドロップ</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:28px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#E6F1FB;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;">2</div>
+            <div style="width:2px;flex:1;min-height:14px;background:#e0dfd8;margin:4px 0;"></div>
+          </div>
+          <div style="flex:1;padding-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:5px;margin-bottom:3px;">AIが仕訳を自動生成</div>
+            <div style="font-size:11px;color:#888;line-height:1.6;">取引先・日付・金額・勘定科目・税区分を数秒で判定</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:28px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#E1F5EE;color:#085041;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;">3</div>
+            <div style="width:2px;flex:1;min-height:14px;background:#e0dfd8;margin:4px 0;"></div>
+          </div>
+          <div style="flex:1;padding-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:5px;margin-bottom:3px;">仕訳を確認・承認</div>
+            <div style="font-size:11px;color:#888;line-height:1.6;">内容を確認して「承認」を押すだけ<br>修正もその場でOK。次回から自動学習</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:28px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#FAEEDA;color:#633806;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;">4</div>
+            <div style="width:2px;flex:1;min-height:14px;background:#e0dfd8;margin:4px 0;"></div>
+          </div>
+          <div style="flex:1;padding-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:5px;margin-bottom:3px;">ファイルを出力</div>
+            <div style="font-size:11px;color:#888;line-height:1.6;">弥生・freee・MF・勘定奉行に対応<br>「ファイルを出力する」で一括ダウンロード</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:28px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#EAF3DE;color:#27500A;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;">5</div>
+          </div>
+          <div style="flex:1;padding-bottom:4px;">
+            <div style="font-size:13px;font-weight:500;color:#1a1a1a;margin-top:5px;margin-bottom:3px;">会計ソフトにインポートして完了</div>
+            <div style="font-size:11px;color:#888;line-height:1.6;">詳しい操作手順は「インポートガイド」を参照</div>
+            <button class="guide-float-btn" onclick="closeTutorialFloat();openGuideFloat();" style="margin-top:8px;">インポートガイドを見る →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <svg class="guide-float-resize" id="tutorialFloatResize" viewBox="0 0 14 14"><path d="M13 1L1 13M9 1L1 9M13 5L5 13" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/></svg>
   </div>
 
   <!-- CSV統合・変換パネル -->
@@ -1821,7 +1889,7 @@ function initPerspective(){
   img.src=scanRawUrl;
 }
 
-function initPerspectiveFromCamera(){
+async function initPerspectiveFromCamera(){
   // ⑤⑨㉜㉝ カメラ検出座標（比率）をperspCanvas座標に変換してセット
   const img=new Image();
   img.onload=()=>{
@@ -1920,23 +1988,48 @@ function drawCamDetection(){
   if(!ctx){return;}
   const cw=_camBodyW,ch=_camBodyH;
 
-  // ③ 10フレームに1回だけ検出処理（描画は毎フレーム）
-  if(_camFrameCount%10===0){
-    // ① 縮小canvasで検出（320×240）
-    const DW=320,DH=240;
-    const tmpC=document.createElement('canvas');
-    tmpC.width=DW;tmpC.height=DH;
-    const tmpCtx=tmpC.getContext('2d',{willReadFrequently:true});
-    tmpCtx.drawImage(video,0,0,DW,DH);
-    const imgData=tmpCtx.getImageData(0,0,DW,DH);
-    const corners=autoDetectCorners(imgData,DW,DH);
-    // ⑧ 比率（0〜1）で保存
-    _camLastCorners=[
-      [corners[0][0]/DW,corners[0][1]/DH],
-      [corners[1][0]/DW,corners[1][1]/DH],
-      [corners[2][0]/DW,corners[2][1]/DH],
-      [corners[3][0]/DW,corners[3][1]/DH]
-    ];
+  // 5フレームに1回検出（scanic優先・フォールバックなし）
+  if(_camFrameCount%5===0){
+    const sc=window._scanicFn||window._scanicScanner;
+    if(sc){
+      // scanic: 台形検出（非同期）
+      const tmpC=document.createElement('canvas');
+      tmpC.width=video.videoWidth;tmpC.height=video.videoHeight;
+      const tmpCtx=tmpC.getContext('2d');
+      tmpCtx.drawImage(video,0,0);
+      const img=new Image();
+      img.src=tmpC.toDataURL('image/jpeg',0.7);
+      img.onload=async()=>{
+        try{
+          const r=await (sc.scan?sc.scan(img,{mode:'detect'}):sc(img,{mode:'detect'}));
+          if(r&&r.success&&r.corners){
+            const W=video.videoWidth,H=video.videoHeight;
+            const c=r.corners;
+            _camLastCorners=[
+              [c.topLeft.x/W,    c.topLeft.y/H],
+              [c.topRight.x/W,   c.topRight.y/H],
+              [c.bottomRight.x/W,c.bottomRight.y/H],
+              [c.bottomLeft.x/W, c.bottomLeft.y/H]
+            ];
+          }
+        }catch(e){}
+      };
+    } else {
+      // scanic未初期化時はSobel（フォールバック）
+      const DW=320,DH=240;
+      const tmpC=document.createElement('canvas');
+      tmpC.width=DW;tmpC.height=DH;
+      const tmpCtx=tmpC.getContext('2d',{willReadFrequently:true});
+      tmpCtx.drawImage(video,0,0,DW,DH);
+      const imgData=tmpCtx.getImageData(0,0,DW,DH);
+      const corners=autoDetectCorners(imgData,DW,DH);
+      _camLastCorners=[
+        [corners[0][0]/DW,corners[0][1]/DH],
+        [corners[1][0]/DW,corners[1][1]/DH],
+        [corners[2][0]/DW,corners[2][1]/DH],
+        [corners[3][0]/DW,corners[3][1]/DH]
+      ];
+    }
   }
   _camFrameCount++;
 
@@ -3326,6 +3419,12 @@ function fmtAmtInput(el){
   el.setSelectionRange(el.value.length,el.value.length);
 }
 // フォーマット切替時にステップ3説明を変更
+function openTutorialFloat(){
+  document.getElementById('tutorialFloat').classList.add('open');
+}
+function closeTutorialFloat(){
+  document.getElementById('tutorialFloat').classList.remove('open');
+}
 function openGuideFloat(){
   document.getElementById('guideFloat').classList.add('open');
 }
@@ -3795,6 +3894,40 @@ window.addEventListener('load',function(){
   document.addEventListener('mouseup',function(){resizing=false;});
 });
 window.addEventListener('load',function(){
+  // チュートリアルフロートのドラッグ・リサイズ
+  (function(){
+    const el=document.getElementById('tutorialFloat');
+    const bar=document.getElementById('tutorialFloatBar');
+    const resizer=document.getElementById('tutorialFloatResize');
+    if(!el||!bar||!resizer)return;
+    let dx=0,dy=0,sx=0,sy=0,dragging=false;
+    bar.addEventListener('mousedown',function(e){
+      dragging=true;sx=e.clientX;sy=e.clientY;
+      const r=el.getBoundingClientRect();
+      dx=r.left;dy=r.top;
+      el.style.transform='none';el.style.right='auto';el.style.bottom='auto';
+      el.style.left=Math.round(dx)+'px';el.style.top=Math.round(dy)+'px';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove',function(e){
+      if(!dragging)return;
+      el.style.left=(dx+e.clientX-sx)+'px';el.style.top=(dy+e.clientY-sy)+'px';
+    });
+    document.addEventListener('mouseup',function(){dragging=false;});
+    let resizing=false,rsx=0,rsy=0,rw=0,rh=0;
+    resizer.addEventListener('mousedown',function(e){
+      resizing=true;rsx=e.clientX;rsy=e.clientY;
+      const r=el.getBoundingClientRect();rw=r.width;rh=r.height;
+      e.preventDefault();e.stopPropagation();
+    });
+    document.addEventListener('mousemove',function(e){
+      if(!resizing)return;
+      el.style.width=Math.max(260,rw+e.clientX-rsx)+'px';
+    });
+    document.addEventListener('mouseup',function(){resizing=false;});
+  })();
+});
+window.addEventListener('load',function(){
   const el=document.getElementById('guideFloat');
   const bar=document.getElementById('guideFloatBar');
   const resizer=document.getElementById('guideFloatResize');
@@ -3918,5 +4051,19 @@ window.addEventListener('load',function(){
   </div>
   <svg class="receipt-float-resize" id="receiptFloatResize" viewBox="0 0 14 14"><path d="M12 12L4 12M12 12L12 4M12 12L6 6" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
 </div>
+<script type="module">
+(async()=>{
+  // console.tableが未実装の環境でscanicが落ちるのを防ぐ
+  if(typeof console.table!=='function') console.table=()=>{};
+  try{
+    const mod=await import('https://cdn.jsdelivr.net/npm/scanic@1.0.6/dist/scanic.js');
+    const scanDoc=mod.scanDocument||mod.default?.scanDocument;
+    if(scanDoc){
+      window._scanicFn=scanDoc;
+      console.log('scanic: 準備完了');
+    }
+  }catch(e){console.warn('scanic読み込み失敗:',e.message);}
+})();
+</script>
 </body>
 </html>
