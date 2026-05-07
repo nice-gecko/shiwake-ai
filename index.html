@@ -1293,7 +1293,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <button class="master-tab" id="mtab-category" onclick="switchMasterTab('category')">カテゴリルール</button>
     </div>
     <div id="master-pane-vendor">
-      <div class="cat-rule-desc">仕訳を承認すると取引先ごとの勘定科目・税区分が自動登録されます。同じ取引先に次回から自動適用されます。</div>
+      <div class="cat-rule-desc">仕訳を承認すると取引先ごとの勘定科目・税区分が登録されます。次回から同じ取引先に自動適用されます。</div>
       <table class="master-table">
         <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
         <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
@@ -2769,6 +2769,7 @@ async function processOneFile(f){
         const data2=await resp2.json();
         if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
       }
+      addMonthlyCount(1);
     } catch(e) {
       if(e.name==='AbortError')return;
       showErr(`⚠️ 処理エラー: ${e.message}`);
