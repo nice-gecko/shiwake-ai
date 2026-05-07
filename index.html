@@ -532,8 +532,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .invite-banner-title{font-size:14px;font-weight:600;color:#185FA5;margin-bottom:4px;}
 .invite-banner-sub{font-size:12px;color:#555;}
 /* インセンティブカウンター */
-.dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:stretch;}
 .dashboard-left{display:flex;flex-direction:column;}
+.dashboard-left > .dash-card{flex:1;}
 .dash-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);display:flex;flex-direction:column;}
 .incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
 .incentive-title{font-size:12px;font-weight:600;color:#555;}
@@ -1141,6 +1142,16 @@ window.incrementSupabaseCount = incrementMonthlyCount;
             <div class="ds-main">
               <div class="ds-main-label">累計処理数</div>
               <div class="ds-main-value" id="statProcessed">0<span>枚</span></div>
+            </div>
+          </div>
+          <div class="master-extra">
+            <div class="master-extra-left">
+              <div class="master-extra-label">今月</div>
+              <div class="master-extra-value" id="statThisMonth" style="color:#185FA5;">0枚</div>
+            </div>
+            <div class="master-extra-right">
+              <div class="master-extra-label">先月</div>
+              <div class="master-extra-value" id="statLastMonth" style="color:#888;">0枚</div>
             </div>
           </div>
         </div>
@@ -2593,8 +2604,28 @@ function updateAiStats(){
     // 一般ユーザー：累計処理数のみ
     ic.style.display = 'none';
     as.style.display = '';
+    // 累計処理数（全月の合計）
+    let total = 0;
+    for(let i=0; i<localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith('shiwake_month_count_')){
+        total += parseInt(localStorage.getItem(k)||'0');
+      }
+    }
     const elProcessed = document.getElementById('statProcessed');
-    if(elProcessed) elProcessed.innerHTML = processed.toLocaleString()+'<span>枚</span>';
+    if(elProcessed) elProcessed.innerHTML = total.toLocaleString()+'<span>枚</span>';
+    // 今月
+    const elTM = document.getElementById('statThisMonth');
+    if(elTM) elTM.textContent = processed.toLocaleString()+'枚';
+    // 先月
+    const lastMonth = (() => {
+      const d = new Date();
+      d.setDate(1); d.setMonth(d.getMonth()-1);
+      return d.toISOString().slice(0,7);
+    })();
+    const lastCount = parseInt(localStorage.getItem('shiwake_month_count_'+lastMonth)||'0');
+    const elLM = document.getElementById('statLastMonth');
+    if(elLM) elLM.textContent = lastCount.toLocaleString()+'枚';
     const elPlanBadge = document.getElementById('userPlanBadge');
     if(elPlanBadge) elPlanBadge.textContent = window._userPlanName || '無料トライアル';
   }
