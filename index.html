@@ -3087,6 +3087,25 @@ function cancelProcess(){
   if(results.length>0){_renderedGroupCount=0;renderCards();updateBottom();}
 }
 
+// 解析レスポンスからフィードバック表示（ハッシュキャッシュヒット・マスタヒット）
+function notifyResultFeedback(data){
+  if(!data || !data.items) return;
+  const masterHits = data.items.filter(it=>it.masterApplied);
+  const isCacheHit = data.cacheHit === 'hash';
+  if(isCacheHit && masterHits.length > 0){
+    // 統合表示
+    const first = masterHits[0].masterKey || masterHits[0].title || '';
+    const more = masterHits.length > 1 ? ` 他${masterHits.length-1}件` : '';
+    showToast(`⚡ 処理済み画像を再利用 (🏪 ${first}${more})`, 2500);
+  } else if(isCacheHit){
+    showToast('⚡ 処理済み画像を再利用しました', 2000);
+  } else if(masterHits.length > 0){
+    const first = masterHits[0].masterKey || masterHits[0].title || '';
+    const more = masterHits.length > 1 ? ` 他${masterHits.length-1}件` : '';
+    showToast(`🏪 ${first}${more} (マスタ適用)`, 2000);
+  }
+}
+
 // 1ファイル分の処理（キューから呼ばれる）
 async function processOneFile(f){
   hideErr();
@@ -3120,6 +3139,7 @@ async function processOneFile(f){
         syncSessionAppend(data.items);
         addMonthlyCount(1);
         renderCards();updateBottom();
+        notifyResultFeedback(data);
       }catch(e){
         if(e.name==='AbortError')return;
         showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}\n${results.length}件読み込み済み。同じPDFを再アップロードすると続きから再開できます。`);
@@ -3156,7 +3176,7 @@ async function processOneFile(f){
       const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
       const data=await resp.json();
       if(data.error){showErr(data.error);return;}
-      addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();
+      addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();notifyResultFeedback(data);
 
       // Haikuが判定したorientationに従って追加解析
       const detectedOrientation = data.orientation || 'normal';
@@ -3166,20 +3186,20 @@ async function processOneFile(f){
         const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data2=await resp2.json();
-        if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90, mt90);appendNewCards();
+        if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90, mt90);notifyResultFeedback(data2);}appendNewCards();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
         const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
         const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data3=await resp3.json();
-        if(!data3.error)addItems(data3.items, data3.line_item_mode, b64r270, mt270);appendNewCards();
+        if(!data3.error){addItems(data3.items, data3.line_item_mode, b64r270, mt270);notifyResultFeedback(data3);}appendNewCards();
       } else if(detectedOrientation==='rotate'){
         setProgress(65,'回転補正で再解析中...',f.name);
         const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null)}),signal});
         const data2=await resp2.json();
-        if(!data2.error)addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);appendNewCards();
+        if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);notifyResultFeedback(data2);}appendNewCards();
       }
       addMonthlyCount(1);
     } catch(e) {
@@ -3231,6 +3251,7 @@ async function startProcess(resume){
         syncSessionAppend(data.items);
         addMonthlyCount(1);
         renderCards();updateBottom();
+        notifyResultFeedback(data);
       }catch(e){
         if(e.name==='AbortError')return;
         showErr(`⚠️ チャンク${ci+1}でエラー: ${e.message}`);return;
