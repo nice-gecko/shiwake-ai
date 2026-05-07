@@ -42,14 +42,15 @@ async function stripeRequest(path, method='GET', body=null) {
 const SUPABASE_URL = 'https://tmddairlgpyinqfekkfg.supabase.co';
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || '';
 
-async function supabaseQuery(path, method='GET', body=null) {
+async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
   const opts = {
     method,
     headers: {
       'Content-Type': 'application/json',
       'apikey': SUPABASE_SECRET_KEY,
       'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
-      'Prefer': 'return=representation'
+      'Prefer': 'return=representation',
+      ...extraHeaders
     }
   };
   if (body) opts.body = JSON.stringify(body);
@@ -460,7 +461,8 @@ const server = http.createServer(async (req, res) => {
         const data = await supabaseQuery(
           '/users?on_conflict=id',
           'POST',
-          { id: uid, email, display_name: display_name || email }
+          { id: uid, email, display_name: display_name || email },
+          { 'Prefer': 'resolution=merge-duplicates,return=representation' }
         );
         console.log(`ユーザーupsert: ${email}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });

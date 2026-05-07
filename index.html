@@ -372,7 +372,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .csv-format-arrow{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:12px;color:#555;pointer-events:none;font-weight:600;}
 
 /* マスタ管理 */
-.master-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0;}
+.master-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 0 0 16px;}
 .master-toolbar h2{font-size:15px;font-weight:600;}
 .btn-add-master{padding:8px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;}
 .btn-clear-master{padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:8px;font-size:13px;color:#888;cursor:pointer;}
@@ -937,7 +937,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <button class="btn-reset-pw" onclick="resetPassword(document.getElementById('authEmail').value)">パスワードを忘れた方</button>
 
     <div class="login-note" style="margin-top:12px;">ログインすることで、スマホとPCで<br>仕訳データが自動共有されます</div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.9</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v1.6.10</div>
   </div>
 </div>
 
@@ -1020,7 +1020,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       スタッフ管理
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.9 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v1.6.10 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1293,7 +1293,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <button class="master-tab" id="mtab-category" onclick="switchMasterTab('category')">カテゴリルール</button>
     </div>
     <div id="master-pane-vendor">
-      <div class="cat-rule-desc">仕訳を承認すると取引先ごとの勘定科目・税区分が自動登録されます。次回以降の同じ取引先に自動適用されます。</div>
+      <div class="cat-rule-desc">仕訳を承認すると取引先ごとの勘定科目・税区分が自動登録されます。同じ取引先に次回から自動適用されます。</div>
       <table class="master-table">
         <thead><tr><th>取引先名</th><th>借方</th><th>貸方</th><th>税区分</th><th></th></tr></thead>
         <tbody id="masterTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。仕訳を承認すると自動登録されます。</td></tr></tbody>
