@@ -3146,6 +3146,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
   ${isMulti?`<button class="btn-ed" onclick="document.getElementById('gep${gi}').style.display=document.getElementById('gep${gi}').style.display==='none'?'block':'none'">修正</button>`:`<button class="btn-ed" onclick="document.getElementById('ep${indices[0]}').classList.toggle('show')">修正</button>`}
   <button class="btn-del" onclick="deleteGroup(${JSON.stringify(indices)})">削除</button>
   ${hasB64?`<button class="btn-reanalyze" id="reanalyze-btn-${indices[0]}" onclick="reanalyzeWithMode(${indices[0]})">${lineItemMode==='individual'?'🔀 合計のみにまとめる':'🔀 内訳を個別仕訳にする'}</button>`:''}
+  ${(hasB64 && isAdminUser())?`<button class="btn-experiment" onclick="experimentHaikuTitle(${indices[0]})" style="padding:6px 10px;background:#fff;color:#9333ea;border:1px solid #9333ea;border-radius:7px;font-size:11px;cursor:pointer;font-weight:500;">🧪 実験</button>`:''}
 </div>`;
 
   const d=document.createElement('div');
@@ -3325,6 +3326,60 @@ async function approve(i){
   renderCards();updateBottom();
   setTimeout(()=>checkAllApproved(), 800);
 }
+// 実験: Haikuタイトル抽出精度検証 (admin専用)
+async function experimentHaikuTitle(cardIndex){
+  const item = results[cardIndex];
+  if(!item || !item._sourceB64){
+    showToast('実験できません（元画像データなし）');
+    return;
+  }
+  showToast('🧪 Haiku実験中...', 1500);
+  try{
+    const r = await fetch('/api/experiment-haiku-title', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        imageData: { data: item._sourceB64, mediaType: item._sourceMediaType || 'image/jpeg' },
+        sonnetTitle: item.title || ''
+      })
+    });
+    const d = await r.json();
+    if(d.error){ showToast('実験失敗: '+d.error, 3000); return; }
+    // localStorageに記録
+    const log = JSON.parse(localStorage.getItem('shiwake_experiment_log')||'[]');
+    log.push({ ...d, ts: new Date().toISOString(), cardIndex });
+    localStorage.setItem('shiwake_experiment_log', JSON.stringify(log));
+    // 結果表示
+    const icon = d.match ? '✅' : '❌';
+    showToast(`${icon} Sonnet: "${d.sonnetTitle}" / Haiku: "${d.haikuTitle}" (${d.latencyMs}ms)`, 4000);
+    console.log(`実験結果(${log.length}件目):`, d);
+    // 集計表示
+    const matches = log.filter(l=>l.match).length;
+    const rate = Math.round(matches/log.length*100);
+    const avgLatency = Math.round(log.reduce((s,l)=>s+(l.latencyMs||0),0)/log.length);
+    console.log(`📊 累計: ${matches}/${log.length}件 一致 (${rate}%) / 平均レイテンシ ${avgLatency}ms`);
+  }catch(e){
+    console.warn('実験エラー:', e);
+    showToast('実験エラー: '+e.message);
+  }
+}
+// 実験ログをコンソールにダンプ (admin用便利関数)
+window.dumpExperimentLog = function(){
+  const log = JSON.parse(localStorage.getItem('shiwake_experiment_log')||'[]');
+  console.table(log.map(l=>({sonnet:l.sonnetTitle,haiku:l.haikuTitle,match:l.match?'✅':'❌',ms:l.latencyMs,inTok:l.inputTokens,outTok:l.outputTokens})));
+  const matches = log.filter(l=>l.match).length;
+  const rate = log.length > 0 ? Math.round(matches/log.length*100) : 0;
+  const avgLatency = log.length > 0 ? Math.round(log.reduce((s,l)=>s+(l.latencyMs||0),0)/log.length) : 0;
+  const totalIn = log.reduce((s,l)=>s+(l.inputTokens||0),0);
+  const totalOut = log.reduce((s,l)=>s+(l.outputTokens||0),0);
+  console.log(`📊 ${matches}/${log.length}件一致 (${rate}%) / 平均${avgLatency}ms / 累計トークン: ${totalIn}in/${totalOut}out`);
+  return {total:log.length, matches, rate, avgLatency};
+};
+window.clearExperimentLog = function(){
+  localStorage.removeItem('shiwake_experiment_log');
+  console.log('実験ログをクリアしました');
+};
+
 // 内訳モード切り替えボタンから呼ばれる関数
 // 同じカードインデックス群（同じ_sourceB64）を再解析してモード切り替え
 async function reanalyzeWithMode(cardIndex) {

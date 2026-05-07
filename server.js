@@ -908,6 +908,75 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== 実験用エンドポイント: Haikuタイトル抽出精度検証 =====
+  if (req.method === 'POST' && req.url === '/api/experiment-haiku-title') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { imageData, sonnetTitle } = JSON.parse(body);
+        const apiKey = process.env.ANTHROPIC_API_KEY || '';
+        if (!apiKey) throw new Error('APIキーが設定されていません');
+
+        const imageContent = imageData.mediaType === 'application/pdf'
+          ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageData.data } }
+          : { type: 'image', source: { type: 'base64', media_type: imageData.mediaType, data: imageData.data } };
+
+        const prompt = `この画像（領収書/レシート）から「店舗名・取引先名」を1つだけ抽出してください。
+ルール:
+- 法人名がある場合は法人名（例: セブン-イレブン、株式会社○○）
+- 屋号がある場合は屋号
+- 不明な場合は「不明」
+- JSONで返す: {"title": "店舗名"}
+- 余計な説明は不要、JSONのみ返す`;
+
+        const t0 = Date.now();
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 100,
+            messages: [{ role: 'user', content: [imageContent, { type: 'text', text: prompt }] }]
+          })
+        });
+        const haikuLatency = Date.now() - t0;
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error?.message || 'Haiku呼び出し失敗');
+
+        const raw = (data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'').trim();
+        const m = raw.match(/\{[\s\S]*?\}/);
+        let haikuTitle = '';
+        if (m) {
+          try { haikuTitle = JSON.parse(m[0]).title || ''; } catch(e) {}
+        }
+        const usage = data.usage || {};
+        const match = sonnetTitle && haikuTitle && (
+          sonnetTitle === haikuTitle ||
+          sonnetTitle.includes(haikuTitle) ||
+          haikuTitle.includes(sonnetTitle)
+        );
+
+        console.log(`  🧪 実験: Sonnet="${sonnetTitle}" / Haiku="${haikuTitle}" / 一致=${match?'✅':'❌'} / レイテンシ=${haikuLatency}ms / トークン=${usage.input_tokens||0}in/${usage.output_tokens||0}out`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          sonnetTitle: sonnetTitle || '',
+          haikuTitle,
+          match,
+          latencyMs: haikuLatency,
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0
+        }));
+      } catch(e) {
+        console.error('実験エラー:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/api/analyze-chunk') {
     let body = '';
     req.on('data', chunk => body += chunk);
