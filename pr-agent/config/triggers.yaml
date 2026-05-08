@@ -1,0 +1,33 @@
+# 3つの拡散トリガー軸（Gemini採用C）
+# 構文6種と直交する別軸として、Writerのプロンプトに修飾子として注入
+
+triggers:
+  antagonism:
+    name: "対立構造"
+    description: "古いやり方を少し攻撃的に否定し、新しさを強調"
+    intensity_hint: "やや強め。ただし業界全体への礼儀は保つ"
+    suitable_weapons: ["W1", "W2"]
+    forbidden:
+      - "競合の社名を出す"
+      - "特定の士業・業界全体を見下す"
+    modifier_text: |
+      古いやり方の不合理さを少し強めに指摘してください。
+      ただし、特定の会社名や業界全体への侮辱は禁止。
+
+  altruism:
+    name: "利他性"
+    description: "ユーザーに役立つTipsを無償提供する"
+    intensity_hint: "穏やか・親切"
+    suitable_weapons: ["W3", "W5"]
+    modifier_text: |
+      読者が「得した」「保存しておこう」と思える具体的情報を提供。
+      宣伝色を薄め、知識のシェアに徹してください。
+
+  storytelling:
+    name: "物語性"
+    description: "開発の苦労やインセンティブ機能の誕生秘話を語る"
+    intensity_hint: "感情的・人間味"
+    suitable_weapons: ["W4"]
+    modifier_text: |
+      製品スペックではなく、開発者の感情・原体験を中心に語ってください。
+      具体的な情景描写を1つ入れること。

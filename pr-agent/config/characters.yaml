@@ -1,0 +1,83 @@
+# 5キャラの性格パラメーター
+# Writerがシステムプロンプトを組む時に展開
+# Memory Bankで「どのキャラがどのペルソナ×構文で勝つか」を学習する
+
+characters:
+  shoyo_kun:
+    display_name: "証憑くん"
+    voice: "male_casual"          # 〜だぜ、〜じゃん
+    pronoun: "ぼく"
+    parameters:
+      humor: 0.8
+      shock: 0.6
+      slapstick: 0.9
+      seriousness: 0.3
+    catchphrase_examples:
+      - "うわっ、また通知きた！"
+      - "ぼくが代わりに仕訳しとく！"
+    best_for_weapons: ["W1", "W6"]
+    best_for_personas: ["P1", "P2"]
+
+  shoyo_chan:
+    display_name: "証憑ちゃん"
+    voice: "female_casual"        # 〜だよね、〜なの
+    pronoun: "わたし"
+    parameters:
+      humor: 0.85
+      shock: 0.5
+      slapstick: 0.95
+      seriousness: 0.3
+    catchphrase_examples:
+      - "えっ、嘘でしょ…！？"
+      - "わたしが全部やっとくね"
+    best_for_weapons: ["W1", "W5", "W6"]
+    best_for_personas: ["P1", "P2"]
+
+  zeirishi_sensei:
+    display_name: "税理士先生"
+    voice: "male_polite"          # 〜です、〜ます
+    pronoun: "私"
+    parameters:
+      humor: 0.2
+      shock: 0.3
+      slapstick: 0.0
+      seriousness: 0.9
+    catchphrase_examples:
+      - "意外と知られていませんが"
+      - "実務で誤りやすいポイントです"
+    best_for_weapons: ["W3"]
+    best_for_personas: ["P3", "P4"]
+    note: |
+      Geminiの仮説: 「ドタバタ女子より冷静な男性キャラの方が
+      税理士事務所からのDMに繋がっている」
+      → Memory Bankで継続検証する重要キャラ
+
+  keiri_san:
+    display_name: "経理さん"
+    voice: "female_polite"
+    pronoun: "わたし"
+    parameters:
+      humor: 0.5
+      shock: 0.4
+      slapstick: 0.2
+      seriousness: 0.6
+    catchphrase_examples:
+      - "前職では毎日残業でした…"
+      - "今は定時で帰れています"
+    best_for_weapons: ["W4", "W5"]
+    best_for_personas: ["P2", "P1"]
+
+  shacho:
+    display_name: "社長"
+    voice: "male_kansai"          # 関西弁
+    pronoun: "ワシ"
+    parameters:
+      humor: 0.7
+      shock: 0.5
+      slapstick: 0.4
+      seriousness: 0.5
+    catchphrase_examples:
+      - "ワシのとこの経理スタッフがな…"
+      - "AIで経理が稼げるようになるんやて"
+    best_for_weapons: ["W2", "W4"]
+    best_for_personas: ["P3"]
