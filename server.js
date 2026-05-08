@@ -861,18 +861,25 @@ const server = http.createServer(async (req, res) => {
       try {
         const { uid, amount } = JSON.parse(body);
         const n = amount || 1;
-        // 現在の値を取得（incentive_planも含む）
-        const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count,incentive_total,incentive_unredeemed,stripe_plan,incentive_plan`);
+        // 現在の値を取得
+        const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count,incentive_total,incentive_unredeemed,stripe_plan,plan_key,incentive_plan,billing_period_end`);
         const row = current?.[0] || {};
-        const cur = row.monthly_count || 0;
+        // 請求期間が終了していたら月次カウントをリセット
+        let cur = row.monthly_count || 0;
+        if (row.billing_period_end && new Date(row.billing_period_end) < new Date()) {
+          cur = 0;
+        }
         const incTotal = (row.incentive_total || 0) + n;
         const incUnredeemed = (row.incentive_unredeemed || 0) + n;
         // インセンティブ対象判定:
         //   1. INCENTIVE_ALL_PLANS=true（テスト時のみ）
-        //   2. 代理店・チームプラン
+        //   2. 旧代理店・チームプラン / 新チームプラン / 代理店プラン
         //   3. インセンティブオプション購入済み（incentive_plan）
+        const planForCheck = row.plan_key || row.stripe_plan;
         const isAgency = INCENTIVE_ALL_PLANS
-          || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(row.stripe_plan)
+          || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem',
+              'ai_saas_team_lite','ai_saas_team_std','ai_saas_team_prem',
+              'reseller_ai_saas_team_lite','reseller_ai_saas_team_std','reseller_ai_saas_team_prem'].includes(planForCheck)
           || (row.incentive_plan && STRIPE_PLANS[row.incentive_plan]?.is_option === true);
         const patch = { monthly_count: cur + n };
         if (isAgency) {
