@@ -134,6 +134,31 @@ const EDITION_FEATURES = {
   },
 };
 
+// 管理者トークン検証
+function verifyAdminToken(token) {
+  const adminToken = process.env.ADMIN_TOKEN || '';
+  return adminToken && token === adminToken;
+}
+
+// 紹介コード生成(7文字英数字・重複チェック付き)
+async function generateReferralCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let code = '';
+    for (let i = 0; i < 7; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    const existing = await supabaseQuery(`/users?referral_code=eq.${code}&select=id`);
+    if (!existing || existing.length === 0) return code;
+  }
+  throw new Error('紹介コード生成失敗');
+}
+
+// 管理者通知メール
+async function sendAdminNotification(subject, data) {
+  const adminEmail = process.env.ADMIN_EMAIL || 'easy.you.me@gmail.com';
+  const html = `<pre style="font-family:monospace">${JSON.stringify(data, null, 2)}</pre>`;
+  await sendEmail(adminEmail, `【shiwake-ai 管理通知】${subject}`, html);
+}
+
 // 機能フラグ判定関数
 async function canUse(uid, feature) {
   const data = await supabaseQuery(`/users?id=eq.${uid}&select=edition,plan_key`);
@@ -920,6 +945,101 @@ const server = http.createServer(async (req, res) => {
           incentive_amount: INCENTIVE_AMOUNT,
           is_agency: isAgency
         }));
+      } catch(e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // ===== 代理店API =====
+
+  // POST /api/affiliate/apply → 代理店申込
+  if (req.method === 'POST' && req.url === '/api/affiliate/apply') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, email, companyName, industry, contact, estimatedCustomers, agreedTerms } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        if (!agreedTerms) { res.writeHead(400); res.end(JSON.stringify({ error: 'terms not agreed' })); return; }
+        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
+          affiliate_application: JSON.stringify({
+            companyName, industry, contact, estimatedCustomers,
+            appliedAt: new Date().toISOString(),
+            status: 'pending'
+          })
+        });
+        await sendAdminNotification('代理店申込', { uid, email, companyName, industry, contact, estimatedCustomers });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, status: 'pending' }));
+      } catch(e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/affiliate/dashboard?uid=xxx → 代理店ダッシュボードデータ取得
+  if (req.method === 'GET' && req.url.startsWith('/api/affiliate/dashboard')) {
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const userData = await supabaseQuery(`/users?id=eq.${uid}&select=*`);
+      const user = userData?.[0];
+      if (!user || !user.is_reseller) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'not a reseller' })); return;
+      }
+      const customers = await supabaseQuery(
+        `/users?reseller_uid=eq.${uid}&is_paid=eq.true&select=id,email,plan_key,billing_period_end`
+      );
+      let monthlyVolume = 0;
+      for (const c of customers) {
+        const resellerPlan = STRIPE_PLANS[`reseller_${c.plan_key}`];
+        if (resellerPlan?.price_yen) monthlyVolume += resellerPlan.price_yen;
+      }
+      let nextTier = null, nextThreshold = null;
+      if (user.current_tier === 'bronze')      { nextTier = 'silver'; nextThreshold = RESELLER_TIER_THRESHOLDS.silver; }
+      else if (user.current_tier === 'silver') { nextTier = 'gold';   nextThreshold = RESELLER_TIER_THRESHOLDS.gold; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        reseller: { uid, currentTier: user.current_tier, referralCode: user.referral_code },
+        stats: {
+          customerCount: customers.length,
+          monthlyVolume,
+          nextTier,
+          nextThreshold,
+          amountToNextTier: nextThreshold ? Math.max(0, nextThreshold - monthlyVolume) : null,
+        },
+        customers,
+        referralUrl: user.referral_code ? `https://shiwake-ai.com/?ref=${user.referral_code}` : null,
+      }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // POST /api/admin/affiliate/approve → 代理店申込承認(運営専用)
+  if (req.method === 'POST' && req.url === '/api/admin/affiliate/approve') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { adminToken, uid } = JSON.parse(body);
+        if (!verifyAdminToken(adminToken)) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return;
+        }
+        const referralCode = await generateReferralCode();
+        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
+          is_reseller: true,
+          current_tier: 'bronze',
+          referral_code: referralCode,
+          affiliate_application: null,
+        });
+        console.log(`代理店承認: ${uid} referral_code=${referralCode}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, referralCode }));
       } catch(e) {
         res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
       }
