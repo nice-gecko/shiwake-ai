@@ -738,22 +738,24 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
+  const reqPath = req.url.split('?')[0];
+
+  if (req.method === 'GET' && (reqPath === '/' || reqPath === '/index.html')) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(fs.readFileSync(path.join(__dirname, 'index.html')));
     return;
   }
-  if (req.method === 'GET' && (req.url === '/terms' || req.url === '/terms.html')) {
+  if (req.method === 'GET' && (reqPath === '/terms' || reqPath === '/terms.html')) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(fs.readFileSync(path.join(__dirname, 'terms.html')));
     return;
   }
-  if (req.method === 'GET' && (req.url === '/privacy' || req.url === '/privacy.html')) {
+  if (req.method === 'GET' && (reqPath === '/privacy' || reqPath === '/privacy.html')) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(fs.readFileSync(path.join(__dirname, 'privacy.html')));
     return;
   }
-  if (req.method === 'GET' && (req.url === '/tokushoho' || req.url === '/tokushoho.html' || req.url === '/legal')) {
+  if (req.method === 'GET' && (reqPath === '/tokushoho' || reqPath === '/tokushoho.html' || reqPath === '/legal')) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(fs.readFileSync(path.join(__dirname, 'tokushoho.html')));
     return;
