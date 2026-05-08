@@ -31,6 +31,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-nav-item.active .nav-icon{opacity:1;}
 .sidebar-master-count{margin-left:auto;background:#e0dfd8;color:#777;font-size:10px;padding:1px 6px;border-radius:8px;}
 .sidebar-nav-item.active .sidebar-master-count{background:#E6F1FB;color:#185FA5;}
+.nav-badge-coming{font-size:9px;background:#e0dfd8;color:#999;border-radius:4px;padding:1px 5px;margin-left:auto;font-weight:500;white-space:nowrap;}
+.sidebar-nav-item.active .nav-badge-coming{background:#E6F1FB;color:#185FA5;}
 .sidebar-compatible{padding:8px 8px 10px;border-top:1px solid #e0dfd8;}
 .sidebar-compat-label{font-size:9px;color:#888;letter-spacing:0.07em;text-transform:uppercase;padding:0 10px 4px;}
 .sidebar-compat-items{display:flex;flex-direction:column;gap:0;padding:0 6px;}
@@ -519,6 +521,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .invite-banner-title{font-size:14px;font-weight:600;color:#185FA5;margin-bottom:4px;}
 .invite-banner-sub{font-size:12px;color:#555;}
 /* インセンティブカウンター */
+.plan-status-banner{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.plan-status-banner.agent{border-color:#185FA5;background:#f0f6ff;}
+.plan-status-banner.elite{border-color:#7c3aed;background:#f5f0ff;}
+.plan-status-plan{font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;}
+.plan-status-usage{font-size:12px;color:#666;flex:1;}
+.plan-status-bar{width:80px;height:5px;background:#e5e5e5;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin:0 6px;}
+.plan-status-bar-fill{height:100%;background:#185FA5;border-radius:3px;transition:width 0.3s;}
+.plan-status-upgrade{font-size:11px;color:#185FA5;white-space:nowrap;cursor:pointer;text-decoration:underline;}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:stretch;}
 .dashboard-left{display:flex;flex-direction:column;}
 .dashboard-left > .dash-card{flex:1;}
@@ -667,7 +677,7 @@ window.startCheckout = async (plan_key) => {
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: user.uid, email: user.email, plan_key: plan_key || 'light' })
+      body: JSON.stringify({ uid: user.uid, email: user.email, plan_key: plan_key || 'ai_saas_lite' })
     });
     const data = await res.json();
     if (data.free_trial) {
@@ -690,6 +700,23 @@ if (urlParams.get('payment') === 'cancel') {
   setTimeout(() => showToast('決済がキャンセルされました。'), 1000);
   history.replaceState({}, '', '/');
 }
+// 代理店紹介URL捕捉: ?ref=XXXXXXX を30日間 localStorage に保存
+(function captureResellerRef() {
+  const ref = urlParams.get('ref');
+  if (ref) {
+    localStorage.setItem('shiwake_reseller_ref', JSON.stringify({ code: ref, capturedAt: Date.now() }));
+  }
+})();
+function getActiveResellerRef() {
+  try {
+    const data = localStorage.getItem('shiwake_reseller_ref');
+    if (!data) return null;
+    const { code, capturedAt } = JSON.parse(data);
+    if (Date.now() - capturedAt > 30 * 24 * 60 * 60 * 1000) return null;
+    return code;
+  } catch(e) { return null; }
+}
+
 // 招待コードがあればログイン画面に招待バナーを表示
 const _inviteCode = urlParams.get('invite');
 if (_inviteCode) {
@@ -834,6 +861,37 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     await signOut(auth);
   };
 
+  function renderPlanStatusBanner() {
+    const el = document.getElementById('plan-status-banner');
+    if (!el) return;
+    const edition = window._userEdition || 'saas';
+    const planName = window._userPlanName || '無料トライアル';
+    const usage = window._userUsage || {};
+    const used  = usage.monthly_count ?? (window._userTotalCount || 0);
+    const limit = usage.monthly_limit ?? null;
+
+    let usageHtml = '';
+    if (limit != null) {
+      const pct = Math.min(100, Math.round(used / limit * 100));
+      const fillColor = pct >= 90 ? '#e53e3e' : pct >= 70 ? '#d97706' : '#185FA5';
+      usageHtml = `<span class="plan-status-usage">
+        今月 ${used.toLocaleString()} / ${limit.toLocaleString()} 件
+        <span class="plan-status-bar"><span class="plan-status-bar-fill" style="width:${pct}%;background:${fillColor};"></span></span>
+        ${pct}%
+      </span>`;
+    } else {
+      usageHtml = `<span class="plan-status-usage">今月 ${used.toLocaleString()} 件（無制限）</span>`;
+    }
+
+    const upgradeHtml = (edition === 'saas' && limit != null)
+      ? `<span class="plan-status-upgrade" onclick="showSection('pricing')">アップグレード</span>`
+      : '';
+
+    el.className = `plan-status-banner${edition === 'elite' ? ' elite' : edition === 'agent' ? ' agent' : ''}`;
+    el.innerHTML = `<span class="plan-status-plan">${planName}</span>${usageHtml}${upgradeHtml}`;
+    el.style.display = '';
+  }
+
   // 認証状態の監視
   onAuthStateChanged(auth, async (user) => {
     const loginScreen = document.getElementById('loginScreen');
@@ -881,24 +939,55 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         const d = await r.json();
         const u = d?.user;
         if (u) {
-          // プラン名を保存
+          // プラン名マッピング（旧キー後方互換 + 新キー）
           const PLAN_NAMES = {
+            // 旧キー（後方互換）
             light:'ライト', unlimited:'アンリミテッド',
             agency_light:'代理店ライト', agency_std:'代理店スタンダード', agency_prem:'代理店プレミアム',
-            team_lite:'チームライト', team_std:'チームスタンダード', team_prem:'チームプレミアム'
+            team_lite:'チームライト', team_std:'チームスタンダード', team_prem:'チームプレミアム',
+            // 新キー
+            ai_saas_lite:'ライト', ai_saas_unlimited:'アンリミテッド',
+            ai_saas_team_lite:'チームライト', ai_saas_team_std:'チームスタンダード', ai_saas_team_prem:'チームプレミアム',
+            agent_lite:'Agent ライト', agent_std:'Agent スタンダード',
+            agent_premium:'Agent プレミアム', agent_elite:'Agent エリート',
+            incentive_lite:'インセンティブ ライト', incentive_std:'インセンティブ スタンダード', incentive_prem:'インセンティブ プレミアム',
           };
-          window._userPlanName = PLAN_NAMES[u.stripe_plan] || (u.is_paid ? '有料プラン' : '無料トライアル');
+          const planKey = u.plan_key || u.stripe_plan;
+          window._userPlanName = PLAN_NAMES[planKey] || (u.is_paid ? '有料プラン' : '無料トライアル');
+          window._userPlanKey  = planKey || null;
           // 累計処理数（全ユーザー共通・Supabase信頼源）
           window._userTotalCount = u.monthly_count || 0;
+
+          // /api/user/plan から edition・features を取得して保存
+          try {
+            const pr = await fetch('/api/user/plan?uid=' + uid);
+            const pd = await pr.json();
+            window._userEdition  = pd.edition  || 'saas';
+            window._userFeatures = pd.features || {};
+            window._userUsage    = pd.usage    || {};
+          } catch(e) { window._userEdition = 'saas'; }
+
+          renderPlanStatusBanner();
+
+          // Agent/Elite サイドバーメニュー出し分け
+          const isAgentEdition = ['agent','elite'].includes(window._userEdition);
+          const isEliteEdition = window._userEdition === 'elite';
+          ['navAgentDashboard','navAgentTemplate','navMyTemplate'].forEach(id => {
+            const n = document.getElementById(id); if(n) n.style.display = isAgentEdition ? '' : 'none';
+          });
+          const eliteNav = document.getElementById('navEliteChat');
+          if(eliteNav) eliteNav.style.display = isEliteEdition ? '' : 'none';
+
           // adminは画面切替を優先、他ユーザーはプラン判定
           let isAgency;
           if(isAdminUser()){
             const mode = getAdminViewMode();
-            isAgency = mode === 'incentive'; // adminはデフォルト通常表示・切替で見れる
+            isAgency = mode === 'incentive';
           } else {
             isAgency = window.INCENTIVE_ALL_PLANS_CLIENT
-              || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem'].includes(u.stripe_plan)
-              || !!u.incentive_plan; // インセンティブオプション購入済み
+              || ['agency_light','agency_std','agency_prem','team_lite','team_std','team_prem',
+                  'ai_saas_team_lite','ai_saas_team_std','ai_saas_team_prem'].includes(planKey)
+              || !!u.incentive_plan;
           }
           if (isAgency) {
             _incentiveState = {
@@ -1087,6 +1176,24 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 13c0-3 2.5-4.5 5.5-4.5S13 10 13 13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       スタッフ管理
     </div>
+    <!-- Agent版メニュー (edition: agent / elite) -->
+    <div class="sidebar-nav-item" id="navAgentDashboard" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+      ダッシュボード<span class="nav-badge-coming">準備中</span>
+    </div>
+    <div class="sidebar-nav-item" id="navAgentTemplate" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="5" y1="5.5" x2="10" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="9.5" x2="8" y2="9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+      業種テンプレート<span class="nav-badge-coming">準備中</span>
+    </div>
+    <div class="sidebar-nav-item" id="navMyTemplate" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="4.5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M3 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="10" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="11.5" y1="5.5" x2="11.5" y2="8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Myテンプレート<span class="nav-badge-coming">準備中</span>
+    </div>
+    <!-- Eliteメニュー (edition: elite のみ) -->
+    <div class="sidebar-nav-item" id="navEliteChat" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M2 3h11a1 1 0 011 1v6a1 1 0 01-1 1H8l-3 2v-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
+      対話モード設定<span class="nav-badge-coming">準備中</span>
+    </div>
     <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
       👁 インセンティブ表示に切替
     </div>
@@ -1166,6 +1273,8 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       カメラで撮影する
     </button>
     <div class="mobile-scan-link"><a onclick="document.getElementById('fi').click()">またはファイルを選択</a></div>
+    <!-- プランステータスバナー -->
+    <div id="plan-status-banner" style="display:none;"></div>
     <!-- ダッシュボード：左右2カード -->
     <div class="dashboard-grid">
       <!-- 左カード：プラン別 -->
@@ -1443,60 +1552,39 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <div class="panel" id="panel-pricing">
     <p class="main-subcopy">プランを選んでアップグレードしてください。現在は無料期間中で全機能をご利用いただけます。</p>
     <div class="pricing-wrap">
-      <div class="pricing-section-title">個人・法人向け</div>
-      <div class="pricing-card" onclick="startCheckout('lite')">
+
+      <!-- AI SaaS版 -->
+      <div class="pricing-section-title">🖥 AI SaaS版 — 自分で操作する仕訳ツール</div>
+      <div class="pricing-card" onclick="startCheckout('ai_saas_lite')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">ライト</span>
           <span class="pricing-card-price">¥980<span>/月</span></span>
         </div>
         <div class="pricing-card-desc">月100件まで処理可能。個人事業主・フリーランス向け。</div>
       </div>
-      <div class="pricing-card" onclick="startCheckout('unlimited')">
+      <div class="pricing-card" onclick="startCheckout('ai_saas_unlimited')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">アンリミテッド <span class="pricing-card-badge badge-popular">人気</span></span>
           <span class="pricing-card-price">¥5,800<span>/月</span></span>
         </div>
         <div class="pricing-card-desc">処理件数無制限。法人・ヘビーユーザー向け。</div>
       </div>
-      <div class="pricing-section-title">税理士・代理店向け</div>
-      <div class="pricing-card" onclick="startCheckout('agency_lite')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">代理店ライト</span>
-          <span class="pricing-card-price">¥35,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">10IDまで利用可能。小規模事務所向け。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('agency_std')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">代理店スタンダード</span>
-          <span class="pricing-card-price">¥100,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">30IDまで利用可能。中規模事務所向け。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('agency_prem')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">代理店プレミアム</span>
-          <span class="pricing-card-price">¥200,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">60IDまで利用可能。大規模事務所・税理士法人向け。</div>
-      </div>
-      <div class="pricing-agency-note">💼 代理店プランのお問い合わせ・請求書払いは<br>easy.you.me@gmail.com までご連絡ください。</div>
-      <div class="pricing-section-title" style="margin-top:24px;">チームプラン（事務所内スタッフで使う）</div>
-      <div class="pricing-card" onclick="startCheckout('team_lite')">
+      <div class="pricing-section-title" style="margin-top:16px;">チームプラン（事務所内スタッフで使う）</div>
+      <div class="pricing-card" onclick="startCheckout('ai_saas_team_lite')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">チームライト</span>
           <span class="pricing-card-price">¥20,000<span>/月</span></span>
         </div>
         <div class="pricing-card-desc">5IDまで利用可能。小規模事務所のスタッフ向け。インセンティブオプション対応。</div>
       </div>
-      <div class="pricing-card" onclick="startCheckout('team_std')">
+      <div class="pricing-card" onclick="startCheckout('ai_saas_team_std')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">チームスタンダード</span>
           <span class="pricing-card-price">¥50,000<span>/月</span></span>
         </div>
         <div class="pricing-card-desc">15IDまで利用可能。中規模事務所のスタッフ向け。インセンティブオプション対応。</div>
       </div>
-      <div class="pricing-card" onclick="startCheckout('team_prem')">
+      <div class="pricing-card" onclick="startCheckout('ai_saas_team_prem')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">チームプレミアム</span>
           <span class="pricing-card-price">¥100,000<span>/月</span></span>
@@ -1504,29 +1592,66 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <div class="pricing-card-desc">30IDまで利用可能。大規模事務所・税理士法人向け。インセンティブオプション対応。</div>
       </div>
       <div class="pricing-agency-note">👥 チームプランのお問い合わせ・請求書払いは<br>easy.you.me@gmail.com までご連絡ください。</div>
-      <div class="pricing-section-title" style="margin-top:24px;">インセンティブオプション（チームプランに追加）</div>
+
+      <!-- インセンティブオプション -->
+      <div class="pricing-section-title" style="margin-top:24px;">インセンティブオプション（AI SaaS版チームプランに追加）</div>
       <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">チームプランに追加できるオプションです。スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与します。オーナーアカウントに1つ追加するだけで全スタッフに適用されます。</div>
       <div class="pricing-card" onclick="startCheckout('incentive_lite')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">インセンティブ ライト</span>
           <span class="pricing-card-price">¥5,000<span>/月</span></span>
         </div>
-        <div class="pricing-card-desc">スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与。チームライトプランに追加できます。</div>
+        <div class="pricing-card-desc">チームライトプランに追加できます。</div>
       </div>
       <div class="pricing-card" onclick="startCheckout('incentive_std')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">インセンティブ スタンダード</span>
           <span class="pricing-card-price">¥10,000<span>/月</span></span>
         </div>
-        <div class="pricing-card-desc">スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与。チームスタンダードプランに追加できます。</div>
+        <div class="pricing-card-desc">チームスタンダードプランに追加できます。</div>
       </div>
       <div class="pricing-card" onclick="startCheckout('incentive_prem')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">インセンティブ プレミアム</span>
           <span class="pricing-card-price">¥20,000<span>/月</span></span>
         </div>
-        <div class="pricing-card-desc">スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与。チームプレミアムプランに追加できます。</div>
+        <div class="pricing-card-desc">チームプレミアムプランに追加できます。</div>
       </div>
+
+      <!-- Agent版 -->
+      <div class="pricing-section-title" style="margin-top:28px;">🤖 Agent版 — 自走する記帳エージェント</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">ルーキーから、エージェントへ。そしてエリートへ。AIが自律的に仕訳・ルール学習・自動取り込みを行います。</div>
+      <div class="pricing-card" onclick="startCheckout('agent_lite')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">Agent ライト</span>
+          <span class="pricing-card-price">¥30,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">月200件含む。自動取り込み・ルール学習・業種テンプレート対応。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('agent_std')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">Agent スタンダード</span>
+          <span class="pricing-card-price">¥80,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">月500件含む。自動承認・Myテンプレート・フルダッシュボード対応。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('agent_premium')">
+        <div class="pricing-card-header">
+          <span class="pricing-card-name">Agent プレミアム</span>
+          <span class="pricing-card-price">¥150,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">月1,500件含む。大規模処理・キャリアパス全機能対応。</div>
+      </div>
+      <div class="pricing-card" onclick="startCheckout('agent_elite')" style="border-color:#185FA5;position:relative;">
+        <div class="pricing-badge">★ 最上位プラン</div>
+        <div class="pricing-card-header" style="margin-top:6px;">
+          <span class="pricing-card-name">Agent エリート</span>
+          <span class="pricing-card-price">¥250,000<span>/月</span></span>
+        </div>
+        <div class="pricing-card-desc">月3,000件含む。対話モード搭載（準備中）・決算自走・年度引継ぎ支援。</div>
+      </div>
+      <div class="pricing-agency-note">🤖 Agent版のお問い合わせは<br>easy.you.me@gmail.com までご連絡ください。</div>
+
     </div>
   </div>
 
