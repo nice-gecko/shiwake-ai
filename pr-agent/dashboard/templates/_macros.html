@@ -1,0 +1,40 @@
+{# キャラクターバッジ(絵文字擬人化) #}
+{% macro character_badge(character_id) %}
+  {% set chars = {
+    'shoyo_kun':       ('🧑‍💼', 'しょうよ君'),
+    'shoyo_chan':      ('👧',   'しょうよちゃん'),
+    'zeirishi_sensei': ('👨‍🏫', '税理士先生'),
+    'keiri_san':       ('👩‍💻', '経理さん'),
+    'shacho':          ('🧔',  '社長'),
+  } %}
+  {% set info = chars.get(character_id, ('🤖', character_id)) %}
+  <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs bg-indigo-50 text-indigo-700 font-medium">
+    <span class="leading-none">{{ info[0] }}</span><span>{{ info[1] }}</span>
+  </span>
+{% endmacro %}
+
+{# ステータスバッジ #}
+{% macro status_badge(status, label) %}
+  <span class="inline-flex items-center text-xs font-medium rounded-md px-2 py-0.5
+    {% if status == 'published' %}bg-emerald-50 text-emerald-700
+    {% elif status == 'awaiting_manual_post' %}bg-amber-50 text-amber-700
+    {% elif status == 'approved' %}bg-indigo-50 text-indigo-700
+    {% elif status == 'rejected' %}bg-red-50 text-red-700
+    {% else %}bg-gray-100 text-gray-700{% endif %}">{{ label }}</span>
+{% endmacro %}
+
+{# 構文ウェポンバッジ #}
+{% macro weapon_badge(weapon_id) %}
+  {% set weapons = {
+    'W1': '常識破壊', 'W2': '比較', 'W3': '専門知識',
+    'W4': 'エモ独白', 'W5': '巻き込み', 'W6': 'パニック',
+  } %}
+  <span class="rounded px-1.5 py-0.5 text-xs font-mono bg-gray-100 text-gray-600"
+        title="{{ weapons.get(weapon_id, weapon_id) }}">{{ weapon_id }}</span>
+{% endmacro %}
+
+{# トリガーバッジ #}
+{% macro trigger_badge(trigger_id) %}
+  {% set triggers = {'antagonism': '対立', 'altruism': '利他', 'storytelling': '物語'} %}
+  <span class="rounded px-1.5 py-0.5 text-xs bg-emerald-50 text-emerald-700">{{ triggers.get(trigger_id, trigger_id) }}</span>
+{% endmacro %}
