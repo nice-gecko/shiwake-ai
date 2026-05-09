@@ -21,10 +21,11 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from supabase import create_client, Client
 
-from brain.planner   import PlannerNode, PlannerInput, PlannerOutput
-from brain.writer    import WriterNode, DraftPost, WriterOutput
-from brain.publisher import PublisherNode, PublisherInput, PublisherOutput
-from notify.discord  import notify_drafts, notify_published, notify_error
+from brain.planner        import PlannerNode, PlannerInput, PlannerOutput
+from brain.writer         import WriterNode, DraftPost, WriterOutput
+from brain.publisher      import PublisherNode, PublisherInput, PublisherOutput
+from brain.material_scout import MaterialScoutNode, ScoutInput, ScoutOutput
+from notify.discord       import notify_drafts, notify_published, notify_error
 
 load_dotenv()
 
@@ -51,9 +52,14 @@ class PipelineRunOutput(BaseModel):
 # Supabase ドラフト保存
 # ============================================================
 
-def _save_draft(db: Client, plan: PlannerOutput, draft: DraftPost) -> str:
+def _save_draft(
+    db: Client,
+    plan: PlannerOutput,
+    draft: DraftPost,
+    visual_asset_id: str | None = None,
+) -> str:
     """posts テーブルに draft を INSERT し post_id を返す"""
-    row = {
+    row: dict = {
         "platform":     draft.platform,
         "persona":      draft.persona_id,
         "character_id": draft.character_id,
@@ -68,6 +74,8 @@ def _save_draft(db: Client, plan: PlannerOutput, draft: DraftPost) -> str:
             "over_limit": draft.over_limit,
         },
     }
+    if visual_asset_id:
+        row["media_asset_ids"] = [visual_asset_id]
     result = db.table("posts").insert(row).execute()
     return result.data[0]["id"]
 
@@ -97,6 +105,7 @@ class Pipeline:
         self._planner   = PlannerNode()
         self._writer    = WriterNode()
         self._publisher = PublisherNode()
+        self._scout     = MaterialScoutNode()
 
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -110,17 +119,33 @@ class Pipeline:
         plan = await self._planner.run(planner_inp)
         print(f"[pipeline] Planner: {plan.reasoning}")
 
-        # 2. Writer: 3案生成
+        # 2. MaterialScout: ビジュアル選定
+        scout: ScoutOutput = await self._scout.run(ScoutInput(
+            persona_id=plan.writer_input.persona_id,
+            weapon_id=plan.writer_input.weapon_id,
+            platform=plan.writer_input.platform,
+        ))
+        if scout.cowork_needed:
+            print(f"[pipeline] Scout: ⚠️  Cowork 必要 — {scout.cowork_reason}")
+        else:
+            print(f"[pipeline] Scout: ✅ {scout.category} / {scout.description[:40] if scout.description else '—'}")
+
+        # ビジュアル説明を Writer に注入（在庫ありの場合のみ）
+        writer_input = plan.writer_input.model_copy(
+            update={"visual_description": scout.description or ""}
+        )
+
+        # 3. Writer: 3案生成
         print("[pipeline] Writer: 生成中...")
-        writer_out: WriterOutput = await self._writer.run(plan.writer_input)
+        writer_out: WriterOutput = await self._writer.run(writer_input)
         print(f"[pipeline] Writer: {len(writer_out.drafts)}案生成完了"
               f" (in={writer_out.usage_input_tokens} out={writer_out.usage_output_tokens} tokens)")
 
-        # 3. Supabase に保存
+        # 4. Supabase に保存
         post_ids: list[str] = []
         if self._db:
             for draft in writer_out.drafts:
-                pid = _save_draft(self._db, plan, draft)
+                pid = _save_draft(self._db, plan, draft, scout.asset_id)
                 post_ids.append(pid)
                 print(f"[pipeline] saved draft {draft.angle}: {pid}")
         else:
@@ -147,7 +172,21 @@ class Pipeline:
             raise RuntimeError("Supabase 未接続: SUPABASE_URL / KEY を確認してください")
 
         post = _fetch_approved_post(self._db, post_id)
-        inp  = PublisherInput(
+
+        # media_asset_ids から storage_path を逆引き
+        visual_storage_path: str | None = None
+        asset_ids = post.get("media_asset_ids") or []
+        if asset_ids:
+            va = (
+                self._db.table("visual_assets")
+                .select("storage_path")
+                .eq("id", asset_ids[0])
+                .execute()
+            )
+            if va.data:
+                visual_storage_path = va.data[0]["storage_path"]
+
+        inp = PublisherInput(
             content=post["content"],
             platform=post["platform"],
             persona_id=post["persona"],
@@ -155,6 +194,8 @@ class Pipeline:
             weapon_id=post["weapon"],
             trigger_id=post["trigger_axis"] or "altruism",
             post_id=post_id,
+            visual_asset_id=asset_ids[0] if asset_ids else None,
+            visual_storage_path=visual_storage_path,
         )
         out = await self._publisher.run(inp)
         print(f"[pipeline] Publisher: status={out.status}"
