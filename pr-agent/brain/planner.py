@@ -49,6 +49,7 @@ class PlannerInput(BaseModel):
     now: datetime | None = None            # テスト用。None なら現在時刻 (JST)
     platform_override: str | None = None   # 強制指定（省略時は time_table 自動選択）
     dry_run: bool = False                  # True なら Supabase に書き込まない
+    language: str = "ja"                  # "ja"（日本語）/ "en"（英語・P5-3）
 
 
 class PlannerOutput(BaseModel):
@@ -278,7 +279,7 @@ class PlannerNode:
         ]))
 
         return PlannerOutput(
-            writer_input=WriterInput(**selected, context=trend_context),
+            writer_input=WriterInput(**selected, context=trend_context, language=inp.language),
             scheduled_at=scheduled_at,
             reasoning=reasoning,
         )
@@ -293,6 +294,7 @@ async def _cli_main(args: argparse.Namespace) -> None:
     output = await node.run(PlannerInput(
         platform_override=args.platform or None,
         dry_run=args.dry_run,
+        language=args.language,
     ))
 
     print(f"[planner] {output.reasoning}")
@@ -309,6 +311,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="shiwake-ai Planner ノード CLI")
     parser.add_argument("--platform", choices=["x", "threads", "instagram", "note", "zenn"],
                         help="プラットフォームを強制指定")
+    parser.add_argument("--language", default="ja", choices=["ja", "en"],
+                        help="投稿言語: ja（日本語）/ en（英語）")
     parser.add_argument("--dry-run", action="store_true")
     asyncio.run(_cli_main(parser.parse_args()))
 

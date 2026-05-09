@@ -285,7 +285,10 @@ def _print_drafts(gen: GenerateOutput) -> None:
 
 async def _cmd_generate(args: argparse.Namespace) -> None:
     pipeline = Pipeline()
-    gen = await pipeline.generate(PlannerInput(platform_override=args.platform or None))
+    gen = await pipeline.generate(PlannerInput(
+        platform_override=args.platform or None,
+        language=args.language,
+    ))
     _print_drafts(gen)
 
 
@@ -300,7 +303,10 @@ async def _cmd_publish(args: argparse.Namespace) -> None:
 
 async def _cmd_run_auto(args: argparse.Namespace) -> None:
     pipeline = Pipeline()
-    result   = await pipeline.run_auto(PlannerInput(platform_override=args.platform or None))
+    result   = await pipeline.run_auto(PlannerInput(
+        platform_override=args.platform or None,
+        language=args.language,
+    ))
     _print_drafts(result.generate)
     print(f"\n[pipeline] auto-published: status={result.published.status}")
     if result.published.external_url:
@@ -313,12 +319,14 @@ def main() -> None:
 
     gen_p = sub.add_parser("generate", help="Planner+Writer で3案生成")
     gen_p.add_argument("--platform", choices=["x", "threads", "instagram", "note", "zenn"])
+    gen_p.add_argument("--language", default="ja", choices=["ja", "en"])
 
     pub_p = sub.add_parser("publish", help="承認済み post_id を投稿")
     pub_p.add_argument("--post-id", required=True)
 
     auto_p = sub.add_parser("run-auto", help="generate→案A自動選択→publish")
     auto_p.add_argument("--platform", choices=["x", "threads", "instagram", "note", "zenn"])
+    auto_p.add_argument("--language", default="ja", choices=["ja", "en"])
 
     args = parser.parse_args()
     cmds = {"generate": _cmd_generate, "publish": _cmd_publish, "run-auto": _cmd_run_auto}

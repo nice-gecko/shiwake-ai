@@ -268,10 +268,10 @@ async def reject_post(
 # P3-4: note 記事生成
 # ============================================================
 
-_NOTE_DRAFTS_DIR      = Path(__file__).parent / "output" / "note_drafts"
-_COWORK_REQUESTS_DIR  = Path(__file__).parent / "output" / "cowork_requests"
-_REPORTS_DIR          = Path(__file__).parent / "output" / "reports"
-_JST                  = ZoneInfo("Asia/Tokyo")
+_NOTE_DRAFTS_DIR     = Path(__file__).parent / "output" / "note_drafts"
+_COWORK_REQUESTS_DIR = Path(__file__).parent / "output" / "cowork_requests"
+_REPORTS_DIR         = Path(__file__).parent / "output" / "reports"
+_JST                 = ZoneInfo("Asia/Tokyo")
 
 
 @router.post("/api/note/generate")
@@ -475,9 +475,6 @@ def _trigger_cowork(instruction: str, params: dict, requested_by: str = "dashboa
 # ============================================================
 # P4-1: Zenn 記事生成 API
 # ============================================================
-
-_ZENN_DRAFTS_DIR = Path(__file__).parent / "output" / "zenn_drafts"
-
 
 @router.post("/api/zenn/generate")
 async def generate_zenn(
