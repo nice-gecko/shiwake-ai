@@ -657,6 +657,62 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .pricing-nav-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;background:#e0dfd8;border:none;border-radius:8px;font-size:13px;color:#555;cursor:pointer;box-sizing:border-box;font-family:inherit;}
 .pricing-nav-btn:hover{background:#e0dfd8;color:#185FA5;}
 .pricing-nav-btn.active{background:#fff;color:#185FA5;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
+/* v2.3.0: 取り込みトレイ */
+.inbox-tray{margin:0 0 16px;border-radius:12px;background:#fff;border:1px solid #E8E2D5;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+.inbox-tray-toggle{width:100%;display:flex;align-items:center;gap:10px;padding:14px 18px;background:transparent;border:0;cursor:pointer;text-align:left;font-size:15px;font-weight:600;color:#2A2A2A;font-family:inherit;}
+.inbox-tray-icon{font-size:18px;}
+.inbox-tray-title{flex:0 0 auto;}
+.inbox-tray-badge{margin-left:4px;padding:2px 9px;background:#BA7517;color:#fff;border-radius:10px;font-size:12px;font-weight:700;}
+.inbox-tray-badge.zero{background:#ccc;}
+.inbox-tray-chevron{margin-left:auto;transition:transform 0.2s;color:#888;font-size:13px;}
+.inbox-tray-toggle[aria-expanded="true"] .inbox-tray-chevron{transform:rotate(180deg);}
+.inbox-tray-body{padding:0 18px 14px;}
+.inbox-tray-list{list-style:none;padding:0;margin:0;}
+.inbox-tray-item{padding:12px 0;border-top:1px solid #F2EDE2;display:flex;align-items:center;gap:12px;}
+.inbox-tray-item-icon{width:40px;height:40px;border-radius:8px;background:#F8F4EC;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.inbox-tray-item-info{flex:1;min-width:0;}
+.inbox-tray-item-name{font-size:14px;font-weight:600;color:#2A2A2A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.inbox-tray-item-meta{font-size:12px;color:#888;margin-top:2px;}
+.inbox-tray-item-actions{display:flex;gap:6px;flex:0 0 auto;}
+.inbox-tray-btn{padding:6px 12px;border-radius:6px;border:1px solid #DDD;background:#fff;font-size:12px;cursor:pointer;font-family:inherit;}
+.inbox-tray-btn-primary{background:#1D9E75;color:#fff;border-color:#1D9E75;}
+.inbox-tray-btn-primary:hover{background:#178A65;}
+.inbox-tray-empty{font-size:13px;color:#aaa;padding:8px 0;}
+/* v2.3.0: ルーキー卒業モーダル */
+.grad-modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;}
+.grad-modal-inner{background:#fff;border-radius:16px;padding:32px 28px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.18);text-align:center;}
+.grad-emoji{font-size:48px;margin-bottom:12px;}
+.grad-modal h2{font-size:22px;font-weight:700;margin-bottom:10px;}
+.grad-modal p{font-size:14px;color:#555;line-height:1.65;margin-bottom:16px;}
+.grad-unlock{background:#F0FDF8;border:1px solid #A7F3D0;border-radius:10px;padding:16px;text-align:left;margin-bottom:20px;}
+.grad-unlock h3{font-size:14px;font-weight:700;color:#1D9E75;margin-bottom:6px;}
+.grad-unlock p{font-size:13px;color:#555;margin:0;}
+.grad-actions{display:flex;gap:10px;justify-content:center;}
+.grad-actions button{padding:10px 20px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13px;cursor:pointer;font-family:inherit;}
+.grad-actions button:first-child{background:#1D9E75;color:#fff;border-color:#1D9E75;}
+/* v2.3.0: 自動取り込み設定 */
+.lock-badge{font-size:10px;background:#e0dfd8;color:#777;border-radius:4px;padding:1px 5px;margin-left:auto;white-space:nowrap;}
+.intake-settings-section{background:#fff;border-radius:12px;border:1px solid #E8E2D5;padding:18px;margin-bottom:16px;}
+.intake-settings-section h3{font-size:14px;font-weight:700;margin-bottom:14px;color:#2A2A2A;}
+.intake-settings-section h4{font-size:13px;font-weight:600;margin:14px 0 6px;color:#2A2A2A;}
+.grad-progress-wrap{margin-bottom:14px;}
+.grad-progress-bar-bg{height:8px;background:#f0efe9;border-radius:4px;overflow:hidden;margin-bottom:6px;}
+.grad-progress-bar-fill{height:100%;background:#BA7517;border-radius:4px;transition:width 0.5s;}
+.grad-progress-text{font-size:12px;color:#555;}
+.grad-hint-text{font-size:11px;color:#888;margin-top:4px;}
+.switch-row{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:#2A2A2A;}
+.switch-row input[type=checkbox]{width:18px;height:18px;cursor:pointer;}
+.setting-hint{font-size:11px;color:#888;margin-top:4px;line-height:1.5;}
+.setting-hint.warn{color:#B45309;}
+.email-display{display:flex;align-items:center;gap:8px;background:#F8F4EC;border-radius:8px;padding:10px 12px;margin-bottom:6px;flex-wrap:wrap;}
+.email-display code{font-size:13px;font-weight:600;color:#185FA5;flex:1;word-break:break-all;}
+.btn-copy,.btn-reissue,.btn-connect,.btn-disconnect,.btn-test{padding:6px 12px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;font-family:inherit;}
+.btn-connect{background:#185FA5;color:#fff;border-color:#185FA5;}
+.btn-disconnect{background:#fee2e2;color:#b91c1c;border-color:#fca5a5;}
+.cloud-status-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:#555;}
+.cloud-status-connected{color:#1D9E75;font-weight:600;}
+.folder-input-row{display:flex;gap:8px;align-items:center;margin-top:6px;}
+.folder-input-row input{flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -1094,7 +1150,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       ・
       <a href="mailto:support@shiwake-ai.com" style="color:#999;text-decoration:none;">お問い合わせ</a>
     </div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.2.1</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.3.0</div>
   </div>
 </div>
 
@@ -1194,6 +1250,11 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M2 3h11a1 1 0 011 1v6a1 1 0 01-1 1H8l-3 2v-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
       対話モード設定<span class="nav-badge-coming">準備中</span>
     </div>
+    <!-- v2.3.0: 自動取り込みメニュー -->
+    <div class="sidebar-nav-item" id="navAutoIntake" style="display:none;" onclick="switchTab('auto-intake')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      自動取り込み
+    </div>
     <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
       👁 インセンティブ表示に切替
     </div>
@@ -1201,7 +1262,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       📊 キャッシュ統計
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.2.1 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.0 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1266,6 +1327,37 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <span class="step-label" id="sl3">ファイルを出力</span>
     </div>
   </div>
+  <!-- v2.3.0: 取り込み予定トレイ -->
+  <section id="inboxTray" class="inbox-tray" hidden>
+    <button class="inbox-tray-toggle" id="inboxTrayToggle" aria-expanded="false">
+      <span class="inbox-tray-icon">📥</span>
+      <span class="inbox-tray-title">取り込み予定</span>
+      <span class="inbox-tray-badge zero" id="inboxTrayBadge">0</span>
+      <span class="inbox-tray-chevron">▼</span>
+    </button>
+    <div class="inbox-tray-body" id="inboxTrayBody" hidden>
+      <ul class="inbox-tray-list" id="inboxTrayList"></ul>
+      <div class="inbox-tray-empty" id="inboxTrayEmpty" hidden>取り込み予定のファイルはありません</div>
+    </div>
+  </section>
+
+  <!-- v2.3.0: 卒業演出モーダル -->
+  <div class="grad-modal" id="gradModal" hidden>
+    <div class="grad-modal-inner">
+      <div class="grad-emoji">🎉</div>
+      <h2>ルーキー卒業!</h2>
+      <p>累計50件の仕訳をクリアしました。<br>あなたは<strong>ジュニア</strong>に昇格しました。</p>
+      <div class="grad-unlock">
+        <h3>🔓 アンロック: 自動取り込み</h3>
+        <p>これからは、領収書をメールで送信したり、Dropbox/Google Drive のフォルダに放り込むだけで、shiwake-ai が自動で取り込んでくれます。</p>
+      </div>
+      <div class="grad-actions">
+        <button onclick="openAutoIntakeSettings()">今すぐ設定する</button>
+        <button onclick="document.getElementById('gradModal').hidden=true">あとで設定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
     <button class="mobile-scan-btn" onclick="document.getElementById(&quot;scanInput&quot;).click()">
@@ -1766,6 +1858,87 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         <option value="generic">汎用CSV</option>
       </select>
       <button class="btn-csv-export-merge" onclick="exportMergedCsv()">CSV出力</button>
+    </div>
+  </div>
+
+  <!-- v2.3.0: 自動取り込み設定パネル -->
+  <div class="panel" id="panel-auto-intake">
+    <p class="main-subcopy">メール・Dropbox・Google Drive から領収書を自動で取り込みます。</p>
+
+    <!-- 卒業ステータス（未卒業のみ） -->
+    <div class="intake-settings-section" id="gradStatusSection" hidden>
+      <h3>📊 ルーキー進捗</h3>
+      <div class="grad-progress-wrap">
+        <div class="grad-progress-bar-bg">
+          <div class="grad-progress-bar-fill" id="gradProgressBarFill" style="width:0%"></div>
+        </div>
+        <div class="grad-progress-text"><span id="gradCountText">0</span> / 50 件 で<strong>ルーキー卒業</strong></div>
+        <div class="grad-hint-text">卒業すると自動取り込み機能が使えるようになります。</div>
+      </div>
+    </div>
+
+    <!-- 機能ON/OFF（卒業後 or Agent版） -->
+    <div class="intake-settings-section" id="autoIntakeSection" hidden>
+      <h3>⚙ 自動取り込み設定</h3>
+      <label class="switch-row">
+        <input type="checkbox" id="autoIntakeToggle" onchange="updateIntakeSetting('auto_intake_enabled', this.checked)">
+        <span>自動取り込みを有効にする</span>
+      </label>
+      <p class="setting-hint">メール送信またはクラウドフォルダからファイルを自動で取り込みます。</p>
+
+      <!-- 専用メールアドレス -->
+      <div id="emailAddressRow" hidden>
+        <h4>専用メールアドレス</h4>
+        <div class="email-display">
+          <code id="userInboxEmail">未発行</code>
+          <button class="btn-copy" onclick="copyInboxEmail()">コピー</button>
+          <button class="btn-reissue" onclick="reissueInboxEmail()">再発行</button>
+        </div>
+        <p class="setting-hint">このアドレスに領収書PDF/画像を添付して送信すると、自動でトレイに追加されます。</p>
+      </div>
+
+      <!-- Dropbox 連携 -->
+      <div id="dropboxRow" hidden>
+        <h4>Dropbox 連携</h4>
+        <div class="cloud-status-row">
+          <span id="dropboxStatus">未接続</span>
+          <button class="btn-connect" id="dropboxConnectBtn" onclick="connectDropbox()">Dropbox を接続</button>
+          <button class="btn-disconnect" id="dropboxDisconnectBtn" onclick="disconnectDropbox()" hidden>解除</button>
+        </div>
+        <div id="dropboxFolderRow" hidden>
+          <div class="folder-input-row">
+            <input type="text" id="dropboxFolderInput" placeholder="/領収書">
+            <button class="btn-test" onclick="setDropboxFolder()">保存</button>
+          </div>
+          <p class="setting-hint">監視するDropboxフォルダのパスを入力してください。</p>
+        </div>
+      </div>
+
+      <!-- Google Drive 連携 -->
+      <div id="gdriveRow" hidden>
+        <h4>Google Drive 連携</h4>
+        <div class="cloud-status-row">
+          <span id="gdriveStatus">未接続</span>
+          <button class="btn-disconnect" id="gdriveDisconnectBtn" onclick="disconnectGDrive()" hidden>解除</button>
+        </div>
+        <div id="gdriveFolderRow">
+          <p class="setting-hint" style="margin-bottom:6px;">手順: ① Google Drive で監視フォルダのURLからフォルダIDをコピー ② shiwake-ai のサービスアカウント(<code id="serviceAccountEmail">設定中</code>)にフォルダを共有(閲覧者) ③ フォルダIDを入力して接続</p>
+          <div class="folder-input-row">
+            <input type="text" id="gdriveFolderIdInput" placeholder="Google DriveフォルダID">
+            <button class="btn-connect" onclick="connectGDrive()">接続テスト</button>
+          </div>
+        </div>
+        <div id="gdriveFolderLabel" style="font-size:12px;color:#1D9E75;margin-top:4px;"></div>
+      </div>
+
+      <!-- 自動仕訳ON/OFF -->
+      <div id="autoShiwakeRow" style="margin-top:14px;" hidden>
+        <label class="switch-row">
+          <input type="checkbox" id="autoShiwakeToggle" onchange="updateIntakeSetting('auto_shiwake_enabled', this.checked)">
+          <span>取り込み後、自動でAI仕訳まで実行する</span>
+        </label>
+        <p class="setting-hint warn">⚠ AI仕訳が誤判定する可能性があります。最初のうちは OFF（保存のみ）を推奨します。</p>
+      </div>
     </div>
   </div>
 
@@ -4350,6 +4523,422 @@ window.addEventListener('load',function(){
   </div>
   <svg class="receipt-float-resize" id="receiptFloatResize" viewBox="0 0 14 14"><path d="M12 12L4 12M12 12L12 4M12 12L6 6" stroke="#999" stroke-width="1.5" stroke-linecap="round"/></svg>
 </div>
+<script type="module">
+(async()=>{
+  // console.tableが未実装の環境でscanicが落ちるのを防ぐ
+  if(typeof console.table!=='function') console.table=()=>{};
+  try{
+    const mod=await import('https://cdn.jsdelivr.net/npm/scanic@1.0.6/dist/scanic.js');
+    const scanDoc=mod.scanDocument||mod.default?.scanDocument;
+    if(scanDoc){
+      window._scanicFn=scanDoc;
+      console.log('scanic: 準備完了');
+    }
+  }catch(e){console.warn('scanic読み込み失敗:',e.message);}
+})();
+</script>
+
+<!-- v2.3.0: 自動取り込み機能スクリプト -->
+<script>
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== 取り込みトレイ =====
+let _inboxTrayInterval = null;
+
+async function fetchGraduationStatus() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return null;
+  try {
+    const r = await fetch('/api/user/graduation-status?uid=' + uid);
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+async function fetchInboxSettings() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return { auto_intake_enabled: false };
+  try {
+    const r = await fetch('/api/inbox/settings?uid=' + uid);
+    return await r.json();
+  } catch(e) { return { auto_intake_enabled: false }; }
+}
+
+async function loadInboxTray() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  const tray = document.getElementById('inboxTray');
+  if (!tray) return;
+
+  try {
+    const grad = await fetchGraduationStatus();
+    const settings = await fetchInboxSettings();
+    const eligible = grad && (grad.is_agent || grad.graduated) && grad.is_paid;
+
+    if (!eligible || !settings.auto_intake_enabled) {
+      tray.hidden = true;
+      return;
+    }
+    tray.hidden = false;
+
+    const r = await fetch('/api/inbox?uid=' + uid + '&status=pending');
+    const data = await r.json();
+    const badge = document.getElementById('inboxTrayBadge');
+    const list  = document.getElementById('inboxTrayList');
+    const empty = document.getElementById('inboxTrayEmpty');
+
+    const count = data.pending_count || 0;
+    badge.textContent = count;
+    badge.className = 'inbox-tray-badge' + (count === 0 ? ' zero' : '');
+    list.innerHTML = '';
+
+    if (!data.files || data.files.length === 0) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+
+    data.files.forEach(f => {
+      const li = document.createElement('li');
+      li.className = 'inbox-tray-item';
+      const icon  = f.source === 'email' ? '✉' : f.source === 'dropbox' ? '📦' : '🗂';
+      const label = f.source === 'email' ? 'メール' : f.source === 'dropbox' ? 'Dropbox' : 'Google Drive';
+      li.innerHTML = `
+        <div class="inbox-tray-item-icon">${icon}</div>
+        <div class="inbox-tray-item-info">
+          <div class="inbox-tray-item-name">${escapeHtml(f.filename)}</div>
+          <div class="inbox-tray-item-meta">${label}${f.sender ? ' · ' + escapeHtml(f.sender) : ''}</div>
+        </div>
+        <div class="inbox-tray-item-actions">
+          <button class="inbox-tray-btn inbox-tray-btn-primary" onclick="startShiwakeFromInbox('${f.id}')">仕訳開始</button>
+          <button class="inbox-tray-btn" onclick="archiveInbox('${f.id}')">アーカイブ</button>
+        </div>`;
+      list.appendChild(li);
+    });
+  } catch(e) { console.warn('loadInboxTray error:', e); }
+}
+
+// トグル
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('inboxTrayToggle');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      document.getElementById('inboxTrayBody').hidden = expanded;
+    });
+  }
+});
+
+async function startShiwakeFromInbox(inboxId) {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/inbox/' + inboxId + '/start-shiwake', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+    const data = await r.json();
+    if (!data.ok) { showToast('仕訳開始に失敗しました'); return; }
+    window.__currentInboxId = inboxId;
+    const blob = await (await fetch(data.file.url)).blob();
+    const file = new File([blob], data.file.filename, { type: data.file.mime_type });
+    if (typeof addFiles === 'function') addFiles([file]);
+    if (typeof switchTab === 'function') switchTab('siwake');
+    loadInboxTray();
+  } catch(e) { showToast('仕訳開始に失敗しました'); console.error(e); }
+}
+
+async function archiveInbox(inboxId) {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  await fetch('/api/inbox/' + inboxId + '/archive', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid })
+  }).catch(() => {});
+  loadInboxTray();
+}
+
+// 30秒ごとに自動更新
+function startInboxPolling() {
+  if (_inboxTrayInterval) return;
+  _inboxTrayInterval = setInterval(loadInboxTray, 30000);
+}
+
+// ===== 卒業演出 =====
+function showGradModal() {
+  const modal = document.getElementById('gradModal');
+  if (modal) modal.hidden = false;
+}
+
+function openAutoIntakeSettings() {
+  const modal = document.getElementById('gradModal');
+  if (modal) modal.hidden = true;
+  if (typeof switchTab === 'function') switchTab('auto-intake');
+}
+
+// incrementMonthlyCount のレスポンスから卒業チェック（既存関数をラップ）
+(function() {
+  const _orig = window.incrementSupabaseCount;
+  window.incrementSupabaseCount = async function(uid, n) {
+    const res = typeof _orig === 'function' ? await _orig(uid, n) : null;
+    if (res && res.graduation && res.graduation.just_graduated) {
+      setTimeout(showGradModal, 500);
+    }
+    return res;
+  };
+})();
+
+// ===== 自動取り込み設定パネル =====
+async function loadAutoIntakeSettings() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const grad = await fetchGraduationStatus();
+    const settings = await fetchInboxSettings();
+
+    const gradSection    = document.getElementById('gradStatusSection');
+    const intakeSection  = document.getElementById('autoIntakeSection');
+    const autoIntakeToggle = document.getElementById('autoIntakeToggle');
+    const autoShiwakeToggle = document.getElementById('autoShiwakeToggle');
+    const emailRow       = document.getElementById('emailAddressRow');
+    const dropboxRow     = document.getElementById('dropboxRow');
+    const gdriveRow      = document.getElementById('gdriveRow');
+    const autoShiwakeRow = document.getElementById('autoShiwakeRow');
+
+    if (!grad || !grad.is_paid) {
+      if (gradSection) gradSection.hidden = true;
+      if (intakeSection) intakeSection.hidden = true;
+      return;
+    }
+
+    const canUse = grad.is_agent || grad.graduated;
+    if (!canUse) {
+      // ルーキー進捗表示
+      if (gradSection) gradSection.hidden = false;
+      if (intakeSection) intakeSection.hidden = true;
+      const fill = document.getElementById('gradProgressBarFill');
+      const cnt  = document.getElementById('gradCountText');
+      if (fill) fill.style.width = (grad.progress_pct || 0) + '%';
+      if (cnt)  cnt.textContent = grad.cumulative_count || 0;
+    } else {
+      if (gradSection) gradSection.hidden = true;
+      if (intakeSection) intakeSection.hidden = false;
+      if (autoIntakeToggle) autoIntakeToggle.checked = settings.auto_intake_enabled;
+      if (autoShiwakeToggle) autoShiwakeToggle.checked = settings.auto_shiwake_enabled;
+
+      const isOn = settings.auto_intake_enabled;
+      if (emailRow)       emailRow.hidden       = !isOn;
+      if (dropboxRow)     dropboxRow.hidden      = !isOn;
+      if (gdriveRow)      gdriveRow.hidden       = !isOn;
+      if (autoShiwakeRow) autoShiwakeRow.hidden  = !isOn;
+
+      if (isOn) {
+        loadInboxAddress();
+        loadCloudConnections();
+      }
+    }
+  } catch(e) { console.warn('loadAutoIntakeSettings error:', e); }
+}
+
+async function updateIntakeSetting(key, value) {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    await fetch('/api/inbox/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, [key]: value })
+    });
+    await loadAutoIntakeSettings();
+    await loadInboxTray();
+  } catch(e) { showToast('設定の保存に失敗しました'); console.error(e); }
+}
+
+async function loadInboxAddress() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  const emailEl = document.getElementById('userInboxEmail');
+  try {
+    const r = await fetch('/api/inbox/address?uid=' + uid);
+    const d = await r.json();
+    if (emailEl) emailEl.textContent = d.address || '未発行（下のボタンで発行）';
+  } catch(e) { if (emailEl) emailEl.textContent = '取得に失敗'; }
+}
+
+function copyInboxEmail() {
+  const email = document.getElementById('userInboxEmail')?.textContent || '';
+  if (!email || email.includes('未発行')) return;
+  navigator.clipboard.writeText(email).then(() => showToast('コピーしました')).catch(() => showToast('コピーに失敗'));
+}
+
+async function reissueInboxEmail() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  if (!confirm('アドレスを再発行しますか？旧アドレスは24時間後に無効になります。')) return;
+  try {
+    const r = await fetch('/api/inbox/address/issue', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+    const d = await r.json();
+    if (d.address) {
+      const emailEl = document.getElementById('userInboxEmail');
+      if (emailEl) emailEl.textContent = d.address;
+      showToast('アドレスを再発行しました');
+    }
+  } catch(e) { showToast('再発行に失敗しました'); }
+}
+
+async function loadCloudConnections() {
+  // Dropbox / GDrive の接続状態UI更新（シンプル版: 接続があれば connected 表示）
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    // 接続状態確認: cloud_connections は直接クライアントから見えないので
+    // 専用エンドポイントが無い場合はデフォルト表示のままとする
+    //（v2.3.1で接続状態取得APIを追加予定）
+    const serviceEmail = document.getElementById('serviceAccountEmail');
+    if (serviceEmail) {
+      const infoRes = await fetch('/api/gdrive/info');
+      const infoData = await infoRes.json();
+      serviceEmail.textContent = infoData.serviceAccountEmail || '(未設定)';
+    }
+  } catch(e) { /* ignore */ }
+}
+
+// ===== Dropbox連携 =====
+async function connectDropbox() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/dropbox/auth-url?uid=' + uid);
+    const d = await r.json();
+    if (d.url) window.open(d.url, '_blank');
+    else showToast(d.error || 'Dropbox接続に失敗しました');
+  } catch(e) { showToast('Dropbox接続に失敗しました'); }
+}
+
+async function setDropboxFolder() {
+  const uid = window._firebaseUser?.uid;
+  const folderPath = document.getElementById('dropboxFolderInput')?.value?.trim();
+  if (!uid || !folderPath) return;
+  try {
+    const r = await fetch('/api/dropbox/folder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, path: folderPath })
+    });
+    const d = await r.json();
+    if (d.ok) showToast('フォルダを設定しました');
+    else showToast('フォルダ設定に失敗しました');
+  } catch(e) { showToast('フォルダ設定に失敗しました'); }
+}
+
+async function disconnectDropbox() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid || !confirm('Dropbox連携を解除しますか？')) return;
+  try {
+    await fetch('/api/dropbox/connection', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+    showToast('Dropbox連携を解除しました');
+    await loadAutoIntakeSettings();
+  } catch(e) { showToast('解除に失敗しました'); }
+}
+
+// ===== GDrive連携 =====
+async function connectGDrive() {
+  const uid = window._firebaseUser?.uid;
+  const folderId = document.getElementById('gdriveFolderIdInput')?.value?.trim();
+  if (!uid || !folderId) { showToast('フォルダIDを入力してください'); return; }
+  try {
+    const r = await fetch('/api/gdrive/connect', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, folder_id: folderId })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Google Drive「' + d.folder_name + '」に接続しました');
+      const label = document.getElementById('gdriveFolderLabel');
+      if (label) label.textContent = '接続中: ' + d.folder_name;
+      await loadAutoIntakeSettings();
+    } else {
+      showToast(d.message || 'Google Drive接続に失敗しました');
+    }
+  } catch(e) { showToast('Google Drive接続に失敗しました'); }
+}
+
+async function disconnectGDrive() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid || !confirm('Google Drive連携を解除しますか？')) return;
+  try {
+    await fetch('/api/gdrive/connection', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+    showToast('Google Drive連携を解除しました');
+    await loadAutoIntakeSettings();
+  } catch(e) { showToast('解除に失敗しました'); }
+}
+
+// ===== サイドバー自動取り込みメニュー出し分け =====
+async function setupAutoIntakeMenuItem() {
+  const menuItem = document.getElementById('navAutoIntake');
+  if (!menuItem) return;
+  const grad = await fetchGraduationStatus();
+  if (!grad) { menuItem.style.display = 'none'; return; }
+  if (!grad.is_paid) {
+    menuItem.style.display = 'none';
+  } else if (grad.is_agent || grad.graduated) {
+    menuItem.style.display = '';
+    const lb = menuItem.querySelector('.lock-badge');
+    if (lb) lb.remove();
+  } else {
+    menuItem.style.display = '';
+    if (!menuItem.querySelector('.lock-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'lock-badge';
+      badge.textContent = `🔒 ${grad.cumulative_count}/50`;
+      menuItem.appendChild(badge);
+    }
+  }
+}
+
+// Dropbox OAuth callback (?dropbox=connected) の処理
+if (new URLSearchParams(location.search).get('dropbox') === 'connected') {
+  window.history.replaceState({}, '', '/');
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      showToast('✓ Dropboxに接続しました');
+      switchTab('auto-intake');
+    }, 800);
+  });
+}
+
+// パネル切替時に自動取り込み設定をロード
+const _origSwitchTab = window.switchTab;
+window.switchTab = function(tab) {
+  if (typeof _origSwitchTab === 'function') _origSwitchTab(tab);
+  if (tab === 'auto-intake') loadAutoIntakeSettings();
+};
+
+// ログイン後に自動取り込み関連を初期化（Firebase onAuthStateChanged の後）
+window.addEventListener('DOMContentLoaded', () => {
+  // 認証状態の変化を監視して初期化
+  let _inboxInitialized = false;
+  const _inboxInitTimer = setInterval(() => {
+    const uid = window._firebaseUser?.uid;
+    if (uid && !_inboxInitialized) {
+      _inboxInitialized = true;
+      clearInterval(_inboxInitTimer);
+      loadInboxTray();
+      setupAutoIntakeMenuItem();
+      startInboxPolling();
+    }
+  }, 1000);
+});
+</script>
 <script type="module">
 (async()=>{
   // console.tableが未実装の環境でscanicが落ちるのを防ぐ
