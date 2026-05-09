@@ -157,16 +157,16 @@ def _score(
 ) -> float:
     score = 0.0
 
-    # 成功パターンにマッチ → スコアを加点
+    # 成功パターンにマッチ → win_rate × 10 を加点
     for p in patterns:
         if (
-            p.get("weapon")       == combo["weapon_id"]
-            and p.get("trigger_axis") == combo["trigger_id"]
-            and p.get("persona")      == combo["persona_id"]
+            p.get("weapon_id")    == combo["weapon_id"]
+            and p.get("trigger_id")   == combo["trigger_id"]
+            and p.get("persona_id")   == combo["persona_id"]
             and p.get("character_id") == combo["character_id"]
             and p.get("platform")     == combo["platform"]
         ):
-            score += float(p.get("score", 0)) * 10
+            score += float(p.get("win_rate") or 0) * 10
             break
 
     # 最近使ったコンボ → 減点
@@ -220,8 +220,8 @@ class PlannerNode:
         try:
             rows = (
                 self._db.table("success_patterns")
-                .select("*")
-                .order("score", desc=True)
+                .select("persona_id,character_id,weapon_id,trigger_id,platform,win_rate,sample_count")
+                .order("win_rate", desc=True)
                 .limit(20)
                 .execute()
             )

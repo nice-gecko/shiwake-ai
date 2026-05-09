@@ -136,26 +136,32 @@ create table if not exists visual_assets (
 create index if not exists idx_assets_tags on visual_assets using gin(tags);
 
 -- ============================================================
--- 5. success_patterns: 勝ちパターン
+-- 5. success_patterns: 勝ちパターン（P3-5: 旧スキーマから刷新）
 -- ============================================================
+-- ※ Supabase 適用時: DROP TABLE IF EXISTS success_patterns; を先に実行
 create table if not exists success_patterns (
-  id                  uuid primary key default gen_random_uuid(),
-  weapon              text,
-  trigger_axis        text,
-  persona             text,
-  character_id        text,
-  platform            text,
-  pattern_summary     text,
-  -- 「税理士向け+W3+Altruismが刺さる」
-  score               numeric default 0,
-  -- 信頼スコア（自動化解禁判定用）
-  sample_post_ids     uuid[],
-  win_count           int default 0,
-  trial_count         int default 0,
-  updated_at          timestamptz default now()
+  id                   uuid primary key default gen_random_uuid(),
+  persona_id           text not null,
+  -- P1〜P4
+  character_id         text not null,
+  weapon_id            text not null,
+  -- W1〜W6
+  trigger_id           text not null,
+  -- antagonism / altruism / storytelling
+  platform             text not null,
+  sample_count         int not null default 0,
+  avg_engagement_rate  double precision,
+  avg_likes            double precision,
+  win_count            int not null default 0,
+  loss_count           int not null default 0,
+  win_rate             double precision,
+  -- = win_count / sample_count
+  last_updated_at      timestamptz default now(),
+  unique (persona_id, character_id, weapon_id, trigger_id, platform)
 );
 
-create index if not exists idx_patterns_score on success_patterns(score desc);
+create index if not exists idx_sp_lookup  on success_patterns(persona_id, character_id, weapon_id, trigger_id, platform);
+create index if not exists idx_sp_winrate on success_patterns(win_rate desc nulls last);
 
 -- ============================================================
 -- 6. trends: TrendWatcherの検知ログ（P3-2）
