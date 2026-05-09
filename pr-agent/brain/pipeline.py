@@ -24,6 +24,7 @@ from supabase import create_client, Client
 from brain.planner   import PlannerNode, PlannerInput, PlannerOutput
 from brain.writer    import WriterNode, DraftPost, WriterOutput
 from brain.publisher import PublisherNode, PublisherInput, PublisherOutput
+from notify.discord  import notify_drafts, notify_published, notify_error
 
 load_dotenv()
 
@@ -125,7 +126,7 @@ class Pipeline:
         else:
             post_ids = ["dry-run-A", "dry-run-B", "dry-run-C"]
 
-        return GenerateOutput(
+        gen = GenerateOutput(
             plan=plan,
             drafts=writer_out.drafts,
             post_ids=post_ids,
@@ -133,6 +134,11 @@ class Pipeline:
             usage_input_tokens=writer_out.usage_input_tokens,
             usage_output_tokens=writer_out.usage_output_tokens,
         )
+
+        # 4. Discord に3案通知
+        notify_drafts(gen.drafts, gen.post_ids, plan.scheduled_at)
+
+        return gen
 
     # ------------------------------------------------------------------
     async def publish(self, post_id: str) -> PublisherOutput:
@@ -153,23 +159,37 @@ class Pipeline:
         out = await self._publisher.run(inp)
         print(f"[pipeline] Publisher: status={out.status}"
               + (f" url={out.external_url}" if out.external_url else ""))
+
+        # Discord に投稿結果通知
+        notify_published(
+            post_id=out.post_id,
+            platform=out.platform,
+            status=out.status,
+            external_url=out.external_url,
+            message=out.message,
+        )
+
         return out
 
     # ------------------------------------------------------------------
     async def run_auto(self, planner_inp: PlannerInput) -> PipelineRunOutput:
         """generate → 案A を自動選択 → publish（テスト・cron 用）"""
-        gen = await self.generate(planner_inp)
+        try:
+            gen = await self.generate(planner_inp)
 
-        # 案A (index 0) を自動選択
-        selected_id = gen.post_ids[0]
-        selected    = gen.drafts[0]
+            # 案A (index 0) を自動選択
+            selected_id = gen.post_ids[0]
 
-        # status を 'approved' に変更してから publish
-        if self._db and selected_id != "dry-run-A":
-            self._db.table("posts").update({"status": "approved"}).eq("id", selected_id).execute()
+            # status を 'approved' に変更してから publish
+            if self._db and selected_id != "dry-run-A":
+                self._db.table("posts").update({"status": "approved"}).eq("id", selected_id).execute()
 
-        pub = await self.publish(selected_id)
-        return PipelineRunOutput(generate=gen, published=pub)
+            pub = await self.publish(selected_id)
+            return PipelineRunOutput(generate=gen, published=pub)
+
+        except Exception as e:
+            notify_error(e, context="Pipeline.run_auto")
+            raise
 
 
 # ============================================================
