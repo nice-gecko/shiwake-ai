@@ -1,10 +1,19 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { PDFDocument } = require('pdf-lib');
 const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute } = require('./master');
 const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 const { computeHash, getHashedResult, setHashedResult, cleanupAllHashes } = require('./hashes');
+
+// Dropbox SDK (オプション: npm install dropbox が必要)
+let DropboxClass;
+try { DropboxClass = require('dropbox').Dropbox; } catch(e) { console.warn('dropbox package not installed — Dropbox integration disabled'); }
+
+// googleapis (オプション: npm install googleapis が必要)
+let googleApis;
+try { googleApis = require('googleapis').google; } catch(e) { console.warn('googleapis package not installed — GDrive integration disabled'); }
 
 // ===== 取引先マスタヒット判定（部分一致：マスタ名がレシートtitleに含まれるか）=====
 // 戻り値: ヒットしたらマスタキー、なければnull
@@ -257,6 +266,274 @@ async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
   }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
+}
+
+// ===== v2.3.0: 自動取り込み機能 ヘルパー =====
+
+// OAuthステート管理（インメモリ・10分TTL）
+const oauthStateStore = new Map();
+function saveOAuthState(state, uid, provider, ttlSeconds = 600) {
+  oauthStateStore.set(state, { uid, provider, expiresAt: Date.now() + ttlSeconds * 1000 });
+  for (const [k, v] of oauthStateStore.entries()) { if (v.expiresAt < Date.now()) oauthStateStore.delete(k); }
+}
+function consumeOAuthState(state) {
+  const d = oauthStateStore.get(state);
+  if (!d) return null;
+  oauthStateStore.delete(state);
+  return d.expiresAt >= Date.now() ? d : null;
+}
+
+// ランダムlocal_part生成 [a-z0-9]{len}
+function generateRandomLocalPart(len) {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = crypto.randomBytes(len);
+  let r = '';
+  for (let i = 0; i < len; i++) r += chars[bytes[i] % chars.length];
+  return r;
+}
+
+// 拡張子→MIME
+function mimeFromExt(ext) {
+  return ({ pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' })[ext] || 'application/octet-stream';
+}
+
+// Supabase Storage REST API
+async function supabaseStorageUpload(bucket, filePath, buffer, contentType) {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${filePath}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_SECRET_KEY,
+      'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+      'Content-Type': contentType,
+    },
+    body: buffer
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error(`Storage upload error: ${t}`); }
+  return await res.json();
+}
+
+async function supabaseStorageSignedUrl(bucket, filePath, expiresIn = 300) {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${filePath}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_SECRET_KEY,
+      'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ expiresIn })
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error(`Storage sign error: ${t}`); }
+  const json = await res.json();
+  return `${SUPABASE_URL}/storage/v1${json.signedURL}`;
+}
+
+// 自動取り込み機能利用判定
+async function canUseAutoIntake(uid) {
+  const data = await supabaseQuery(`/users?id=eq.${uid}&select=is_paid,plan_key,graduated_rookie_at,cumulative_shiwake_count`);
+  const user = data?.[0];
+  if (!user) return { allowed: false, reason: 'user_not_found' };
+  if (!user.is_paid) return { allowed: false, reason: 'free_trial_not_allowed' };
+  if (user.plan_key && user.plan_key.startsWith('agent_')) return { allowed: true };
+  if (!user.graduated_rookie_at) {
+    return { allowed: false, reason: 'rookie_not_graduated', cumulative_count: user.cumulative_shiwake_count || 0, threshold: 50 };
+  }
+  return { allowed: true };
+}
+
+// 累計仕訳件数インクリメント + ルーキー卒業判定
+async function bumpCumulativeAndCheckGraduation(uid, addCount) {
+  try {
+    const data = await supabaseQuery(`/users?id=eq.${uid}&select=cumulative_shiwake_count,graduated_rookie_at,plan_key,is_paid`);
+    const user = data?.[0];
+    if (!user) return null;
+    const newCount = (user.cumulative_shiwake_count || 0) + addCount;
+    const updates = { cumulative_shiwake_count: newCount };
+    let justGraduated = false;
+    const isAgent = user.plan_key && user.plan_key.startsWith('agent_');
+    if (user.is_paid && !isAgent && !user.graduated_rookie_at && newCount >= 50) {
+      updates.graduated_rookie_at = new Date().toISOString();
+      justGraduated = true;
+    }
+    await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', updates);
+    return { just_graduated: justGraduated, cumulative_count: newCount };
+  } catch(e) {
+    console.error('bumpCumulative error:', e.message);
+    return null;
+  }
+}
+
+// multipart/form-data パーサー（busboy不要・ネイティブ実装）
+function bufIndexOf(buf, search, start = 0) {
+  const slen = search.length;
+  outer: for (let i = start; i <= buf.length - slen; i++) {
+    for (let j = 0; j < slen; j++) { if (buf[i + j] !== search[j]) continue outer; }
+    return i;
+  }
+  return -1;
+}
+
+function parseMultipartFormData(req) {
+  return new Promise((resolve, reject) => {
+    const ct = req.headers['content-type'] || '';
+    const bm = ct.match(/boundary=(?:"([^"]+)"|([^\s;]+))/i);
+    if (!bm) return reject(new Error('No multipart boundary'));
+    const boundary = bm[1] || bm[2];
+    const delim = Buffer.from('\r\n--' + boundary);
+    const firstDelim = Buffer.from('--' + boundary);
+
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('error', reject);
+    req.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks);
+        const fields = {};
+        const files = [];
+
+        let pos = bufIndexOf(body, firstDelim, 0);
+        if (pos === -1) return resolve({ fields, files });
+        pos += firstDelim.length;
+        if (body[pos] === 0x0d && body[pos+1] === 0x0a) pos += 2;
+
+        while (pos < body.length) {
+          const headerEnd = bufIndexOf(body, Buffer.from('\r\n\r\n'), pos);
+          if (headerEnd === -1) break;
+          const headers = body.slice(pos, headerEnd).toString('utf8');
+          pos = headerEnd + 4;
+          const nextBound = bufIndexOf(body, delim, pos);
+          const partEnd = nextBound === -1 ? body.length : nextBound;
+          const partContent = body.slice(pos, partEnd);
+
+          const dispM = headers.match(/Content-Disposition:[^\r\n]*name="([^"]+)"/i);
+          const fileM = headers.match(/filename="([^"]*)"/i);
+          const ctM   = headers.match(/Content-Type:\s*([^\r\n]+)/i);
+
+          if (dispM) {
+            const name = dispM[1];
+            if (fileM && fileM[1]) {
+              files.push({
+                fieldname: name,
+                originalname: fileM[1],
+                mimetype: ctM ? ctM[1].trim() : 'application/octet-stream',
+                buffer: partContent,
+                size: partContent.length
+              });
+            } else {
+              fields[name] = partContent.toString('utf8');
+            }
+          }
+          if (nextBound === -1) break;
+          pos = nextBound + delim.length;
+          if (body[pos] === 0x2d && body[pos+1] === 0x2d) break;
+          if (body[pos] === 0x0d && body[pos+1] === 0x0a) pos += 2;
+        }
+        resolve({ fields, files });
+      } catch(e) { reject(e); }
+    });
+  });
+}
+
+// Google Drive サービスアカウントクライアント
+function getDriveClient() {
+  if (!googleApis) throw new Error('googleapis package not installed');
+  const credRaw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!credRaw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not set');
+  const credentials = JSON.parse(credRaw);
+  const jwtClient = new googleApis.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: ['https://www.googleapis.com/auth/drive.readonly']
+  });
+  return googleApis.drive({ version: 'v3', auth: jwtClient });
+}
+
+// GDrive Watchチャンネル設定
+async function setupGDriveWatch(uid, folderId) {
+  const drive = getDriveClient();
+  const channelId = crypto.randomUUID();
+  const expiration = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  await drive.files.watch({
+    fileId: folderId,
+    requestBody: {
+      id: channelId,
+      type: 'web_hook',
+      address: 'https://shiwake-ai.com/api/gdrive/webhook',
+      token: process.env.GOOGLE_DRIVE_PUSH_TOKEN || '',
+      expiration: String(expiration)
+    }
+  });
+  await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.gdrive&is_active=eq.true`, 'PATCH', {
+    channel_id: channelId,
+    channel_expires_at: new Date(expiration).toISOString()
+  });
+}
+
+// GDriveフォルダ同期
+async function syncGDriveFolder(conn) {
+  try {
+    const drive = getDriveClient();
+    const folderId = conn.watched_path;
+    const list = await drive.files.list({
+      q: `'${folderId}' in parents and trashed = false and (mimeType='application/pdf' or mimeType contains 'image/')`,
+      fields: 'files(id, name, mimeType, size, modifiedTime)',
+      orderBy: 'modifiedTime desc',
+      pageSize: 50
+    });
+    for (const f of list.data.files || []) {
+      if (!['application/pdf', 'image/jpeg', 'image/png'].includes(f.mimeType)) continue;
+      const existing = await supabaseQuery(`/inbox_files?uid=eq.${conn.uid}&source=eq.gdrive&source_id=eq.${f.id}&select=id`);
+      if (existing && existing.length > 0) continue;
+      const dl = await drive.files.get({ fileId: f.id, alt: 'media' }, { responseType: 'arraybuffer' });
+      const fileBuffer = Buffer.from(dl.data);
+      const inboxFileId = crypto.randomUUID();
+      const storagePath = `${conn.uid}/${inboxFileId}/${f.name}`;
+      await supabaseStorageUpload('inbox-files', storagePath, fileBuffer, f.mimeType);
+      await supabaseQuery('/inbox_files', 'POST', {
+        id: inboxFileId, uid: conn.uid, source: 'gdrive', source_id: f.id,
+        sender: conn.watched_path_label, filename: f.name, mime_type: f.mimeType,
+        byte_size: parseInt(f.size) || fileBuffer.length, storage_path: storagePath, status: 'pending'
+      });
+    }
+  } catch(e) { console.error('syncGDriveFolder error:', e.message); }
+}
+
+// Dropboxフォルダ同期
+async function syncDropboxFolder(conn) {
+  if (!DropboxClass) { console.warn('Dropbox SDK not installed'); return; }
+  try {
+    const dbx = new DropboxClass({ accessToken: conn.access_token });
+    let result;
+    if (conn.cursor) {
+      result = await dbx.filesListFolderContinue({ cursor: conn.cursor });
+    } else {
+      result = await dbx.filesListFolder({ path: conn.watched_path || '', recursive: false, include_deleted: false });
+    }
+    for (const entry of result.result.entries || []) {
+      if (entry['.tag'] !== 'file') continue;
+      const ext = (entry.name.split('.').pop() || '').toLowerCase();
+      if (!['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) continue;
+      const existing = await supabaseQuery(`/inbox_files?uid=eq.${conn.uid}&source=eq.dropbox&source_id=eq.${encodeURIComponent(entry.id)}&select=id`);
+      if (existing && existing.length > 0) continue;
+      const dl = await dbx.filesDownload({ path: entry.path_lower });
+      const fileBuffer = dl.result.fileBinary;
+      const mimeType = mimeFromExt(ext);
+      const inboxFileId = crypto.randomUUID();
+      const storagePath = `${conn.uid}/${inboxFileId}/${entry.name}`;
+      await supabaseStorageUpload('inbox-files', storagePath, fileBuffer, mimeType);
+      await supabaseQuery('/inbox_files', 'POST', {
+        id: inboxFileId, uid: conn.uid, source: 'dropbox', source_id: entry.id,
+        sender: conn.watched_path_label || conn.watched_path,
+        filename: entry.name, mime_type: mimeType,
+        byte_size: entry.size || fileBuffer.length, storage_path: storagePath, status: 'pending'
+      });
+    }
+    if (result.result.cursor) {
+      await supabaseQuery(`/cloud_connections?id=eq.${conn.id}`, 'PATCH', { cursor: result.result.cursor, updated_at: new Date().toISOString() });
+    }
+    if (result.result.has_more) {
+      await syncDropboxFolder({ ...conn, cursor: result.result.cursor });
+    }
+  } catch(e) { console.error('syncDropboxFolder error:', e.message); }
 }
 
 const PORT = process.env.PORT || 3456;
@@ -915,6 +1192,9 @@ const server = http.createServer(async (req, res) => {
         }
         await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patch);
 
+        // v2.3.0: 累計件数インクリメント + ルーキー卒業判定（非同期・レスポンスには含める）
+        const gradResult = await bumpCumulativeAndCheckGraduation(uid, n).catch(() => null);
+
         // 1000件到達チェック → オーナーとadminにメール通知
         if (isAgency) {
           const prevUnredeemed = row.incentive_unredeemed || 0;
@@ -940,12 +1220,13 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({
           ok: true,
           monthly_count: cur + n,
-          total_count: cur + n, // monthly_countは実態として累計を保持しているのでエイリアス
+          total_count: cur + n,
           incentive_total: isAgency ? incTotal : (row.incentive_total || 0),
           incentive_unredeemed: isAgency ? incUnredeemed : (row.incentive_unredeemed || 0),
           incentive_threshold: INCENTIVE_THRESHOLD,
           incentive_amount: INCENTIVE_AMOUNT,
-          is_agency: isAgency
+          is_agency: isAgency,
+          graduation: gradResult
         }));
       } catch(e) {
         res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
@@ -1134,7 +1415,8 @@ const server = http.createServer(async (req, res) => {
               }
               const plan = STRIPE_PLANS[planKey];
               const edition = plan?.edition || 'saas';
-              await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
+              const isAgentPlan = planKey && planKey.startsWith('agent_');
+              const patchData = {
                 is_paid: true,
                 is_free_trial: false,
                 stripe_customer_id: customerId,
@@ -1146,8 +1428,10 @@ const server = http.createServer(async (req, res) => {
                 billing_period_end: billingPeriodEnd,
                 monthly_count: 0,
                 paid_at: new Date().toISOString()
-              });
-              console.log(`プラン契約: ${uid} → ${planKey} (${edition})${isResellerPlan ? ' [代理店]' : ''}`);
+              };
+              if (isAgentPlan) patchData.graduated_rookie_at = new Date().toISOString();
+              await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patchData);
+              console.log(`プラン契約: ${uid} → ${planKey} (${edition})${isResellerPlan ? ' [代理店]' : ''}${isAgentPlan ? ' [agent→graduated]' : ''}`);
             }
           }
         }
@@ -1162,6 +1446,22 @@ const server = http.createServer(async (req, res) => {
             monthly_count: 0,
           });
           console.log(`請求期間更新: ${customerId}`);
+        }
+        if (event.type === 'invoice.paid') {
+          const invoice = event.data.object;
+          const customerId = invoice.customer;
+          const lineItems = invoice.lines?.data || [];
+          const newPlanKey = lineItems.map(l => l.metadata?.plan_key).find(k => k) || null;
+          if (newPlanKey && newPlanKey.startsWith('agent_')) {
+            const users = await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}&select=id,graduated_rookie_at`);
+            const user = Array.isArray(users) ? users[0] : null;
+            if (user && !user.graduated_rookie_at) {
+              await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
+                graduated_rookie_at: new Date().toISOString()
+              });
+              console.log(`invoice.paid agent→graduated: ${customerId}`);
+            }
+          }
         }
         if (event.type === 'customer.subscription.deleted') {
           const customerId = event.data.object.customer;
@@ -1556,6 +1856,465 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.3.0: 自動取り込み API =====
+
+  // GET /api/user/graduation-status?uid=xxx
+  if (req.method === 'GET' && reqPath === '/api/user/graduation-status') {
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const data = await supabaseQuery(`/users?id=eq.${uid}&select=cumulative_shiwake_count,graduated_rookie_at,plan_key,is_paid`);
+      const user = data?.[0];
+      const isAgent = user?.plan_key?.startsWith('agent_');
+      const cumulativeCount = user?.cumulative_shiwake_count || 0;
+      const threshold = 50;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        graduated: !!user?.graduated_rookie_at,
+        is_agent: isAgent,
+        is_paid: user?.is_paid || false,
+        cumulative_count: cumulativeCount,
+        threshold,
+        progress_pct: Math.min(100, Math.floor((cumulativeCount / threshold) * 100)),
+        remaining: Math.max(0, threshold - cumulativeCount),
+        graduated_at: user?.graduated_rookie_at
+      }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // GET /api/inbox/address?uid=xxx
+  if (req.method === 'GET' && reqPath === '/api/inbox/address') {
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const data = await supabaseQuery(`/inbox_addresses?uid=eq.${uid}&is_active=eq.true&select=local_part,created_at`);
+      const addr = data?.[0];
+      if (!addr) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ address: null })); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ address: `${addr.local_part}@inbox.shiwake-ai.com`, created_at: addr.created_at }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // POST /api/inbox/address/issue → 専用メールアドレス発行/再発行
+  if (req.method === 'POST' && reqPath === '/api/inbox/address/issue') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const check = await canUseAutoIntake(uid);
+        if (!check.allowed) { res.writeHead(403); res.end(JSON.stringify({ error: check.reason, ...check })); return; }
+
+        const graceUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await supabaseQuery(`/inbox_addresses?uid=eq.${uid}&is_active=eq.true`, 'PATCH', { is_active: false, revoked_at: graceUntil });
+
+        let localPart;
+        for (let i = 0; i < 10; i++) {
+          localPart = generateRandomLocalPart(8);
+          const existing = await supabaseQuery(`/inbox_addresses?local_part=eq.${localPart}&select=id`);
+          if (!existing || existing.length === 0) break;
+        }
+        await supabaseQuery('/inbox_addresses', 'POST', { uid, local_part: localPart, is_active: true });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ address: `${localPart}@inbox.shiwake-ai.com`, grace_until: graceUntil }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/inbox/settings?uid=xxx
+  if (req.method === 'GET' && reqPath === '/api/inbox/settings') {
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const data = await supabaseQuery(`/users?id=eq.${uid}&select=auto_intake_enabled,auto_shiwake_enabled,graduated_rookie_at`);
+      const u = data?.[0];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        auto_intake_enabled: u?.auto_intake_enabled || false,
+        auto_shiwake_enabled: u?.auto_shiwake_enabled || false,
+        graduated: !!u?.graduated_rookie_at
+      }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // PUT /api/inbox/settings → 取り込み設定更新
+  if (req.method === 'PUT' && reqPath === '/api/inbox/settings') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, auto_intake_enabled, auto_shiwake_enabled } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        if (auto_intake_enabled === true) {
+          const check = await canUseAutoIntake(uid);
+          if (!check.allowed) { res.writeHead(403); res.end(JSON.stringify({ error: check.reason, ...check })); return; }
+        }
+        const update = {};
+        if (typeof auto_intake_enabled === 'boolean') update.auto_intake_enabled = auto_intake_enabled;
+        if (typeof auto_shiwake_enabled === 'boolean') update.auto_shiwake_enabled = auto_shiwake_enabled;
+        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', update);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/inbox?uid=xxx&status=pending
+  if (req.method === 'GET' && reqPath === '/api/inbox') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    const status = params.get('status') || 'pending';
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      let q = `/inbox_files?uid=eq.${uid}&select=id,source,sender,filename,mime_type,byte_size,status,error_message,created_at&order=created_at.desc&limit=100`;
+      if (status === 'pending') q += '&status=in.(pending,processing,failed)';
+      else if (status === 'archived') q += '&status=eq.archived';
+      const data = await supabaseQuery(q);
+      const files = data || [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ files, pending_count: files.filter(f => f.status === 'pending').length }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // GET /api/inbox/:id/file?uid=xxx
+  if (req.method === 'GET' && reqPath.startsWith('/api/inbox/') && reqPath.endsWith('/file')) {
+    const id = reqPath.replace('/api/inbox/', '').replace('/file', '');
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const data = await supabaseQuery(`/inbox_files?id=eq.${id}&select=uid,storage_path,mime_type,filename`);
+      const file = data?.[0];
+      if (!file || file.uid !== uid) { res.writeHead(404); res.end(JSON.stringify({ error: 'not_found' })); return; }
+      const signedUrl = await supabaseStorageSignedUrl('inbox-files', file.storage_path, 300);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: signedUrl, mime_type: file.mime_type, filename: file.filename }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // POST /api/inbox/:id/start-shiwake
+  if (req.method === 'POST' && reqPath.match(/^\/api\/inbox\/[^/]+\/start-shiwake$/)) {
+    const id = reqPath.split('/')[3];
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const data = await supabaseQuery(`/inbox_files?id=eq.${id}&select=uid,storage_path,mime_type,filename,status`);
+        const file = data?.[0];
+        if (!file || file.uid !== uid) { res.writeHead(404); res.end(JSON.stringify({ error: 'not_found' })); return; }
+        if (file.status !== 'pending' && file.status !== 'failed') {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'already_processed' })); return;
+        }
+        await supabaseQuery(`/inbox_files?id=eq.${id}`, 'PATCH', { status: 'processing' });
+        const signedUrl = await supabaseStorageSignedUrl('inbox-files', file.storage_path, 600);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, inbox_id: id, file: { url: signedUrl, mime_type: file.mime_type, filename: file.filename } }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/inbox/:id/archive
+  if (req.method === 'POST' && reqPath.match(/^\/api\/inbox\/[^/]+\/archive$/)) {
+    const id = reqPath.split('/')[3];
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        await supabaseQuery(`/inbox_files?id=eq.${id}&uid=eq.${uid}`, 'PATCH', { status: 'archived' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/inbox/:id/done (仕訳完了後にstatus更新)
+  if (req.method === 'POST' && reqPath.match(/^\/api\/inbox\/[^/]+\/done$/)) {
+    const id = reqPath.split('/')[3];
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, shiwake_id } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        await supabaseQuery(`/inbox_files?id=eq.${id}&uid=eq.${uid}`, 'PATCH', {
+          status: 'done',
+          shiwake_id: shiwake_id || null,
+          processed_at: new Date().toISOString()
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/inbound-parse/:token → SendGrid Inbound Parse Webhook
+  if (req.method === 'POST' && reqPath.startsWith('/api/inbound-parse/')) {
+    const token = reqPath.replace('/api/inbound-parse/', '');
+    try {
+      if (token !== (process.env.INBOUND_PARSE_BASIC_AUTH || '')) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'invalid_token' }));
+        return;
+      }
+      const { fields, files } = await parseMultipartFormData(req);
+      const to = fields.to || '';
+      const from = fields.from || '';
+      const text = fields.text || null;
+      const spamScore = parseFloat(fields.spam_score || '0');
+      if (spamScore > 5) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, ignored: 'spam' }));
+        return;
+      }
+      const match = to.match(/^([a-z0-9]{8})@inbox\.shiwake-ai\.com/i);
+      if (!match) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: true, ignored: true })); return; }
+      const localPart = match[1].toLowerCase();
+      const addrData = await supabaseQuery(`/inbox_addresses?local_part=eq.${localPart}&select=uid,is_active,revoked_at`);
+      const addr = addrData?.[0];
+      if (!addr) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: true, ignored: true })); return; }
+      const isWithinGrace = !addr.is_active && addr.revoked_at && new Date(addr.revoked_at) > new Date();
+      if (!addr.is_active && !isWithinGrace) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: true, ignored: true })); return; }
+      const uid = addr.uid;
+      const featureCheck = await canUseAutoIntake(uid);
+      if (!featureCheck.allowed) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: true, ignored: true })); return; }
+
+      const ALLOWED_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      let savedCount = 0;
+      for (const file of files) {
+        if (!ALLOWED_MIME.includes(file.mimetype)) continue;
+        const inboxFileId = crypto.randomUUID();
+        const storagePath = `${uid}/${inboxFileId}/${file.originalname}`;
+        try {
+          await supabaseStorageUpload('inbox-files', storagePath, file.buffer, file.mimetype);
+          const messageId = (fields.headers || '').match(/Message-ID:\s*(<[^>]+>)/i)?.[1] || null;
+          await supabaseQuery('/inbox_files', 'POST', {
+            id: inboxFileId, uid, source: 'email', source_id: messageId,
+            sender: from, filename: file.originalname, mime_type: file.mimetype,
+            byte_size: file.size, storage_path: storagePath, status: 'pending', email_body: text
+          });
+          savedCount++;
+        } catch(e) { console.error('inbox email upload failed:', e.message); }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, saved: savedCount }));
+    } catch(e) {
+      console.error('inbound-parse error:', e.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    }
+    return;
+  }
+
+  // GET /api/dropbox/auth-url?uid=xxx
+  if (req.method === 'GET' && reqPath === '/api/dropbox/auth-url') {
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const check = await canUseAutoIntake(uid);
+      if (!check.allowed) { res.writeHead(403); res.end(JSON.stringify({ error: check.reason })); return; }
+      if (!process.env.DROPBOX_APP_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'Dropbox not configured' })); return; }
+      const state = crypto.randomBytes(16).toString('hex');
+      saveOAuthState(state, uid, 'dropbox', 600);
+      const params = new URLSearchParams({
+        client_id: process.env.DROPBOX_APP_KEY,
+        response_type: 'code',
+        redirect_uri: 'https://shiwake-ai.com/api/dropbox/callback',
+        state,
+        token_access_type: 'offline'
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: `https://www.dropbox.com/oauth2/authorize?${params}` }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // GET /api/dropbox/callback
+  if (req.method === 'GET' && reqPath === '/api/dropbox/callback') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const code = params.get('code');
+    const state = params.get('state');
+    try {
+      const stateData = consumeOAuthState(state);
+      if (!stateData || stateData.provider !== 'dropbox') { res.writeHead(400); res.end('invalid state'); return; }
+      const uid = stateData.uid;
+      const tokenRes = await fetch('https://api.dropboxapi.com/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ code, grant_type: 'authorization_code', client_id: process.env.DROPBOX_APP_KEY, client_secret: process.env.DROPBOX_APP_SECRET, redirect_uri: 'https://shiwake-ai.com/api/dropbox/callback' })
+      });
+      const tokens = await tokenRes.json();
+      if (!tokens.access_token) { res.writeHead(500); res.end('token exchange failed'); return; }
+      await supabaseQuery('/cloud_connections', 'POST', {
+        uid, provider: 'dropbox', access_token: tokens.access_token, refresh_token: tokens.refresh_token,
+        expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
+        is_active: true, updated_at: new Date().toISOString()
+      }, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
+      res.writeHead(302, { Location: '/?dropbox=connected' });
+      res.end();
+    } catch(e) { res.writeHead(500); res.end('error: ' + e.message); }
+    return;
+  }
+
+  // GET /api/dropbox/webhook → Dropbox verification challenge
+  if (req.method === 'GET' && reqPath === '/api/dropbox/webhook') {
+    const challenge = new URL(req.url, 'http://localhost').searchParams.get('challenge') || '';
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'X-Content-Type-Options': 'nosniff' });
+    res.end(challenge);
+    return;
+  }
+
+  // POST /api/dropbox/webhook → Dropbox notification
+  if (req.method === 'POST' && reqPath === '/api/dropbox/webhook') {
+    res.writeHead(200); res.end('OK');
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { list_folder } = JSON.parse(body || '{}');
+        const accountIds = list_folder?.accounts || [];
+        for (const accountId of accountIds) {
+          const conns = await supabaseQuery(`/cloud_connections?provider=eq.dropbox&is_active=eq.true&dropbox_account_id=eq.${accountId}&select=*`);
+          for (const conn of conns || []) { syncDropboxFolder(conn).catch(e => console.error('dropbox webhook error:', e.message)); }
+        }
+      } catch(e) { console.error('dropbox webhook parse error:', e.message); }
+    });
+    return;
+  }
+
+  // POST /api/dropbox/folder → 監視フォルダ設定
+  if (req.method === 'POST' && reqPath === '/api/dropbox/folder') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, path: folderPath } = JSON.parse(body);
+        if (!uid || !folderPath || !folderPath.startsWith('/')) { res.writeHead(400); res.end(JSON.stringify({ error: 'invalid_path' })); return; }
+        await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true`, 'PATCH', { watched_path: folderPath, watched_path_label: folderPath, cursor: null, updated_at: new Date().toISOString() });
+        const connData = await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true&select=*`);
+        if (connData?.[0]) syncDropboxFolder(connData[0]).catch(e => console.error('initial dropbox sync failed:', e.message));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // DELETE /api/dropbox/connection
+  if (req.method === 'DELETE' && reqPath === '/api/dropbox/connection') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const connData = await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true&select=access_token`);
+        const conn = connData?.[0];
+        if (conn?.access_token) {
+          await fetch('https://api.dropboxapi.com/2/auth/token/revoke', { method: 'POST', headers: { Authorization: `Bearer ${conn.access_token}` } }).catch(() => {});
+        }
+        await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true`, 'PATCH', { is_active: false });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/gdrive/info → サービスアカウントメール取得
+  if (req.method === 'GET' && reqPath === '/api/gdrive/info') {
+    let serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
+    if (!serviceAccountEmail) {
+      try {
+        const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
+        serviceAccountEmail = sa.client_email || '';
+      } catch(e) {}
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ serviceAccountEmail }));
+    return;
+  }
+
+  // POST /api/gdrive/connect
+  if (req.method === 'POST' && reqPath === '/api/gdrive/connect') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, folder_id } = JSON.parse(body);
+        if (!uid || !folder_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and folder_id required' })); return; }
+        const check = await canUseAutoIntake(uid);
+        if (!check.allowed) { res.writeHead(403); res.end(JSON.stringify({ error: check.reason })); return; }
+        let drive;
+        try { drive = getDriveClient(); } catch(e) { res.writeHead(503); res.end(JSON.stringify({ error: e.message })); return; }
+        const meta = await drive.files.get({ fileId: folder_id, fields: 'id, name, mimeType' });
+        if (meta.data.mimeType !== 'application/vnd.google-apps.folder') { res.writeHead(400); res.end(JSON.stringify({ error: 'not_a_folder' })); return; }
+        await supabaseQuery('/cloud_connections', 'POST', {
+          uid, provider: 'gdrive', access_token: 'service_account',
+          watched_path: folder_id, watched_path_label: meta.data.name,
+          is_active: true, updated_at: new Date().toISOString()
+        }, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
+        setupGDriveWatch(uid, folder_id).catch(e => console.error('gdrive watch setup failed:', e.message));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, folder_name: meta.data.name }));
+      } catch(e) {
+        console.error('gdrive connect failed:', e.message);
+        res.writeHead(403); res.end(JSON.stringify({ error: 'access_denied', message: 'shiwake-ai のサービスアカウントにフォルダが共有されていない可能性があります。' }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/gdrive/webhook → GDrive Push通知
+  if (req.method === 'POST' && reqPath === '/api/gdrive/webhook') {
+    const token = req.headers['x-goog-channel-token'];
+    if (token !== (process.env.GOOGLE_DRIVE_PUSH_TOKEN || '')) { res.writeHead(403); res.end(); return; }
+    const channelId = req.headers['x-goog-channel-id'];
+    const resourceState = req.headers['x-goog-resource-state'];
+    res.writeHead(200); res.end();
+    if (resourceState === 'sync') return;
+    supabaseQuery(`/cloud_connections?channel_id=eq.${channelId}&is_active=eq.true&select=*`)
+      .then(data => { if (data?.[0]) syncGDriveFolder(data[0]).catch(e => console.error('gdrive sync error:', e.message)); })
+      .catch(e => console.error('gdrive webhook error:', e.message));
+    return;
+  }
+
+  // DELETE /api/gdrive/connection
+  if (req.method === 'DELETE' && reqPath === '/api/gdrive/connection') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const connData = await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.gdrive&is_active=eq.true&select=*`);
+        const conn = connData?.[0];
+        if (conn?.channel_id) {
+          try {
+            const drive = getDriveClient();
+            await drive.channels.stop({ requestBody: { id: conn.channel_id, resourceId: conn.watched_path } }).catch(() => {});
+          } catch(e) { /* getDriveClient失敗時も無視 */ }
+        }
+        await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.gdrive&is_active=eq.true`, 'PATCH', { is_active: false });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
   res.writeHead(404); res.end();
 });
 
@@ -1564,4 +2323,22 @@ server.listen(PORT, () => {
   console.log(`🔑 APIキー: ${process.env.ANTHROPIC_API_KEY ? '設定済み' : '未設定'}`);
   // ハッシュキャッシュのクリーンアップ（古いエントリ・上限超過を削除）
   cleanupAllHashes();
+
+  // v2.3.0: GDrive Watch期限延長バッチ（1日1回）
+  async function refreshExpiringGDriveWatches() {
+    try {
+      const oneDayLater = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const conns = await supabaseQuery(`/cloud_connections?provider=eq.gdrive&is_active=eq.true&channel_expires_at=lt.${oneDayLater}&select=*`);
+      for (const conn of conns || []) {
+        try {
+          const drive = getDriveClient();
+          if (conn.channel_id) {
+            await drive.channels.stop({ requestBody: { id: conn.channel_id, resourceId: conn.watched_path } }).catch(() => {});
+          }
+          await setupGDriveWatch(conn.uid, conn.watched_path);
+        } catch(e) { console.error('refresh gdrive watch failed:', conn.uid, e.message); }
+      }
+    } catch(e) { console.error('refreshExpiringGDriveWatches error:', e.message); }
+  }
+  setInterval(refreshExpiringGDriveWatches, 24 * 60 * 60 * 1000);
 });
