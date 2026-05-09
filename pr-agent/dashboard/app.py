@@ -1,25 +1,32 @@
 """
-T2-3: 承認ダッシュボード
+承認ダッシュボード
 
 Routes:
-  GET  /dashboard/          — ドラフト一覧 (status フィルタ付き)
+  GET  /dashboard/          — ダッシュボード (view=posts/sales/reports/patterns)
   GET  /dashboard/posts/{id} — 投稿詳細 + 承認 / 却下 / X コピー UI
   POST /dashboard/posts/{id}/approve — 承認 → Publisher 呼び出し
   POST /dashboard/posts/{id}/reject  — 却下
+  GET  /dashboard/api/sales/leads    — リード一覧 (JSON)
+  POST /dashboard/api/sales/leads    — リード追加 (JSON)
+  PATCH /dashboard/api/sales/leads/{id} — リードステータス更新 (JSON)
+  GET  /dashboard/api/sales/stats    — 営業 KPI 集計 (JSON)
+  GET  /dashboard/api/reports/monthly/{yyyy_mm} — 月次レポート取得
+  POST /dashboard/api/reports/monthly — 月次レポート生成依頼
+  POST /dashboard/api/cowork/trigger — Cowork 実行依頼
 
 Basic Auth: DASHBOARD_BASIC_AUTH_USER / DASHBOARD_BASIC_AUTH_PASS
 """
 
-import asyncio
+import json
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from supabase import create_client, Client
@@ -29,7 +36,6 @@ import yaml
 from brain.analytics import SuccessRateCalculator
 from brain.pipeline import Pipeline
 from brain.planner import PlannerInput
-from brain.publisher import PublisherInput
 
 load_dotenv()
 
@@ -99,51 +105,108 @@ def _enrich(post: dict) -> dict:
 async def index(
     request: Request,
     status_filter: str = "draft",
+    view: str = "posts",
+    month: str = "",
     _user: str = Depends(_auth),
 ) -> HTMLResponse:
     db = _db()
+    ctx: dict = {"view": view, "status_filter": status_filter, "status_labels": _STATUS_LABEL}
 
-    query = db.table("posts").select(
-        "id, platform, persona, character_id, weapon, trigger_axis, status, "
-        "content, scheduled_at, published_at, external_url, created_at"
-    ).order("created_at", desc=True)
+    # ============ 投稿ビュー ============
+    if view in ("posts", ""):
+        query = db.table("posts").select(
+            "id, platform, persona, character_id, weapon, trigger_axis, status, "
+            "content, scheduled_at, published_at, external_url, created_at"
+        ).order("created_at", desc=True)
 
-    if status_filter != "all":
-        query = query.eq("status", status_filter)
+        if status_filter != "all":
+            query = query.eq("status", status_filter)
 
-    rows = query.limit(50).execute()
-    posts = [_enrich(p) for p in (rows.data or [])]
+        rows = query.limit(50).execute()
+        ctx["posts"] = [_enrich(p) for p in (rows.data or [])]
 
-    # 各ステータスのカウント
-    counts_raw = db.table("posts").select("status").execute()
-    counts: dict[str, int] = {}
-    for r in counts_raw.data or []:
-        s = r["status"]
-        counts[s] = counts.get(s, 0) + 1
-    counts["all"] = sum(counts.values())
+        counts_raw = db.table("posts").select("status").execute()
+        counts: dict[str, int] = {}
+        for r in counts_raw.data or []:
+            s = r["status"]
+            counts[s] = counts.get(s, 0) + 1
+        counts["all"] = sum(counts.values())
+        ctx["counts"] = counts
 
-    # 自動化設定 + 成功率を取得
-    auto_settings: dict[str, dict] = {}
-    try:
-        auto_rows = db.table("automation_settings").select("*").execute()
-        calc = SuccessRateCalculator()
-        for row in (auto_rows.data or []):
-            pf = row["platform"]
-            auto_settings[pf] = {**row, "rate_info": calc.calc(pf)}
-    except Exception:
-        pass
+        auto_settings: dict[str, dict] = {}
+        try:
+            auto_rows = db.table("automation_settings").select("*").execute()
+            calc = SuccessRateCalculator()
+            for row in (auto_rows.data or []):
+                pf = row["platform"]
+                auto_settings[pf] = {**row, "rate_info": calc.calc(pf)}
+        except Exception:
+            pass
+        ctx["auto_settings"] = auto_settings
 
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={
-            "posts":         posts,
-            "status_filter": status_filter,
-            "counts":        counts,
-            "status_labels": _STATUS_LABEL,
-            "auto_settings": auto_settings,
-        },
+    # ============ 営業ビュー ============
+    elif view == "sales":
+        leads = db.table("leads").select("*").order("priority_score", desc=True).limit(100).execute().data or []
+        ctx["leads"] = leads
+        # 直近アウトリーチ
+        recent_outreach = db.table("outreach_history").select(
+            "id, lead_id, sent_at, channel, subject, response_received, led_to_meeting, led_to_signup"
+        ).order("sent_at", desc=True).limit(20).execute().data or []
+        ctx["recent_outreach"] = recent_outreach
+        # KPI
+        ctx["sales_stats"] = _calc_sales_stats(db)
+
+    # ============ レポートビュー ============
+    elif view == "reports":
+        now_jst = datetime.now(_JST)
+        target_month = month or now_jst.strftime("%Y-%m")
+        ctx["target_month"] = target_month
+
+        report_path = _REPORTS_DIR / f"{target_month}_monthly_report.md"
+        ctx["report_content"] = report_path.read_text(encoding="utf-8") if report_path.exists() else None
+
+        # 既存レポートファイル一覧
+        existing = sorted(_REPORTS_DIR.glob("*_monthly_report.md"), reverse=True)
+        ctx["existing_reports"] = [p.stem.replace("_monthly_report", "") for p in existing]
+
+    # ============ 勝ちパターンビュー ============
+    elif view == "patterns":
+        top = db.table("success_patterns").select("*").order("win_rate", desc=True).limit(20).execute().data or []
+        ctx["top_patterns"]  = top[:10]
+        ctx["lose_patterns"] = [p for p in top if p.get("win_rate", 1) < 0.5][:5]
+
+    return templates.TemplateResponse(request=request, name="index.html", context=ctx)
+
+
+def _calc_sales_stats(db: Client) -> dict:
+    """営業 KPI 集計（全期間）"""
+    leads_all   = db.table("leads").select("status, priority_score, found_at").execute().data or []
+    outreach_all = db.table("outreach_history").select(
+        "response_received, led_to_meeting, led_to_signup, sent_at"
+    ).execute().data or []
+
+    now_jst   = datetime.now(_JST)
+    month_str = now_jst.strftime("%Y-%m")
+
+    new_leads_month = sum(
+        1 for r in leads_all
+        if (r.get("found_at") or "").startswith(month_str)
     )
+    sent  = len(outreach_all)
+    replied  = sum(1 for r in outreach_all if r.get("response_received"))
+    meetings = sum(1 for r in outreach_all if r.get("led_to_meeting"))
+    signups  = sum(1 for r in outreach_all if r.get("led_to_signup"))
+    reply_rate = f"{replied / sent * 100:.1f}%" if sent else "N/A"
+
+    return {
+        "total_leads":      len(leads_all),
+        "new_leads_month":  new_leads_month,
+        "sent":             sent,
+        "replied":          replied,
+        "reply_rate":       reply_rate,
+        "meetings":         meetings,
+        "signups":          signups,
+    }
 
 
 @router.get("/posts/{post_id}", response_class=HTMLResponse)
@@ -205,8 +268,10 @@ async def reject_post(
 # P3-4: note 記事生成
 # ============================================================
 
-_NOTE_DRAFTS_DIR = Path(__file__).parent / "output" / "note_drafts"
-_JST = ZoneInfo("Asia/Tokyo")
+_NOTE_DRAFTS_DIR      = Path(__file__).parent / "output" / "note_drafts"
+_COWORK_REQUESTS_DIR  = Path(__file__).parent / "output" / "cowork_requests"
+_REPORTS_DIR          = Path(__file__).parent / "output" / "reports"
+_JST                  = ZoneInfo("Asia/Tokyo")
 
 
 @router.post("/api/note/generate")
@@ -270,6 +335,142 @@ async def generate_note(
 
 
 # ============================================================
+# P4-3: 営業 API
+# ============================================================
+
+@router.get("/api/sales/leads")
+async def api_sales_leads(
+    status: str = "",
+    priority_min: int = 0,
+    _user: str = Depends(_auth),
+) -> JSONResponse:
+    db = _db()
+    q = db.table("leads").select("*").order("priority_score", desc=True)
+    if status:
+        q = q.eq("status", status)
+    if priority_min:
+        q = q.gte("priority_score", priority_min)
+    rows = q.limit(100).execute().data or []
+    return JSONResponse({"leads": rows})
+
+
+@router.post("/api/sales/leads")
+async def api_sales_leads_create(
+    payload: dict = Body(...),
+    _user: str = Depends(_auth),
+) -> JSONResponse:
+    db = _db()
+    result = db.table("leads").insert(payload).execute()
+    return JSONResponse({"created": result.data}, status_code=201)
+
+
+@router.patch("/api/sales/leads/{lead_id}")
+async def api_sales_leads_update(
+    lead_id: str,
+    payload: dict = Body(...),
+    _user: str = Depends(_auth),
+) -> JSONResponse:
+    db = _db()
+    db.table("leads").update(payload).eq("id", lead_id).execute()
+    return JSONResponse({"updated": lead_id})
+
+
+@router.get("/api/sales/stats")
+async def api_sales_stats(_user: str = Depends(_auth)) -> JSONResponse:
+    db = _db()
+    return JSONResponse(_calc_sales_stats(db))
+
+
+# ============================================================
+# P4-3: 月次レポート API
+# ============================================================
+
+@router.get("/api/reports/monthly/{yyyy_mm}")
+async def api_reports_monthly_get(
+    yyyy_mm: str,
+    _user: str = Depends(_auth),
+) -> PlainTextResponse:
+    path = _REPORTS_DIR / f"{yyyy_mm}_monthly_report.md"
+    if not path.exists():
+        raise HTTPException(404, f"{yyyy_mm} のレポートが見つかりません")
+    return PlainTextResponse(path.read_text(encoding="utf-8"))
+
+
+@router.post("/api/reports/monthly")
+async def api_reports_monthly_trigger(
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    now_jst = datetime.now(_JST)
+    try:
+        form  = await request.form()
+        month = form.get("month") or now_jst.strftime("%Y-%m")
+        fmt   = form.get("format", "md")
+    except Exception:
+        month = now_jst.strftime("%Y-%m")
+        fmt   = "md"
+    _trigger_cowork("monthly_report", {"month": month, "format": fmt}, "dashboard")
+    return RedirectResponse(url=f"/dashboard/?view=reports&month={month}", status_code=303)
+
+
+# ============================================================
+# P4-3: Cowork トリガー API
+# ============================================================
+
+@router.post("/api/cowork/trigger")
+async def api_cowork_trigger(
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    form = await request.form()
+    instruction = form.get("instruction") or ""
+    if not instruction:
+        # JSON body フォールバック
+        try:
+            body = await request.json()
+            instruction = body.get("instruction", "")
+            params = body.get("params", {})
+        except Exception:
+            raise HTTPException(400, "instruction が必要です")
+    else:
+        # フォームの params[key]=value をまとめる
+        params: dict = {}
+        for k, v in form.items():
+            if k.startswith("params[") and k.endswith("]"):
+                field = k[7:-1]
+                params[field] = v
+
+    if not instruction:
+        raise HTTPException(400, "instruction が必要です")
+    _trigger_cowork(instruction, params, "dashboard")
+
+    view_map = {
+        "lead_finder":     "sales",
+        "outreach_writer": "sales",
+        "monthly_report":  "reports",
+    }
+    redirect_view = view_map.get(instruction, "posts")
+    return RedirectResponse(url=f"/dashboard/?view={redirect_view}", status_code=303)
+
+
+def _trigger_cowork(instruction: str, params: dict, requested_by: str = "dashboard") -> Path:
+    """cowork_requests/ に実行依頼 JSON を書き出す"""
+    _COWORK_REQUESTS_DIR.mkdir(parents=True, exist_ok=True)
+    now_jst  = datetime.now(_JST)
+    filename = f"{now_jst.strftime('%Y-%m-%d_%H%M%S')}_{instruction}.json"
+    payload  = {
+        "instruction":  instruction,
+        "params":       params,
+        "requested_at": now_jst.isoformat(),
+        "requested_by": requested_by,
+        "status":       "pending",
+    }
+    path = _COWORK_REQUESTS_DIR / filename
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+# ============================================================
 # P3-3: 自動化解禁 API
 # ============================================================
 
@@ -285,7 +486,6 @@ async def toggle_automation(
         raise HTTPException(404, f"platform={platform} の設定が見つかりません")
 
     current = rows.data[0]["auto_publish"]
-    from datetime import timezone
     db.table("automation_settings").update({
         "auto_publish": not current,
         "updated_at":   datetime.now(timezone.utc).isoformat(),
