@@ -191,39 +191,63 @@ create index        if not exists idx_trends_fetched  on trends(fetched_at desc)
 create index        if not exists idx_trends_score    on trends(score desc);
 
 -- ============================================================
--- 7. leads: 営業リード（Phase 4）
+-- 7. leads: 営業リード（P4-2 刷新）
 -- ============================================================
+-- ※ Supabase 適用時: DROP TABLE IF EXISTS outreach_history; DROP TABLE IF EXISTS leads; を先に実行
 create table if not exists leads (
-  id              uuid primary key default gen_random_uuid(),
-  lead_type       text not null,
-  -- 'tax_office'|'midsize_company'|'individual'
-  name            text,
-  contact_email   text,
-  website         text,
-  notes           text,
-  source          text,
-  status          text default 'new',
-  -- 'new'|'contacted'|'replied'|'closed'
-  score           numeric,
-  created_at      timestamptz default now()
+  id                   uuid primary key default gen_random_uuid(),
+  company_name         text not null,
+  contact_person       text,
+  email                text,
+  phone                text,
+  website              text,
+  address              text,
+  size_estimate        text,
+  -- 'small'|'medium'|'large'
+  specialty            text[],
+  -- ['法人税務','相続'] など
+  digital_savvy_score  integer,
+  -- 1-5
+  priority_score       integer,
+  -- 1-5
+  target_persona       text default 'P4',
+  found_at             timestamptz default now(),
+  found_by             text default 'cowork',
+  -- 'cowork'|'manual'|'referral'
+  notes                text,
+  status               text default 'new'
+  -- 'new'|'contacted'|'replied'|'converted'|'rejected'|'archived'
 );
 
+create index if not exists idx_leads_priority on leads(priority_score desc);
+create index if not exists idx_leads_status   on leads(status);
+
 -- ============================================================
--- 8. outreach_history: 営業履歴（Phase 4）
+-- 8. outreach_history: 営業履歴（P4-2 刷新）
 -- ============================================================
 create table if not exists outreach_history (
-  id            uuid primary key default gen_random_uuid(),
-  lead_id       uuid references leads(id),
-  channel       text,
-  -- 'email'|'form'|'dm'
-  subject       text,
-  body          text,
-  sent_at       timestamptz,
-  reply_at      timestamptz,
-  reply_text    text,
-  status        text
-  -- 'sent'|'replied'|'bounced'
+  id                     uuid primary key default gen_random_uuid(),
+  lead_id                uuid not null references leads(id) on delete cascade,
+  sent_at                timestamptz default now(),
+  channel                text not null,
+  -- 'email'|'phone'|'in_person'|'webform'
+  subject                text,
+  body                   text,
+  template_used          text,
+  sent_by                text default 'cowork',
+  -- 'cowork'|'dsk'|'auto'
+  response_received      boolean default false,
+  response_received_at   timestamptz,
+  response_summary       text,
+  response_sentiment     text,
+  -- 'positive'|'neutral'|'negative'
+  led_to_meeting         boolean default false,
+  led_to_signup          boolean default false,
+  notes                  text
 );
+
+create index if not exists idx_outreach_lead on outreach_history(lead_id);
+create index if not exists idx_outreach_sent on outreach_history(sent_at desc);
 
 -- ============================================================
 -- 9. incentive_events: shiwake-ai本体からのインセンティブ通知
