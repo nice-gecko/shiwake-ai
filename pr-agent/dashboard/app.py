@@ -25,7 +25,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
@@ -261,6 +261,60 @@ async def reject_post(
 ) -> RedirectResponse:
     db = _db()
     db.table("posts").update({"status": "rejected"}).eq("id", post_id).execute()
+    return RedirectResponse(url="/dashboard/", status_code=303)
+
+
+# ============================================================
+# 投稿 修正・再生成 API
+# ============================================================
+
+@router.post("/posts/{post_id}/update-content")
+async def update_post_content(
+    post_id: str,
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """投稿の本文・キャラ・言い回しを更新する"""
+    db   = _db()
+    form = await request.form()
+
+    update_data: dict = {}
+    if content := form.get("content"):
+        update_data["content"] = str(content)
+    if character_id := form.get("character_id"):
+        update_data["character_id"] = str(character_id)
+    if trigger_axis := form.get("trigger_axis"):
+        update_data["trigger_axis"] = str(trigger_axis)
+    if weapon := form.get("weapon"):
+        update_data["weapon"] = str(weapon)
+
+    if update_data:
+        db.table("posts").update(update_data).eq("id", post_id).execute()
+
+    redirect = str(form.get("redirect", "/dashboard/"))
+    return RedirectResponse(url=redirect, status_code=303)
+
+
+@router.post("/posts/{post_id}/regenerate")
+async def regenerate_post(
+    post_id: str,
+    background_tasks: BackgroundTasks,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """同じプラットフォームで再生成。既存ドラフトは rejected に。即座にリダイレクト。"""
+    db   = _db()
+    rows = db.table("posts").select("platform").eq("id", post_id).execute()
+    if not rows.data:
+        raise HTTPException(404, "投稿が見つかりません")
+
+    platform = rows.data[0]["platform"]
+    db.table("posts").update({"status": "rejected"}).eq("id", post_id).execute()
+
+    async def _do_generate() -> None:
+        pipeline = Pipeline()
+        await pipeline.generate(PlannerInput(platform_override=platform))
+
+    background_tasks.add_task(_do_generate)
     return RedirectResponse(url="/dashboard/", status_code=303)
 
 

@@ -22,6 +22,14 @@
     @media (min-width: 768px) {
       .app-sidebar { display: flex; }
     }
+    /* サイドバー リサイズハンドル */
+    #sidebar-resize-handle {
+      position: absolute; top: 0; right: 0; bottom: 0;
+      width: 4px; cursor: col-resize; z-index: 50;
+      background: transparent; transition: background 0.15s;
+    }
+    #sidebar-resize-handle:hover,
+    #sidebar-resize-handle.dragging { background: #6366f1; }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -62,12 +70,16 @@
 <div class="flex pt-14 min-h-screen">
 
   {# ===== サイドバー ===== #}
-  <aside class="app-sidebar flex-col fixed top-14 bottom-0 left-0 z-30 w-60 bg-white border-r border-gray-200"
+  <aside id="app-sidebar"
+         class="app-sidebar flex-col fixed top-14 bottom-0 left-0 z-30 w-60 bg-white border-r border-gray-200 relative overflow-hidden"
          :class="sidebarOpen ? 'is-open' : ''">
+
+    {# リサイズハンドル(デスクトップのみ有効) #}
+    <div id="sidebar-resize-handle" class="hidden md:block"></div>
 
     <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
 
-      {# 投稿管理: view=posts のとき or post_detail(view未定義)のとき active #}
+      {# 投稿管理 #}
       <a href="/dashboard/?view=posts"
          class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
                 {% if view | default('posts') == 'posts' %}bg-indigo-50 text-indigo-700{% else %}text-gray-600 hover:bg-gray-50 hover:text-gray-900{% endif %}"
@@ -108,13 +120,19 @@
 
     </nav>
 
-    <div class="px-6 py-4 border-t border-gray-100">
-      <p class="text-xs text-gray-400">Phase 5 開発中</p>
+    {# フッター: バージョン + 折りたたみボタン #}
+    <div class="px-3 py-3 border-t border-gray-100 flex items-center justify-between">
+      <p class="text-xs text-gray-400 px-3">Phase 5</p>
+      <button id="sidebar-collapse-btn"
+              class="hidden md:flex p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              title="サイドバーを折りたたむ">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+      </button>
     </div>
   </aside>
 
   {# ===== メインコンテンツ ===== #}
-  <main class="flex-1 md:ml-60 min-w-0 overflow-x-hidden">
+  <main id="main-content" class="flex-1 md:ml-60 min-w-0 overflow-x-hidden">
     {% block content %}{% endblock %}
   </main>
 
@@ -123,6 +141,98 @@
 <script>
   lucide.createIcons();
 </script>
+
+{# ===== サイドバー リサイズ / 折りたたみ JS ===== #}
+<script>
+(function () {
+  const sidebar   = document.getElementById('app-sidebar');
+  const main      = document.getElementById('main-content');
+  const handle    = document.getElementById('sidebar-resize-handle');
+  const collapseBtn = document.getElementById('sidebar-collapse-btn');
+  if (!sidebar || !main || !handle) return;
+
+  const LS_WIDTH     = 'pr_sidebar_w';
+  const LS_COLLAPSED = 'pr_sidebar_collapsed';
+  const isMobile     = () => window.innerWidth < 768;
+
+  /* --- ストレージから復元 --- */
+  let collapsed  = localStorage.getItem(LS_COLLAPSED) === 'true';
+  const savedW   = parseInt(localStorage.getItem(LS_WIDTH) || '240', 10);
+
+  function applyWidth(w) {
+    sidebar.style.width      = w + 'px';
+    main.style.marginLeft    = w + 'px';
+    localStorage.setItem(LS_WIDTH, String(w));
+  }
+
+  function setCollapsed(state) {
+    collapsed = state;
+    localStorage.setItem(LS_COLLAPSED, String(state));
+    if (state) {
+      sidebar.style.width   = '0px';
+      sidebar.style.borderRight = 'none';
+      main.style.marginLeft = '0px';
+      collapseBtn.innerHTML = '<i data-lucide="panel-left-open" class="w-4 h-4"></i>';
+    } else {
+      sidebar.style.borderRight = '';
+      applyWidth(savedW || 240);
+      collapseBtn.innerHTML = '<i data-lucide="panel-left-close" class="w-4 h-4"></i>';
+    }
+    lucide.createIcons();
+  }
+
+  /* 初期適用 */
+  if (!isMobile()) {
+    if (collapsed) {
+      setCollapsed(true);
+    } else {
+      applyWidth(savedW);
+    }
+  }
+
+  /* --- 折りたたみボタン --- */
+  collapseBtn.addEventListener('click', () => {
+    if (!isMobile()) setCollapsed(!collapsed);
+  });
+
+  /* --- ドラッグリサイズ --- */
+  let isResizing = false;
+
+  handle.addEventListener('mousedown', (e) => {
+    if (isMobile() || collapsed) return;
+    isResizing = true;
+    handle.classList.add('dragging');
+    document.body.style.cursor    = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing || isMobile()) return;
+    const newW = Math.max(160, Math.min(400, e.clientX));
+    applyWidth(newW);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isResizing) {
+      isResizing = false;
+      handle.classList.remove('dragging');
+      document.body.style.cursor    = '';
+      document.body.style.userSelect = '';
+    }
+  });
+
+  /* ウィンドウリサイズ時はモバイル→デスクトップ移行を考慮 */
+  window.addEventListener('resize', () => {
+    if (!isMobile() && !collapsed) {
+      main.style.marginLeft = (parseInt(sidebar.style.width) || 240) + 'px';
+    } else if (isMobile()) {
+      main.style.marginLeft = '';
+    }
+  });
+})();
+</script>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>
