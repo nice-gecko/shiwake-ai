@@ -1,4 +1,21 @@
+# 環境変数
 .env
+
+# Node.js
 node_modules/
-shiwake-ai_引き継ぎ_v1.3.1.md
-shiwake-ai_引き継ぎ_v1.3.1.md
+
+# Mac システムファイル
+.DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# その他
+*.log
