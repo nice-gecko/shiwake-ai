@@ -13,7 +13,9 @@ Basic Auth: DASHBOARD_BASIC_AUTH_USER / DASHBOARD_BASIC_AUTH_PASS
 import asyncio
 import os
 import secrets
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -22,8 +24,11 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from supabase import create_client, Client
 
+import yaml
+
 from brain.analytics import SuccessRateCalculator
 from brain.pipeline import Pipeline
+from brain.planner import PlannerInput
 from brain.publisher import PublisherInput
 
 load_dotenv()
@@ -193,6 +198,74 @@ async def reject_post(
 ) -> RedirectResponse:
     db = _db()
     db.table("posts").update({"status": "rejected"}).eq("id", post_id).execute()
+    return RedirectResponse(url="/dashboard/", status_code=303)
+
+
+# ============================================================
+# P3-4: note 記事生成
+# ============================================================
+
+_NOTE_DRAFTS_DIR = Path(__file__).parent / "output" / "note_drafts"
+_JST = ZoneInfo("Asia/Tokyo")
+
+
+@router.post("/api/note/generate")
+async def generate_note(
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """
+    note 向けドラフトを生成し、note_drafts/ に MD + meta.yaml を書き出す。
+    Discord に「Cowork に依頼してください」と通知する。
+    """
+    pipeline = Pipeline()
+    gen = await pipeline.generate(PlannerInput(platform_override="note"))
+
+    if not gen.drafts or not gen.post_ids:
+        raise HTTPException(500, "note ドラフト生成に失敗しました")
+
+    draft   = gen.drafts[0]
+    post_id = gen.post_ids[0]
+    now_jst = datetime.now(_JST)
+    date_str = now_jst.strftime("%Y-%m-%d")
+    safe_title = draft.body[:20].replace("/", "／").replace("\n", " ").strip()
+    stem = f"{date_str}_{safe_title}"
+
+    _NOTE_DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Markdown 書き出し
+    md_path = _NOTE_DRAFTS_DIR / f"{stem}.md"
+    md_path.write_text(draft.body, encoding="utf-8")
+
+    # meta.yaml 書き出し
+    meta = {
+        "post_id":       post_id,
+        "title":         draft.body.splitlines()[0].lstrip("# ").strip(),
+        "tags":          ["経理", "shiwake-ai"],
+        "character":     draft.character_id,
+        "weapon":        draft.weapon_id,
+        "trigger":       draft.trigger_id,
+        "target_persona": draft.persona_id,
+        "draft_path":    f"./{stem}.md",
+        "priority":      "standard",
+        "generated_at":  now_jst.isoformat(),
+    }
+    meta_path = _NOTE_DRAFTS_DIR / f"{stem}.meta.yaml"
+    meta_path.write_text(yaml.dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    # Discord 通知
+    from notify.discord import _post as discord_post
+    discord_post({
+        "embeds": [{
+            "title":       "📝 note 下書き完成",
+            "description": f"**{meta['title']}**\n\nCowork に依頼してください。",
+            "color":       0x5865F2,
+            "fields": [
+                {"name": "ファイル", "value": f"`{stem}.md`", "inline": True},
+                {"name": "post_id", "value": post_id,          "inline": True},
+            ],
+        }]
+    })
+
     return RedirectResponse(url="/dashboard/", status_code=303)
 
 

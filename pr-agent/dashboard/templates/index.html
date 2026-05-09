@@ -87,6 +87,16 @@
   </div>
   {% endif %}
 
+  <!-- note 記事生成ボタン -->
+  <div class="max-w-3xl mx-auto px-4 pb-1">
+    <form action="/dashboard/api/note/generate" method="POST">
+      <button type="submit"
+        class="w-full py-2 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+        📝 note 記事を生成して Cowork に依頼
+      </button>
+    </form>
+  </div>
+
   <!-- 投稿リスト -->
   <main class="max-w-3xl mx-auto px-4 py-4 space-y-3">
     {% if not posts %}
