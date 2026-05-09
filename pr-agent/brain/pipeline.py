@@ -111,6 +111,22 @@ class Pipeline:
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         self._db: Client | None = create_client(url, key) if url and key else None
 
+    def _check_auto_publish(self, platform: str) -> bool:
+        """automation_settings から auto_publish フラグを返す。DB 未接続や例外時は False"""
+        if not self._db:
+            return False
+        try:
+            result = (
+                self._db.table("automation_settings")
+                .select("auto_publish")
+                .eq("platform", platform)
+                .single()
+                .execute()
+            )
+            return bool(result.data and result.data.get("auto_publish", False))
+        except Exception:
+            return False
+
     # ------------------------------------------------------------------
     async def generate(self, planner_inp: PlannerInput) -> GenerateOutput:
         """Planner → Writer → Supabase draft 保存"""
@@ -160,8 +176,16 @@ class Pipeline:
             usage_output_tokens=writer_out.usage_output_tokens,
         )
 
-        # 4. Discord に3案通知
-        notify_drafts(gen.drafts, gen.post_ids, plan.scheduled_at)
+        # 5. 自動化解禁チェック → ON なら案A を即投稿、OFF なら Discord 通知
+        platform = plan.writer_input.platform
+        if post_ids[0] != "dry-run-A" and self._check_auto_publish(platform):
+            print(f"[pipeline] auto_publish=ON ({platform}): 案A を自動投稿")
+            if self._db:
+                self._db.table("posts").update({"status": "approved"}).eq("id", post_ids[0]).execute()
+            pub = await self.publish(post_ids[0])
+            print(f"[pipeline] auto-published: status={pub.status}")
+        else:
+            notify_drafts(gen.drafts, gen.post_ids, plan.scheduled_at)
 
         return gen
 

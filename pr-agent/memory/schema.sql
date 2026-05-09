@@ -274,3 +274,25 @@ create table if not exists panic_log (
 
 create index if not exists idx_panic_log_post      on panic_log(post_id);
 create index if not exists idx_panic_log_triggered on panic_log(triggered_at desc);
+
+-- ============================================================
+-- 12. automation_settings: 自動化解禁トグル（P3-3）
+-- ============================================================
+create table if not exists automation_settings (
+  id           uuid primary key default gen_random_uuid(),
+  platform     text not null unique,
+  -- 'threads'|'instagram'|'note'
+  auto_publish boolean not null default false,
+  -- 承認スキップ可否（Panic は常に false）
+  auto_panic   boolean not null default false,
+  updated_at   timestamptz not null default now(),
+  updated_by   text
+  -- 'dsk' / 'system_recommendation_accepted' 等
+);
+
+-- 初期データ(3プラットフォーム、すべてOFF)
+insert into automation_settings (platform, auto_publish, auto_panic) values
+  ('threads',   false, false),
+  ('instagram', false, false),
+  ('note',      false, false)
+on conflict (platform) do nothing;

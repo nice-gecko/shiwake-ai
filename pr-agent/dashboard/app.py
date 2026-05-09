@@ -22,6 +22,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from supabase import create_client, Client
 
+from brain.analytics import SuccessRateCalculator
 from brain.pipeline import Pipeline
 from brain.publisher import PublisherInput
 
@@ -116,6 +117,17 @@ async def index(
         counts[s] = counts.get(s, 0) + 1
     counts["all"] = sum(counts.values())
 
+    # 自動化設定 + 成功率を取得
+    auto_settings: dict[str, dict] = {}
+    try:
+        auto_rows = db.table("automation_settings").select("*").execute()
+        calc = SuccessRateCalculator()
+        for row in (auto_rows.data or []):
+            pf = row["platform"]
+            auto_settings[pf] = {**row, "rate_info": calc.calc(pf)}
+    except Exception:
+        pass
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -124,6 +136,7 @@ async def index(
             "status_filter": status_filter,
             "counts":        counts,
             "status_labels": _STATUS_LABEL,
+            "auto_settings": auto_settings,
         },
     )
 
@@ -180,4 +193,29 @@ async def reject_post(
 ) -> RedirectResponse:
     db = _db()
     db.table("posts").update({"status": "rejected"}).eq("id", post_id).execute()
+    return RedirectResponse(url="/dashboard/", status_code=303)
+
+
+# ============================================================
+# P3-3: 自動化解禁 API
+# ============================================================
+
+@router.post("/api/automation/{platform}/toggle")
+async def toggle_automation(
+    platform: str,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """プラットフォームの auto_publish トグルを切り替える"""
+    db = _db()
+    rows = db.table("automation_settings").select("auto_publish").eq("platform", platform).execute()
+    if not rows.data:
+        raise HTTPException(404, f"platform={platform} の設定が見つかりません")
+
+    current = rows.data[0]["auto_publish"]
+    db.table("automation_settings").update({
+        "auto_publish": not current,
+        "updated_at":   "now()",
+        "updated_by":   "dsk",
+    }).eq("platform", platform).execute()
+
     return RedirectResponse(url="/dashboard/", status_code=303)
