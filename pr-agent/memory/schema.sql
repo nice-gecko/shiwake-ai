@@ -228,6 +228,7 @@ create table if not exists incentive_events (
 -- ============================================================
 -- 10. git_commits: Gitログ素材化（実績ゼロ期戦略）
 -- ============================================================
+
 create table if not exists git_commits (
   id              uuid primary key default gen_random_uuid(),
   sha             text unique not null,
@@ -242,3 +243,24 @@ create table if not exists git_commits (
   committed_at    timestamptz,
   harvested_at    timestamptz default now()
 );
+
+-- ============================================================
+-- 11. panic_log: Panicノード発火履歴（P3-1）
+-- ============================================================
+create table if not exists panic_log (
+  id           uuid primary key default gen_random_uuid(),
+  post_id      uuid not null references posts(id) on delete cascade,
+  platform     text not null,
+  checkpoint   text not null,
+  -- '30min' | '180min'
+  triggered_at timestamptz not null default now(),
+  draft_id     uuid,
+  -- セルフリプライ案の post_id（あれば）
+  approved     boolean default false,
+  posted_at    timestamptz,
+  posted_url   text,
+  reason       text
+);
+
+create index if not exists idx_panic_log_post      on panic_log(post_id);
+create index if not exists idx_panic_log_triggered on panic_log(triggered_at desc);

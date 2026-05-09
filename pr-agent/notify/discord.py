@@ -161,6 +161,64 @@ def notify_published(
     print(f"[discord] 投稿通知送信: platform={platform} status={status}")
 
 
+def notify_panic(draft: "PanicReplyDraft", signal: "BuzzSignal") -> None:
+    """
+    バズ検知 + セルフリプライ案を Discord に通知する(承認待ち)。
+
+    Args:
+        draft:  PanicReplyDraft — 生成したセルフリプライ案
+        signal: BuzzSignal — バズ検知シグナル
+    """
+    emoji    = _PLATFORM_EMOJI.get(signal.platform, "📣")
+    base_url = os.getenv("DASHBOARD_BASE_URL", "http://localhost:8000")
+
+    # 元投稿プレビュー(50字)
+    parent_preview = f"[元投稿を開く]({signal.post_id})" if not draft.parent_url else f"[元投稿を開く]({draft.parent_url})"
+
+    _post({
+        "embeds": [
+            {
+                "title":       f"🚨 BUZZ ALERT 🚨  {emoji} {signal.platform}",
+                "color":       _COLOR_ERROR,
+                "fields": [
+                    {
+                        "name":   "計測タイミング",
+                        "value":  signal.checkpoint,
+                        "inline": True,
+                    },
+                    {
+                        "name":   "いいね / RP / IMP",
+                        "value":  f"{signal.likes} / {signal.reposts} / {signal.impressions:,}",
+                        "inline": True,
+                    },
+                    {
+                        "name":   "発火理由",
+                        "value":  signal.reason,
+                        "inline": False,
+                    },
+                    {
+                        "name":   f"🐦 セルフリプライ案 [{draft.char_count}字]",
+                        "value":  f"```\n{draft.text}\n```",
+                        "inline": False,
+                    },
+                    {
+                        "name":   "元投稿",
+                        "value":  parent_preview,
+                        "inline": True,
+                    },
+                    {
+                        "name":   "ダッシュボード",
+                        "value":  f"[承認画面を開く]({base_url})",
+                        "inline": True,
+                    },
+                ],
+                "footer": {"text": f"post_id: {signal.post_id}"},
+            }
+        ]
+    })
+    print(f"[discord] Panic通知送信: platform={signal.platform} checkpoint={signal.checkpoint}")
+
+
 def notify_error(error: Exception, context: str = "") -> None:
     """
     エラー発生を Discord に通知する。

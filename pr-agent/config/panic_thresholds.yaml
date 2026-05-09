@@ -1,0 +1,27 @@
+# Panic ノードの発火閾値
+# 発火条件 = (絶対値ライン超え) AND (相対値ライン超え)
+
+threads:
+  absolute:
+    likes: 100
+    reposts: 30       # engagements.shares に対応
+    impressions: 5000
+  relative:
+    multiplier: 3.0   # 過去N投稿の平均 × この倍率を超えたら発火
+    sample_size: 10
+
+instagram:
+  absolute:
+    likes: 200
+    saves: 50
+    impressions: 8000
+  relative:
+    multiplier: 3.0
+    sample_size: 10
+
+# 計測タイミング(Analyst の elapsed_min に合わせる)
+# 24時間時点はもう手遅れなので含めない
+check_at_minutes: [30, 180]
+
+# 同じ post に対して何度も発火しないクールダウン
+cooldown_hours: 6
