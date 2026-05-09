@@ -1,0 +1,61 @@
+# TrendWatcher の監視ソース定義
+
+sources:
+  - id: nta_news
+    name: 国税庁 新着情報
+    url: https://www.nta.go.jp/information/news/index.htm
+    type: html_scrape
+    selector: ".information_list_item"
+    category: tax_law
+    weight: 1.0
+
+  - id: mof_whatsnew
+    name: 財務省 新着
+    url: https://www.mof.go.jp/whatsnew.htm
+    type: html_scrape
+    selector: ".whatsnew_list li"
+    category: tax_law
+    weight: 0.8
+
+  - id: chusho_whatsnew
+    name: 中小企業庁 新着
+    url: https://www.chusho.meti.go.jp/whatsnew.html
+    type: html_scrape
+    selector: ".whatsnew li"
+    category: smb_policy
+    weight: 0.7
+
+  - id: note_keiri
+    name: note 経理タグ
+    url: https://note.com/topic/keiri
+    type: html_scrape
+    selector: "article"
+    category: trend
+    weight: 0.5
+
+  - id: note_zeirishi
+    name: note 税理士タグ
+    url: https://note.com/topic/zeirishi
+    type: html_scrape
+    selector: "article"
+    category: trend
+    weight: 0.5
+
+# キーワードフィルタ
+keywords_high_priority:
+  - 仕訳
+  - 経理
+  - 会計
+  - 税制改正
+  - 電子帳簿保存法
+  - インボイス
+  - 消費税
+  - 確定申告
+
+keywords_exclude:
+  - 求人
+  - 採用
+  - 転職
+
+# Planner への注入優先度
+inject_top_n: 3

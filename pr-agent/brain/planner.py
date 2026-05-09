@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from supabase import create_client, Client
 
+from brain.trend_watcher import TrendWatcherNode
 from brain.writer import WriterInput
 from config.config_loader import (
     load_characters,
@@ -255,6 +256,17 @@ class PlannerNode:
         scored   = sorted(candidates, key=lambda c: _score(c, recent, patterns), reverse=True)
         selected = scored[0]
 
+        # --- TrendWatcher: 直近24hの上位トレンドを context に注入 ---
+        trend_context = ""
+        trends: list[dict] = []
+        try:
+            trends = await TrendWatcherNode().get_top_for_planner(hours=24)
+            if trends:
+                lines = [f"・{t['title']}（{t['source_id']}）" for t in trends]
+                trend_context = "最近の税務・経理トピック:\n" + "\n".join(lines)
+        except Exception as e:
+            print(f"[planner] TrendWatcher スキップ: {e}")
+
         # --- 理由文 ---
         reasoning = " | ".join(filter(None, [
             f"スロット({slot_source}): {persona_id}×{platform} @{scheduled_at.strftime('%H:%M')}JST",
@@ -262,10 +274,11 @@ class PlannerNode:
             f"候補{len(candidates)}件",
             f"直近{len(recent)}件参照" if recent else None,
             f"成功パターン{len(patterns)}件参照" if patterns else None,
+            f"トレンド{len(trends)}件注入" if trend_context else None,
         ]))
 
         return PlannerOutput(
-            writer_input=WriterInput(**selected),
+            writer_input=WriterInput(**selected, context=trend_context),
             scheduled_at=scheduled_at,
             reasoning=reasoning,
         )

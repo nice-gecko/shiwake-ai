@@ -158,21 +158,31 @@ create table if not exists success_patterns (
 create index if not exists idx_patterns_score on success_patterns(score desc);
 
 -- ============================================================
--- 6. trends: TrendWatcherの検知ログ（Phase 3）
+-- 6. trends: TrendWatcherの検知ログ（P3-2）
 -- ============================================================
+-- ※ Supabase 適用時: 旧 trends テーブルが存在する場合は先に DROP TABLE trends; を実行すること
 create table if not exists trends (
-  id            uuid primary key default gen_random_uuid(),
-  source        text not null,
-  -- 'x_search'|'news_rss'|'competitor_blog'
-  keyword       text,
-  topic         text,
-  raw_excerpt   text,
-  relevance     numeric,
-  -- shiwake-aiとの関連度 0-1
-  detected_at   timestamptz default now(),
-  consumed      boolean default false
-  -- Plannerが消費済みか
+  id                uuid primary key default gen_random_uuid(),
+  source_id         text not null,
+  -- 'nta_news'|'mof_whatsnew'|'chusho_whatsnew'|'note_keiri'|'note_zeirishi'
+  title             text not null,
+  url               text not null,
+  url_hash          text not null,
+  -- sha256(url)[:16]、重複除外用
+  category          text not null,
+  -- 'tax_law'|'smb_policy'|'trend'
+  weight            double precision not null default 1.0,
+  score             double precision not null default 0.0,
+  matched_keywords  text[] default '{}',
+  fetched_at        timestamptz not null default now(),
+  used_in_post_id   uuid,
+  -- 投稿素材に使われたなら posts.id を記録
+  used_at           timestamptz
 );
+
+create unique index if not exists ux_trends_url_hash on trends(url_hash);
+create index        if not exists idx_trends_fetched  on trends(fetched_at desc);
+create index        if not exists idx_trends_score    on trends(score desc);
 
 -- ============================================================
 -- 7. leads: 営業リード（Phase 4）
