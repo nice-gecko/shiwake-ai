@@ -5,17 +5,19 @@ sources:
     name: 国税庁 新着情報
     url: https://www.nta.go.jp/information/news/index.htm
     type: html_scrape
-    selector: ".information_list_item"
+    selector: "li a"         # .information_list_item は存在しないため変更
     category: tax_law
     weight: 1.0
+    enabled: true
 
   - id: mof_whatsnew
     name: 財務省 新着
-    url: https://www.mof.go.jp/whatsnew.htm
+    url: https://www.mof.go.jp/public_relations/whats_new/index.htm  # 旧 URL は 404
     type: html_scrape
-    selector: ".whatsnew_list li"
+    selector: "ul li"
     category: tax_law
     weight: 0.8
+    enabled: true
 
   - id: chusho_whatsnew
     name: 中小企業庁 新着
@@ -24,6 +26,7 @@ sources:
     selector: ".whatsnew li"
     category: smb_policy
     weight: 0.7
+    enabled: false            # サーバータイムアウトが続くため無効化
 
   - id: note_keiri
     name: note 経理タグ
@@ -32,6 +35,7 @@ sources:
     selector: "article"
     category: trend
     weight: 0.5
+    enabled: false            # JS レンダリングのため静的スクレイピング不可
 
   - id: note_zeirishi
     name: note 税理士タグ
@@ -40,6 +44,7 @@ sources:
     selector: "article"
     category: trend
     weight: 0.5
+    enabled: false            # JS レンダリングのため静的スクレイピング不可
 
 # キーワードフィルタ
 keywords_high_priority:

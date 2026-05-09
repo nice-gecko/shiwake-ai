@@ -56,6 +56,8 @@ class TrendWatcherNode:
         """全ソースを巡回して新規トレンドを trends テーブルに保存"""
         all_items: list[TrendItem] = []
         for src in self._cfg["sources"]:
+            if not src.get("enabled", True):
+                continue
             try:
                 items = await self._fetch_one(src)
                 all_items.extend(items)
@@ -84,7 +86,8 @@ class TrendWatcherNode:
         items: list[TrendItem] = []
 
         for node in nodes[:20]:
-            link = node.find("a")
+            # selector が <a> タグを直接返すケースに対応
+            link = node if node.name == "a" else node.find("a")
             if not link:
                 continue
             title = link.get_text(strip=True)
