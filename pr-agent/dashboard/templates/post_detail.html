@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>投稿詳細 | PR Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ヘッダー -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+      <a href="/dashboard/" class="text-gray-400 hover:text-gray-600 text-lg">←</a>
+      <h1 class="text-base font-bold text-gray-800">
+        {{ post.platform_emoji }} {{ post.platform }} 投稿詳細
+      </h1>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 py-5 space-y-4">
+
+    <!-- ステータスバナー -->
+    {% set status = post.status %}
+    <div class="rounded-xl px-4 py-3 text-sm font-medium
+      {% if status == 'draft' %}bg-yellow-50 text-yellow-700 border border-yellow-200
+      {% elif status == 'approved' %}bg-blue-50 text-blue-700 border border-blue-200
+      {% elif status == 'awaiting_manual_post' %}bg-orange-50 text-orange-700 border border-orange-200
+      {% elif status == 'published' %}bg-green-50 text-green-700 border border-green-200
+      {% elif status == 'rejected' %}bg-red-50 text-red-700 border border-red-200
+      {% else %}bg-gray-50 text-gray-600 border border-gray-200{% endif %}">
+      ステータス: {{ post.status_label }}
+      {% if post.external_url %}
+        — <a href="{{ post.external_url }}" target="_blank" class="underline">投稿を見る</a>
+      {% endif %}
+    </div>
+
+    <!-- メタ情報 -->
+    <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 text-sm">
+      {% for label, val in [
+        ("ペルソナ", post.persona),
+        ("キャラクター", post.character_id),
+        ("構文 (Weapon)", post.weapon),
+        ("トリガー", post.trigger_axis or "—"),
+        ("予定投稿時刻", (post.scheduled_at or "")[:16].replace("T", " ")),
+      ] %}
+        <div class="flex items-center px-4 py-2.5 gap-3">
+          <span class="text-gray-400 w-32 flex-shrink-0">{{ label }}</span>
+          <span class="text-gray-700 font-mono text-xs">{{ val }}</span>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- 投稿本文 -->
+    <div class="bg-white rounded-xl border border-gray-200 p-4">
+      <p class="text-xs text-gray-400 mb-2 font-medium">投稿本文</p>
+      <p id="post-content" class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{{ post.content }}</p>
+      <div class="mt-3 flex items-center justify-between text-xs text-gray-400">
+        <span id="char-count">{{ post.content | length }} 文字</span>
+        <button onclick="copyContent()"
+                class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full font-medium text-gray-600 transition-colors">
+          📋 コピー
+        </button>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         X 投稿コピーUI（platform == 'x' かつ手動投稿待ちの場合）
+         ============================================================ -->
+    {% if post.platform == 'x' and status == 'awaiting_manual_post' %}
+    <div class="bg-orange-50 border border-orange-200 rounded-xl p-4">
+      <p class="text-sm font-bold text-orange-700 mb-2">🐦 X 手動投稿</p>
+      <p class="text-xs text-orange-600 mb-3">
+        下のボタンでコピーして <a href="https://twitter.com/compose/tweet" target="_blank"
+        class="underline font-medium">twitter.com/compose</a> に貼り付けてください。
+      </p>
+      <button onclick="copyContent()"
+              class="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-sm transition-colors">
+        📋 X 投稿文をコピー
+      </button>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================
+         承認・却下ボタン（draft または approved の場合のみ表示）
+         ============================================================ -->
+    {% if status in ('draft', 'approved') %}
+    <div class="space-y-2 pt-2">
+
+      <!-- 承認ボタン -->
+      <form method="POST" action="/dashboard/posts/{{ post.id }}/approve"
+            onsubmit="return confirmApprove()">
+        <button type="submit"
+                class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800
+                       text-white rounded-xl font-bold text-base transition-colors shadow-sm">
+          ✅ この投稿を承認して{{ "自動投稿" if post.platform != "x" else "手動投稿待ちに設定" }}する
+        </button>
+      </form>
+
+      <!-- 却下ボタン -->
+      <form method="POST" action="/dashboard/posts/{{ post.id }}/reject"
+            onsubmit="return confirm('却下しますか？')">
+        <button type="submit"
+                class="w-full py-3 bg-white hover:bg-red-50 border border-red-200
+                       text-red-500 rounded-xl font-medium text-sm transition-colors">
+          ✕ 却下する
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </main>
+
+  <script>
+    function copyContent() {
+      const text = document.getElementById('post-content').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const orig = btn.textContent;
+        btn.textContent = '✅ コピーしました';
+        setTimeout(() => btn.textContent = orig, 2000);
+      });
+    }
+
+    function confirmApprove() {
+      const platform = "{{ post.platform }}";
+      if (platform === 'x') {
+        return confirm('X は手動投稿扱いになります。手動投稿待ちに設定しますか？');
+      }
+      return confirm('この投稿を承認して自動投稿しますか？');
+    }
+  </script>
+
+</body>
+</html>

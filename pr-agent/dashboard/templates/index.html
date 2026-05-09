@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PR Agent ダッシュボード</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ヘッダー -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-lg font-bold text-gray-800">✍️ PR Agent</h1>
+      <span class="text-xs text-gray-400">shiwake-ai</span>
+    </div>
+  </header>
+
+  <!-- ステータスフィルタタブ -->
+  <div class="bg-white border-b border-gray-200">
+    <div class="max-w-3xl mx-auto px-4">
+      <div class="flex gap-1 overflow-x-auto py-2 scrollbar-hide">
+        {% set tab_items = [
+          ("draft",                "下書き"),
+          ("approved",             "承認済"),
+          ("awaiting_manual_post", "手動待ち"),
+          ("published",            "投稿済"),
+          ("rejected",             "却下"),
+          ("all",                  "すべて"),
+        ] %}
+        {% for val, label in tab_items %}
+          {% set cnt = counts.get(val, 0) %}
+          {% set is_active = (status_filter == val) %}
+          <a href="?status_filter={{ val }}"
+             class="flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                    {% if is_active %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">
+            {{ label }}{% if cnt %} <span class="opacity-70">{{ cnt }}</span>{% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 投稿リスト -->
+  <main class="max-w-3xl mx-auto px-4 py-4 space-y-3">
+    {% if not posts %}
+      <div class="text-center py-16 text-gray-400">
+        <p class="text-4xl mb-3">📭</p>
+        <p class="text-sm">該当する投稿がありません</p>
+      </div>
+    {% endif %}
+
+    {% for post in posts %}
+      {% set platform_emoji = post.platform_emoji %}
+      {% set status = post.status %}
+
+      <!-- カード -->
+      <a href="/dashboard/posts/{{ post.id }}"
+         class="block bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all p-4">
+
+        <!-- ヘッダー行 -->
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-lg">{{ platform_emoji }}</span>
+            <span class="text-xs font-medium text-gray-500 uppercase">{{ post.platform }}</span>
+            <span class="text-xs text-gray-400">{{ post.persona }} / {{ post.character_id }} / {{ post.weapon }}</span>
+          </div>
+
+          <!-- ステータスバッジ -->
+          <span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-medium
+            {% if status == 'draft' %}bg-yellow-100 text-yellow-700
+            {% elif status == 'approved' %}bg-blue-100 text-blue-700
+            {% elif status == 'awaiting_manual_post' %}bg-orange-100 text-orange-700
+            {% elif status == 'published' %}bg-green-100 text-green-700
+            {% elif status == 'rejected' %}bg-red-100 text-red-700
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ post.status_label }}
+          </span>
+        </div>
+
+        <!-- 本文プレビュー -->
+        <p class="text-sm text-gray-700 leading-relaxed line-clamp-3">{{ post.content }}</p>
+
+        <!-- フッター -->
+        <div class="mt-2 flex items-center justify-between text-xs text-gray-400">
+          <span>{{ post.created_at[:16].replace("T", " ") if post.created_at else "" }}</span>
+          {% if status == 'draft' %}
+            <span class="text-indigo-500 font-medium">承認する →</span>
+          {% elif status == 'awaiting_manual_post' and post.platform == 'x' %}
+            <span class="text-orange-500 font-medium">X にコピー →</span>
+          {% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </main>
+
+</body>
+</html>
