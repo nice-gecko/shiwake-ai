@@ -225,6 +225,15 @@
             ✉️ 営業メール下書き（優先4-5）
           </button>
         </form>
+        <form action="/dashboard/api/cowork/trigger" method="POST">
+          <input type="hidden" name="instruction" value="video_generator">
+          <input type="hidden" name="params[format]" value="reels">
+          <input type="hidden" name="params[persona_id]" value="P2">
+          <button type="submit"
+            class="px-4 py-2 bg-pink-600 text-white text-sm rounded-lg hover:bg-pink-700 transition-colors">
+            🎬 動画生成依頼（P2×リール）
+          </button>
+        </form>
       </div>
     </div>
 

@@ -46,6 +46,7 @@ class WriterInput(BaseModel):
     platform: str            # x / threads / instagram / note / zenn
     visual_description: str = ""   # visual_assets.description（任意）
     context: str = ""              # トレンド・外部コンテキスト（任意）
+    language: str = "ja"          # "ja"（日本語）/ "en"（英語・P5-3）
 
 
 class DraftPost(BaseModel):
@@ -86,7 +87,7 @@ def _param_to_instruction(name: str, value: float) -> str:
     return list(thresholds.values())[-1]
 
 
-def _build_system_prompt(char_id: str) -> str:
+def _build_system_prompt(char_id: str, language: str = "ja") -> str:
     """キャラクター定義からシステムプロンプトを組み立てる"""
     chars = load_characters()
     if char_id not in chars:
@@ -102,6 +103,11 @@ def _build_system_prompt(char_id: str) -> str:
     ]
 
     catchphrases = "\n".join(f"  - {ex}" for ex in c.catchphrase_examples)
+
+    lang_instruction = (
+        "\n【言語】すべての投稿文を自然な英語で書いてください。日本語は使わないこと。"
+        if language == "en" else ""
+    )
 
     return f"""あなたは SNS マーケティングエージェントのキャラクター「{c.display_name}」として投稿文を書きます。
 
@@ -120,7 +126,7 @@ def _build_system_prompt(char_id: str) -> str:
 - 競合他社（弥生会計・freee・マネーフォワード 等）を名指しで批判しない
 - 法律・税務の断定表現を使わない（「一般的に」「ケースによります」を使う）
 - ハッシュタグは Instagram のみ付与（他プラットフォームでは付けない）
-- 出力は必ず JSON 形式のみ（説明文や markdown ブロックは不要）"""
+- 出力は必ず JSON 形式のみ（説明文や markdown ブロックは不要）{lang_instruction}"""
 
 
 def _effective_char_limit(platform: str) -> int | None:
@@ -214,7 +220,7 @@ def _build_user_prompt(inp: WriterInput) -> str:
 }}
 
 3案それぞれで **切り口を変えて** ください（書き出し・強調点・感情温度を変える）。
-文字数は{limit_text}を守ること。"""
+文字数は{limit_text}を守ること。{"すべての body は英語で書いてください。" if inp.language == "en" else ""}"""
 
 
 # ============================================================
@@ -229,7 +235,7 @@ class WriterNode:
         self._client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     async def run(self, inp: WriterInput) -> WriterOutput:
-        system = _build_system_prompt(inp.character_id)
+        system = _build_system_prompt(inp.character_id, inp.language)
         user   = _build_user_prompt(inp)
 
         # note / zenn は長文3案のため max_tokens を増やす
@@ -309,8 +315,10 @@ async def _cli_main(args: argparse.Namespace) -> None:
         trigger_id=args.trigger,
         platform=args.platform,
         context=args.context or "",
+        language=args.language,
     )
-    print(f"[writer] {inp.persona_id} × {inp.character_id} × {inp.weapon_id} × {inp.trigger_id} → {inp.platform}")
+    lang_label = "EN" if args.language == "en" else "JA"
+    print(f"[writer] {inp.persona_id} × {inp.character_id} × {inp.weapon_id} × {inp.trigger_id} → {inp.platform} [{lang_label}]")
     print("[writer] 生成中...\n")
 
     output = await node.run(inp)
@@ -338,6 +346,8 @@ def main() -> None:
     parser.add_argument("--platform",  required=True,
                         choices=["x", "threads", "instagram", "note", "zenn"])
     parser.add_argument("--context",   default="", help="トレンド等の外部コンテキスト（任意）")
+    parser.add_argument("--language",  default="ja", choices=["ja", "en"],
+                        help="投稿言語: ja（日本語・デフォルト）/ en（英語・P5-3）")
     args = parser.parse_args()
     asyncio.run(_cli_main(args))
 

@@ -448,6 +448,8 @@ async def api_cowork_trigger(
         "lead_finder":     "sales",
         "outreach_writer": "sales",
         "monthly_report":  "reports",
+        "image_generate":  "posts",
+        "video_generator": "posts",
     }
     redirect_view = view_map.get(instruction, "posts")
     return RedirectResponse(url=f"/dashboard/?view={redirect_view}", status_code=303)
