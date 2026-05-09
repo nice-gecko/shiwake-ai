@@ -1,7 +1,10 @@
 """
-P3-2: TrendWatcher ノード — 外部情報の取り込み
+P3-2 / P5-4: TrendWatcher ノード — 外部情報の取り込み
 
-監視対象: 国税庁 / 財務省 / 中小企業庁 / note 経理タグ / note 税理士タグ
+監視対象:
+  - 公的機関: 国税庁 / 財務省 / デジタル庁
+  - 市場動向(P5-4): PR TIMES / freee RSS / マネーフォワード RSS / 弥生プレスリリース
+
 保存先: trends テーブル (url_hash で重複除外)
 連携: Planner が直近24hの上位N件を参照
 
@@ -14,6 +17,7 @@ import argparse
 import asyncio
 import hashlib
 import os
+import xml.etree.ElementTree as ET
 import yaml
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -72,7 +76,7 @@ class TrendWatcherNode:
         return all_items
 
     async def _fetch_one(self, src: dict) -> list[TrendItem]:
-        """1ソースから取得 → TrendItem のリスト"""
+        """1ソースから取得 → TrendItem のリスト（html_scrape / rss に対応）"""
         async with httpx.AsyncClient(
             timeout=30,
             follow_redirects=True,
@@ -81,12 +85,18 @@ class TrendWatcherNode:
             r = await client.get(src["url"])
             r.raise_for_status()
 
-        soup  = BeautifulSoup(r.text, "html.parser")
+        src_type = src.get("type", "html_scrape")
+        if src_type == "rss":
+            return self._parse_rss(r.text, src)
+        return self._parse_html(r.text, src)
+
+    def _parse_html(self, html: str, src: dict) -> list[TrendItem]:
+        """BeautifulSoup で HTML をパース"""
+        soup  = BeautifulSoup(html, "html.parser")
         nodes = soup.select(src["selector"])
         items: list[TrendItem] = []
 
         for node in nodes[:20]:
-            # selector が <a> タグを直接返すケースに対応
             link = node if node.name == "a" else node.find("a")
             if not link:
                 continue
@@ -103,20 +113,70 @@ class TrendWatcherNode:
                 category=src.get("category", "general"),
                 weight=float(src.get("weight", 1.0)),
             ))
+        return items
 
+    def _parse_rss(self, xml_text: str, src: dict) -> list[TrendItem]:
+        """RSS / Atom フィードを ElementTree でパース"""
+        items: list[TrendItem] = []
+        try:
+            root = ET.fromstring(xml_text)
+        except ET.ParseError:
+            return items
+
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+
+        # RSS 2.0
+        for entry in root.findall(".//item")[:20]:
+            title_el = entry.find("title")
+            link_el  = entry.find("link")
+            title = title_el.text.strip() if title_el is not None and title_el.text else ""
+            href  = link_el.text.strip() if link_el is not None and link_el.text else ""
+            if title and href:
+                items.append(TrendItem(
+                    source_id=src["id"],
+                    title=title,
+                    url=href,
+                    category=src.get("category", "general"),
+                    weight=float(src.get("weight", 1.0)),
+                ))
+
+        # Atom
+        if not items:
+            for entry in root.findall(".//atom:entry", ns)[:20]:
+                title_el = entry.find("atom:title", ns)
+                link_el  = entry.find("atom:link", ns)
+                title = title_el.text.strip() if title_el is not None and title_el.text else ""
+                href  = link_el.get("href", "") if link_el is not None else ""
+                if title and href:
+                    items.append(TrendItem(
+                        source_id=src["id"],
+                        title=title,
+                        url=href,
+                        category=src.get("category", "general"),
+                        weight=float(src.get("weight", 1.0)),
+                    ))
         return items
 
     def _score(self, item: TrendItem) -> tuple[float, list[str]]:
         """キーワードヒット × weight でスコアリング。除外キーワードがあれば 0.0"""
-        high    = self._cfg.get("keywords_high_priority", [])
-        exclude = self._cfg.get("keywords_exclude", [])
+        high          = self._cfg.get("keywords_high_priority", [])
+        market_trend  = self._cfg.get("keywords_market_trend", [])
+        exclude       = self._cfg.get("keywords_exclude", [])
 
         text = item.title
         if any(kw in text for kw in exclude):
             return 0.0, []
 
         matched = [kw for kw in high if kw in text]
-        return len(matched) * item.weight, matched
+        score   = len(matched) * item.weight
+
+        # market_trend カテゴリは市場動向キーワードでも加点
+        if item.category == "market_trend":
+            mt_matched = [kw for kw in market_trend if kw in text]
+            score  += len(mt_matched) * item.weight * 0.5
+            matched += mt_matched
+
+        return score, matched
 
     def _save_if_new(self, item: TrendItem) -> bool:
         """trends テーブルに保存(url_hash で重複スキップ)"""

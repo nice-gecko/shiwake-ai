@@ -1,18 +1,21 @@
 # TrendWatcher の監視ソース定義
+# type: html_scrape ... BeautifulSoup でセレクタ抽出
+# type: rss         ... XML/Atom フィードをパース（ElementTree）
 
 sources:
+  # ---- 公的機関 ----
   - id: nta_news
     name: 国税庁 新着情報
     url: https://www.nta.go.jp/information/news/index.htm
     type: html_scrape
-    selector: "li a"         # .information_list_item は存在しないため変更
+    selector: "li a"
     category: tax_law
     weight: 1.0
     enabled: true
 
   - id: mof_whatsnew
     name: 財務省 新着
-    url: https://www.mof.go.jp/public_relations/whats_new/index.htm  # 旧 URL は 404
+    url: https://www.mof.go.jp/public_relations/whats_new/index.htm
     type: html_scrape
     selector: "ul li"
     category: tax_law
@@ -26,8 +29,9 @@ sources:
     selector: ".whatsnew li"
     category: smb_policy
     weight: 0.7
-    enabled: false            # サーバータイムアウトが続くため無効化
+    enabled: false            # タイムアウトが続くため無効化
 
+  # ---- note (JS レンダリング不可 → 無効) ----
   - id: note_keiri
     name: note 経理タグ
     url: https://note.com/topic/keiri
@@ -35,7 +39,7 @@ sources:
     selector: "article"
     category: trend
     weight: 0.5
-    enabled: false            # JS レンダリングのため静的スクレイピング不可
+    enabled: false
 
   - id: note_zeirishi
     name: note 税理士タグ
@@ -44,7 +48,60 @@ sources:
     selector: "article"
     category: trend
     weight: 0.5
-    enabled: false            # JS レンダリングのため静的スクレイピング不可
+    enabled: false
+
+  # ---- P5-4: 市場動向監視（競合含む） ----
+  - id: prtimes_accounting
+    name: PR TIMES 会計ソフト
+    url: https://prtimes.jp/topics/keywords/%E4%BC%9A%E8%A8%88%E3%82%BD%E3%83%95%E3%83%88
+    type: html_scrape
+    selector: "h3 a, h2 a"
+    category: market_trend
+    weight: 0.6
+    enabled: true
+
+  - id: ipa_news
+    name: IPA 情報処理推進機構 新着
+    url: https://www.ipa.go.jp/about/press/index.html
+    type: html_scrape
+    selector: "ul li a"
+    category: market_trend
+    weight: 0.5
+    enabled: true
+
+  - id: freee_corp_rss
+    name: freee 企業ブログ RSS
+    url: https://corp.freee.co.jp/feed/
+    type: rss
+    category: market_trend
+    weight: 0.6
+    enabled: true             # 競合動向把握用（発信内容に社名は出さない）
+
+  - id: mfcloud_corp_rss
+    name: マネーフォワード コーポレート RSS
+    url: https://corp.moneyforward.com/news/feed/
+    type: rss
+    category: market_trend
+    weight: 0.6
+    enabled: true             # 競合動向把握用（発信内容に社名は出さない）
+
+  - id: yayoi_news
+    name: 弥生 プレスリリース
+    url: https://www.yayoi-kk.co.jp/company/pressrelease/
+    type: html_scrape
+    selector: "table td a, ul li a"
+    category: market_trend
+    weight: 0.5
+    enabled: true             # 競合動向把握用
+
+  - id: digital_agency_news
+    name: デジタル庁 新着
+    url: https://www.digital.go.jp/news/
+    type: html_scrape
+    selector: "ul li a, article a"
+    category: smb_policy
+    weight: 0.7
+    enabled: true
 
 # キーワードフィルタ
 keywords_high_priority:
@@ -57,10 +114,22 @@ keywords_high_priority:
   - 消費税
   - 確定申告
 
+# P5-4: 市場動向キーワード（market_trend カテゴリに加点）
+keywords_market_trend:
+  - AI会計
+  - クラウド会計
+  - 経理DX
+  - デジタル化
+  - 生成AI
+  - SaaS
+  - 中小企業
+  - 会計ソフト
+  - 自動化
+
 keywords_exclude:
   - 求人
   - 採用
   - 転職
 
 # Planner への注入優先度
-inject_top_n: 3
+inject_top_n: 5
