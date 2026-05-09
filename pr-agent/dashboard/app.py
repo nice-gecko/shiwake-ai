@@ -285,9 +285,10 @@ async def toggle_automation(
         raise HTTPException(404, f"platform={platform} の設定が見つかりません")
 
     current = rows.data[0]["auto_publish"]
+    from datetime import timezone
     db.table("automation_settings").update({
         "auto_publish": not current,
-        "updated_at":   "now()",
+        "updated_at":   datetime.now(timezone.utc).isoformat(),
         "updated_by":   "dsk",
     }).eq("platform", platform).execute()
 
