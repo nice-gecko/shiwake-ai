@@ -232,13 +232,16 @@ class WriterNode:
         system = _build_system_prompt(inp.character_id)
         user   = _build_user_prompt(inp)
 
+        # note / zenn は長文3案のため max_tokens を増やす
+        max_tokens = 6000 if inp.platform in ("note", "zenn") else 2048
+
         # 同期 SDK をスレッドプールで実行（asyncio 互換）
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
             lambda: self._client.messages.create(
                 model=self._model,
-                max_tokens=2048,
+                max_tokens=max_tokens,
                 system=system,
                 messages=[{"role": "user", "content": user}],
             ),
@@ -247,12 +250,24 @@ class WriterNode:
         raw_text = response.content[0].text.strip()
 
         # JSON ブロックがある場合は中身だけ抜き出す
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
+        if "```" in raw_text:
+            parts = raw_text.split("```")
+            for part in parts:
+                if part.startswith("json"):
+                    raw_text = part[4:].strip()
+                    break
+                elif "{" in part:
+                    raw_text = part.strip()
+                    break
 
-        parsed = json.loads(raw_text)
+        # JSONが途中で切れた場合のフォールバック: 最後の有効な } まで切り詰める
+        try:
+            parsed = json.loads(raw_text)
+        except json.JSONDecodeError:
+            last_brace = raw_text.rfind("}")
+            if last_brace != -1:
+                raw_text = raw_text[:last_brace + 1]
+            parsed = json.loads(raw_text)
         char_limit = _effective_char_limit(inp.platform)
 
         drafts: list[DraftPost] = []
