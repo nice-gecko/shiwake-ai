@@ -266,7 +266,7 @@ class WriterNode:
                     char_count=count,
                     over_limit=(char_limit is not None and count > char_limit),
                     angle=item["angle"],
-                    persona_id=inp.character_id,
+                    persona_id=inp.persona_id,
                     character_id=inp.character_id,
                     weapon_id=inp.weapon_id,
                     trigger_id=inp.trigger_id,
