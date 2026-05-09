@@ -471,6 +471,35 @@ def _trigger_cowork(instruction: str, params: dict, requested_by: str = "dashboa
 
 
 # ============================================================
+# P4-1: Zenn 記事生成 API
+# ============================================================
+
+_ZENN_DRAFTS_DIR = Path(__file__).parent / "output" / "zenn_drafts"
+
+
+@router.post("/api/zenn/generate")
+async def generate_zenn(
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """Zenn 記事を生成して zenn_drafts/ に保存、Discord 通知"""
+    form  = await request.form()
+    topic = str(form.get("topic", "")).strip()
+    if not topic:
+        raise HTTPException(400, "topic が必要です")
+
+    from brain.zenn_writer import cmd_generate as _gen
+    import types
+    ns = types.SimpleNamespace(topic=topic)
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _gen, ns)
+
+    return RedirectResponse(url="/dashboard/?view=posts", status_code=303)
+
+
+# ============================================================
 # P3-3: 自動化解禁 API
 # ============================================================
 
