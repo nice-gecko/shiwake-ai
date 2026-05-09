@@ -20,7 +20,7 @@ import os
 
 load_dotenv()
 
-RAW_DIR = Path(__file__).parent / "raw"
+RAW_DIR = Path(__file__).parent / "raw" / "manual"
 BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "visuals-bucket")
 STORAGE_PREFIX = "raw/manual"
 
@@ -31,30 +31,32 @@ ASSET_CATALOG: list[dict] = [
     {
         "index": 1,
         "category": "scan",
-        "tags": ["toC", "scan", "upload"],
-        "weapon_compatibility": ["W1", "W2"],
-        "persona_fit": ["P1", "P2"],
-        "description": "スキャン画面 — カメラ撮影/画像アップロードのUI",
+        "tags": ["toC", "scan", "mobile", "smartphone"],
+        "weapon_compatibility": ["W1", "W5"],
+        "persona_fit": ["P1"],
+        "description": "スマホ画面 — 「スマホで開くと高性能スキャナーになります」フキダシ付き",
         "has_pii": False,
         "masking_required": False,
     },
     {
         "index": 2,
         "category": "dashboard",
-        "tags": ["csv", "export", "approval"],
+        # 競合社名（弥生会計・freee・マネフォ）が映り込む会計ソフト選択UI。
+        # SNS投稿には直接使用不可。マスキング後または Writer への参考資料として利用。
+        "tags": ["csv", "export", "integration", "competitor-visible"],
         "weapon_compatibility": ["W2"],
         "persona_fit": ["P1", "P2", "P3"],
-        "description": "CSV出力画面 — 承認済み仕訳のエクスポートボタン",
-        "has_pii": False,
-        "masking_required": False,
+        "description": "CSV連携ドロップダウン — 弥生/freee/マネフォ選択UI（⚠️ 競合社名あり・SNS直接使用不可）",
+        "has_pii": True,
+        "masking_required": True,
     },
     {
         "index": 3,
         "category": "card",
-        "tags": ["judgment-visible", "trust-badge", "approved"],
+        "tags": ["judgment-visible", "trust-badge", "approved", "transit"],
         "weapon_compatibility": ["W3", "W1"],
-        "persona_fit": ["P1", "P3", "P4"],
-        "description": "仕訳カード — 高信頼・適格インボイスバッジ付き",
+        "persona_fit": ["P1", "P2", "P3"],
+        "description": "仕訳カード — 大阪市高速電気軌道（Suicaチャージ）・高信頼バッジ付き",
         "has_pii": False,
         "masking_required": False,
     },
@@ -64,47 +66,47 @@ ASSET_CATALOG: list[dict] = [
         "tags": ["pricing", "agent_plan"],
         "weapon_compatibility": ["W2"],
         "persona_fit": ["P3", "P4"],
-        "description": "Agentプラン価格ページ（価格部分は要マスキング）",
+        "description": "AGENT版価格 — ¥30,000〜¥250,000の4プラン（価格は要マスキング）",
         "has_pii": True,
         "masking_required": True,
     },
     {
         "index": 5,
-        "category": "dashboard",
-        "tags": ["approval", "list", "judgment-visible"],
-        "weapon_compatibility": ["W1", "W2"],
-        "persona_fit": ["P1", "P2"],
-        "description": "仕訳一覧 — 承認前後の状態比較",
+        "category": "pricing",
+        "tags": ["pricing", "saas_plan", "incentive-option"],
+        "weapon_compatibility": ["W2", "W1"],
+        "persona_fit": ["P1", "P2", "P3"],
+        "description": "AI SaaS版価格 — ¥980/¥5,800・チームプラン・インセンティブオプション",
         "has_pii": False,
         "masking_required": False,
     },
     {
         "index": 6,
-        "category": "card",
-        "tags": ["judgment-visible", "ai-reason", "transparency"],
-        "weapon_compatibility": ["W3", "W4"],
-        "persona_fit": ["P3", "P4"],
-        "description": "仕訳詳細 — AIが判断した根拠・勘定科目の理由が見える画面",
+        "category": "dashboard",
+        "tags": ["staff", "invite", "team", "empty-state"],
+        "weapon_compatibility": ["W4", "W5"],
+        "persona_fit": ["P2", "P3"],
+        "description": "スタッフ招待画面 — 「まだスタッフがいません」空状態UI",
         "has_pii": False,
         "masking_required": False,
     },
     {
         "index": 7,
-        "category": "scan",
-        "tags": ["ocr", "scan-result", "accuracy"],
-        "weapon_compatibility": ["W1", "W3"],
-        "persona_fit": ["P1", "P2"],
-        "description": "OCR読み取り結果 — スキャン後の文字認識結果画面",
+        "category": "dashboard",
+        "tags": ["csv", "export", "multi-file", "drag-drop"],
+        "weapon_compatibility": ["W2", "W3"],
+        "persona_fit": ["P1", "P2", "P3"],
+        "description": "CSV統合・変換 — 複数CSVドロップ画面",
         "has_pii": False,
         "masking_required": False,
     },
     {
         "index": 8,
         "category": "dashboard",
-        "tags": ["category-rule", "settings", "customization"],
+        "tags": ["category-rule", "settings", "learning", "empty-state"],
         "weapon_compatibility": ["W3"],
         "persona_fit": ["P3", "P4"],
-        "description": "カテゴリルール設定画面",
+        "description": "仕訳ルール学習・カテゴリルール — 「まだ登録されていません」空状態UI",
         "has_pii": False,
         "masking_required": False,
     },
@@ -114,37 +116,37 @@ ASSET_CATALOG: list[dict] = [
         "tags": ["master_list", "vendor_names", "learning"],
         "weapon_compatibility": ["W3", "W2"],
         "persona_fit": ["P3", "P4"],
-        "description": "取引先マスタ — 13社以上登録済み（店名は要マスキング）",
+        "description": "取引先マスタ — ゴディバ・ローソン・Seria等17社（店名は要マスキング）",
         "has_pii": True,
         "masking_required": True,
     },
     {
         "index": 10,
         "category": "scan",
-        "tags": ["toC", "scan", "mobile"],
-        "weapon_compatibility": ["W1", "W5"],
-        "persona_fit": ["P1"],
-        "description": "スキャン画面（モバイルビュー） — スマホ操作感を訴求",
+        "tags": ["scan", "desktop", "camera", "upload-mode"],
+        "weapon_compatibility": ["W1", "W2"],
+        "persona_fit": ["P1", "P2"],
+        "description": "スキャン画面PC — 「カメラで撮影/画像を選択」＋読み取りモード切替",
         "has_pii": False,
         "masking_required": False,
     },
     {
         "index": 11,
         "category": "dashboard",
-        "tags": ["dashboard", "incentive", "stats", "gamification"],
+        "tags": ["dashboard", "incentive", "stats", "gamification", "master"],
         "weapon_compatibility": ["W2", "W4"],
         "persona_fit": ["P2", "P1"],
-        "description": "ダッシュボード — 処理91枚+、インセンティブ79枚+、マスタ13社+",
+        "description": "ダッシュボード全体 — インセンティブ79+・マスタ13社・累計処理数表示",
         "has_pii": False,
         "masking_required": False,
     },
     {
         "index": 12,
         "category": "dashboard",
-        "tags": ["dashboard", "overview", "toC"],
-        "weapon_compatibility": ["W1", "W2", "W4"],
-        "persona_fit": ["P1", "P2", "P3"],
-        "description": "ダッシュボード全体 — shiwake-aiの全機能俯瞰",
+        "tags": ["incentive", "progress-bar", "gamification", "milestone"],
+        "weapon_compatibility": ["W2", "W4", "W5"],
+        "persona_fit": ["P1", "P2"],
+        "description": "インセンティブ拡大 — 91枚/1000枚プログレスバー",
         "has_pii": False,
         "masking_required": False,
     },
@@ -159,12 +161,22 @@ def _find_file(index: int) -> Path | None:
 
 
 def _storage_path(index: int, filename: str) -> str:
-    return f"{STORAGE_PREFIX}/{index:03d}_{Path(filename).stem}.png"
+    return f"{STORAGE_PREFIX}/{Path(filename).name}"
 
 
 async def upload_all(supabase: Client) -> None:
     print(f"[upload_assets] RAW_DIR: {RAW_DIR}")
     print(f"[upload_assets] BUCKET : {BUCKET}\n")
+
+    # バケット作成（既存の場合はスキップ）
+    try:
+        supabase.storage.create_bucket(BUCKET, options={"public": False})
+        print(f"[upload_assets] バケット '{BUCKET}' を作成しました\n")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "Duplicate" in str(e):
+            print(f"[upload_assets] バケット '{BUCKET}' は既存。スキップ。\n")
+        else:
+            print(f"[upload_assets] バケット作成エラー: {e}\n")
 
     missing = []
     for meta in ASSET_CATALOG:
