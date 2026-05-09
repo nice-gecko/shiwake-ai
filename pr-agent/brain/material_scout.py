@@ -17,8 +17,11 @@ CLI:
 
 import argparse
 import asyncio
+import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -26,8 +29,10 @@ from supabase import create_client, Client
 
 load_dotenv()
 
-_SUPABASE_URL    = os.getenv("SUPABASE_URL", "")
-_SUPABASE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "visuals-bucket")
+_SUPABASE_URL        = os.getenv("SUPABASE_URL", "")
+_SUPABASE_BUCKET     = os.getenv("SUPABASE_STORAGE_BUCKET", "visuals-bucket")
+_COWORK_REQUESTS_DIR = Path(__file__).parent.parent / "dashboard" / "output" / "cowork_requests"
+_JST                 = ZoneInfo("Asia/Tokyo")
 
 # Instagram は画像必須プラットフォーム
 _IMAGE_REQUIRED_PLATFORMS = {"instagram"}
@@ -92,6 +97,42 @@ def _public_url(storage_path: str) -> str:
 
 
 # ============================================================
+# P5-1: 画像生成依頼
+# ============================================================
+
+def _request_image_generation(inp: "ScoutInput") -> None:
+    """在庫なし時に cowork_requests/ へ Adobe Firefly 生成依頼 JSON を書き出す"""
+    from brain.image_prompt import build_prompt
+
+    prompt_data = build_prompt(inp.weapon_id, inp.persona_id, inp.platform)
+    now_jst     = datetime.now(_JST)
+    filename    = f"{now_jst.strftime('%Y-%m-%d_%H%M%S')}_image_generate.json"
+
+    _COWORK_REQUESTS_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "instruction": "image_generate",
+        "params": {
+            "weapon_id":            inp.weapon_id,
+            "persona_id":           inp.persona_id,
+            "platform":             inp.platform,
+            "firefly_prompt":       prompt_data["firefly_prompt"],
+            "negative_prompt":      prompt_data["negative_prompt"],
+            "aspect_ratio":         prompt_data["aspect_ratio"],
+            "weapon_compatibility": [inp.weapon_id],
+            "persona_fit":          [inp.persona_id],
+            "tags":                 inp.tags + [inp.weapon_id, inp.persona_id, inp.platform],
+            "category":             "generated",
+        },
+        "requested_at": now_jst.isoformat(),
+        "requested_by": "material_scout",
+        "status":       "pending",
+    }
+    path = _COWORK_REQUESTS_DIR / filename
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[scout] 📸 画像生成依頼を作成: {path.name}")
+
+
+# ============================================================
 # MaterialScout ノード
 # ============================================================
 
@@ -139,8 +180,9 @@ class MaterialScoutNode:
             reason = (
                 f"weapon={inp.weapon_id} / persona={inp.persona_id} に対応する"
                 "マスキング不要な画像アセットが見つかりません。"
-                "Adobe MCP または手動で画像を追加してください。"
             )
+            # P5-1: 自動で Cowork に画像生成依頼を書き出す
+            _request_image_generation(inp)
             return ScoutOutput(
                 cowork_needed=True,
                 cowork_reason=reason,
