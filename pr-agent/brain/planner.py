@@ -48,6 +48,8 @@ _RECENT_DAYS     = 7    # この日数以内の同一コンボ使用にペナル
 class PlannerInput(BaseModel):
     now: datetime | None = None            # テスト用。None なら現在時刻 (JST)
     platform_override: str | None = None   # 強制指定（省略時は time_table 自動選択）
+    trigger_axis_override: str | None = None  # 言い回し強制指定（dashboard から再生成時に使用）
+    target_chars: int | None = None        # 文字量指定（dashboard から再生成時に使用）
     dry_run: bool = False                  # True なら Supabase に書き込まない
     language: str = "ja"                  # "ja"（日本語）/ "en"（英語・P5-3）
 
@@ -249,6 +251,12 @@ class PlannerNode:
         if not candidates:
             raise ValueError(f"コンボ候補なし: persona={persona_id} platform={platform}")
 
+        # trigger_axis_override が指定されていれば候補を絞る
+        if inp.trigger_axis_override:
+            filtered = [c for c in candidates if c["trigger_id"] == inp.trigger_axis_override]
+            if filtered:
+                candidates = filtered
+
         # --- Supabase から履歴 ---
         recent   = self._recent_combos()
         patterns = self._success_patterns()
@@ -279,7 +287,12 @@ class PlannerNode:
         ]))
 
         return PlannerOutput(
-            writer_input=WriterInput(**selected, context=trend_context, language=inp.language),
+            writer_input=WriterInput(
+                **selected,
+                context=trend_context,
+                language=inp.language,
+                target_chars=inp.target_chars,
+            ),
             scheduled_at=scheduled_at,
             reasoning=reasoning,
         )

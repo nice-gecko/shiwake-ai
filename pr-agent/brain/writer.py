@@ -47,6 +47,7 @@ class WriterInput(BaseModel):
     visual_description: str = ""   # visual_assets.description（任意）
     context: str = ""              # トレンド・外部コンテキスト（任意）
     language: str = "ja"          # "ja"（日本語）/ "en"（英語・P5-3）
+    target_chars: int | None = None  # 文字量指定（ダッシュボードから再生成時に使用）
 
 
 class DraftPost(BaseModel):
@@ -157,7 +158,10 @@ def _build_user_prompt(inp: WriterInput) -> str:
     trigger  = triggers[inp.trigger_id]
 
     char_limit = _effective_char_limit(inp.platform)
-    limit_text = f"{char_limit}文字以内" if char_limit else "文字数制限なし"
+    if inp.target_chars:
+        limit_text = f"**{inp.target_chars}文字前後**（プラットフォーム上限: {char_limit}文字以内）" if char_limit else f"**{inp.target_chars}文字前後**"
+    else:
+        limit_text = f"{char_limit}文字以内" if char_limit else "文字数制限なし"
 
     platform_trait = tt.get("platform_traits", {}).get(inp.platform, "")
     appeal_axes    = "、".join(persona.appeal_axes)

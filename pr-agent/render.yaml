@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: shiwake-ai-dashboard
+    runtime: python
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # --- Non-secret defaults (can override in Render dashboard) ---
+      - key: ANTHROPIC_MODEL_DEFAULT
+        value: claude-sonnet-4-6
+      - key: ANTHROPIC_MODEL_HEAVY
+        value: claude-opus-4-7
+      - key: SUPABASE_URL
+        value: https://tmddairlgpyinqfekkfg.supabase.co
+      - key: SUPABASE_STORAGE_BUCKET
+        value: visuals-bucket
+      - key: GITHUB_REPO
+        value: nice-gecko/shiwake-ai
+      # --- Secrets: set values manually in Render dashboard ---
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DASHBOARD_BASIC_AUTH_USER
+        sync: false
+      - key: DASHBOARD_BASIC_AUTH_PASS
+        sync: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: X_ACCOUNT_HANDLE
+        sync: false

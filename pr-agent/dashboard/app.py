@@ -20,6 +20,7 @@ Basic Auth: DASHBOARD_BASIC_AUTH_USER / DASHBOARD_BASIC_AUTH_PASS
 import json
 import os
 import secrets
+from dotenv import set_key as _dotenv_set_key
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -44,6 +45,86 @@ security  = HTTPBasic()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 _PLATFORM_EMOJI = {"x": "🐦", "threads": "🧵", "instagram": "📸", "note": "📝", "zenn": "👾"}
+
+# ============================================================
+# キャラクター名オーバーライド
+# ============================================================
+
+_CHAR_EMOJI = {
+    "shoyo_kun": "🧑‍💼", "shoyo_chan": "👧", "zeirishi_sensei": "👨‍🏫",
+    "keiri_san": "👩‍💻", "shacho": "🧔",
+}
+_CHAR_NAMES_DEFAULTS = {
+    "shoyo_kun": "しょうよ君", "shoyo_chan": "しょうよちゃん", "zeirishi_sensei": "税理士先生",
+    "keiri_san": "経理さん", "shacho": "社長",
+}
+_CHAR_NAMES_PATH = Path(__file__).parent.parent / "config" / "character_name_overrides.json"
+_ENV_PATH        = Path(__file__).parent.parent / ".env"
+_CHAR_NAMES_STORAGE_KEY = "config/character_name_overrides.json"
+
+
+def _get_supabase_optional() -> "Client | None":
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not url or not key:
+        return None
+    try:
+        return create_client(url, key)
+    except Exception:
+        return None
+
+
+def _load_char_names() -> dict:
+    names = dict(_CHAR_NAMES_DEFAULTS)
+    # 1. ローカルファイル優先（ローカル開発用）
+    try:
+        if _CHAR_NAMES_PATH.exists():
+            names.update(json.loads(_CHAR_NAMES_PATH.read_text(encoding="utf-8")))
+            return names
+    except Exception:
+        pass
+    # 2. Supabase Storage にフォールバック（Render などエフェメラル環境）
+    try:
+        sb = _get_supabase_optional()
+        bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "visuals-bucket")
+        if sb:
+            data = sb.storage.from_(bucket).download(_CHAR_NAMES_STORAGE_KEY)
+            names.update(json.loads(data.decode("utf-8")))
+    except Exception:
+        pass
+    return names
+
+
+def _save_char_names(names: dict) -> None:
+    payload = json.dumps(names, ensure_ascii=False, indent=2)
+    # ローカルファイルに保存
+    try:
+        _CHAR_NAMES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _CHAR_NAMES_PATH.write_text(payload, encoding="utf-8")
+    except Exception:
+        pass
+    # Supabase Storage にもアップロード（Render 再起動後も永続化）
+    try:
+        sb = _get_supabase_optional()
+        bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "visuals-bucket")
+        if sb:
+            data = payload.encode("utf-8")
+            try:
+                sb.storage.from_(bucket).upload(
+                    _CHAR_NAMES_STORAGE_KEY, data,
+                    {"content-type": "application/json", "upsert": "true"},
+                )
+            except Exception:
+                sb.storage.from_(bucket).update(
+                    _CHAR_NAMES_STORAGE_KEY, data,
+                    {"content-type": "application/json"},
+                )
+    except Exception:
+        pass
+
+
+# Jinja2 グローバルとして設定（マクロからも参照可能）
+templates.env.globals["_char_names"] = _load_char_names()
 _STATUS_LABEL   = {
     "draft":                "下書き",
     "approved":             "承認済",
@@ -110,7 +191,7 @@ async def index(
     _user: str = Depends(_auth),
 ) -> HTMLResponse:
     db = _db()
-    ctx: dict = {"view": view, "status_filter": status_filter, "status_labels": _STATUS_LABEL}
+    ctx: dict = {"view": view, "status_filter": status_filter, "status_labels": _STATUS_LABEL, "settings_data": None}
 
     # ============ 投稿ビュー ============
     if view in ("posts", ""):
@@ -168,6 +249,68 @@ async def index(
         # 既存レポートファイル一覧
         existing = sorted(_REPORTS_DIR.glob("*_monthly_report.md"), reverse=True)
         ctx["existing_reports"] = [p.stem.replace("_monthly_report", "") for p in existing]
+
+    # ============ 設定ビュー ============
+    elif view == "settings":
+        def _is_set(key: str) -> bool:
+            return bool(os.getenv(key, "").strip())
+
+        def _v(key: str, desc: str, required: bool) -> dict:
+            return {"key": key, "desc": desc, "required": required, "configured": _is_set(key)}
+
+        _char_names = _load_char_names()
+        ctx["settings_data"] = {
+            "char_names_config": [
+                {"id": cid, "emoji": emoji, "name": _char_names.get(cid, _CHAR_NAMES_DEFAULTS.get(cid, cid))}
+                for cid, emoji in _CHAR_EMOJI.items()
+            ],
+            "platforms": [
+                {"name": "Threads", "emoji": "🧵", "mode": "自動投稿", "vars": [
+                    _v("THREADS_USER_ID",      "ユーザー ID",          True),
+                    _v("THREADS_ACCESS_TOKEN", "アクセストークン",      True),
+                ]},
+                {"name": "Instagram", "emoji": "📸", "mode": "自動投稿", "vars": [
+                    _v("IG_BUSINESS_ACCOUNT_ID", "ビジネスアカウント ID", True),
+                    _v("IG_ACCESS_TOKEN",         "アクセストークン",      True),
+                ]},
+                {"name": "X (Twitter)", "emoji": "🐦", "mode": "手動投稿", "vars": [
+                    _v("X_ACCOUNT_HANDLE", "@ハンドル名（例: @your_handle）投稿ページ遷移に使用", False),
+                ]},
+                {"name": "note",        "emoji": "📝", "mode": "Cowork 経由", "vars": []},
+                {"name": "Zenn",        "emoji": "👾", "mode": "自動投稿", "vars": [
+                    _v("ZENN_REPO_PATH", "連携リポジトリのローカルパス", True),
+                ]},
+            ],
+            "ai": [
+                {"name": "Anthropic Claude", "emoji": "🤖", "vars": [
+                    _v("ANTHROPIC_API_KEY",       "文章生成に使用（必須）",        True),
+                    _v("ANTHROPIC_MODEL_DEFAULT", "使用モデル名（省略時は最新版）", False),
+                ]},
+                {"name": "Google Gemini (画像生成・無料枠あり)", "emoji": "✨", "vars": [
+                    _v("GEMINI_API_KEY", "Imagen 3 画像生成に使用（Google AI Studio で無料取得可）", False),
+                ]},
+                {"name": "OpenAI / DALL-E (画像生成・有料)", "emoji": "🎨", "vars": [
+                    _v("OPENAI_API_KEY", "DALL-E 3 画像生成に使用（有料。Gemini 優先）", False),
+                ]},
+                {"name": "Supabase", "emoji": "🗄️", "vars": [
+                    _v("SUPABASE_URL",              "DB エンドポイント URL",  True),
+                    _v("SUPABASE_SERVICE_ROLE_KEY", "サービスロールキー",      True),
+                    _v("SUPABASE_STORAGE_BUCKET",   "画像保存バケット名",      False),
+                ]},
+            ],
+            "notify": [
+                {"name": "Discord", "emoji": "🎮", "vars": [
+                    _v("DISCORD_WEBHOOK_URL", "通知先 Webhook URL", True),
+                ]},
+            ],
+            "dashboard_cfg": [
+                {"name": "ダッシュボード", "emoji": "🖥️", "vars": [
+                    _v("DASHBOARD_BASIC_AUTH_USER", "ログインユーザー名",   True),
+                    _v("DASHBOARD_BASIC_AUTH_PASS", "ログインパスワード",   True),
+                    _v("DASHBOARD_BASE_URL",        "外部公開 URL（任意）", False),
+                ]},
+            ],
+        }
 
     # ============ 勝ちパターンビュー ============
     elif view == "patterns":
@@ -316,6 +459,251 @@ async def regenerate_post(
 
     background_tasks.add_task(_do_generate)
     return RedirectResponse(url="/dashboard/", status_code=303)
+
+
+@router.post("/posts/{post_id}/regen-length")
+async def regen_length_post(
+    post_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """文字量を変えて再生成。既存ドラフトは rejected に。"""
+    db   = _db()
+    rows = db.table("posts").select("platform").eq("id", post_id).execute()
+    if not rows.data:
+        raise HTTPException(404, "投稿が見つかりません")
+
+    form             = await request.form()
+    target_chars_str = str(form.get("target_chars", "")).strip()
+    redirect         = str(form.get("redirect", "/dashboard/"))
+    platform         = rows.data[0]["platform"]
+
+    if not target_chars_str:
+        return RedirectResponse(url=redirect, status_code=303)
+    try:
+        target_chars = int(target_chars_str)
+    except ValueError:
+        return RedirectResponse(url=redirect, status_code=303)
+
+    db.table("posts").update({"status": "rejected"}).eq("id", post_id).execute()
+
+    async def _do_generate() -> None:
+        pipeline = Pipeline()
+        await pipeline.generate(PlannerInput(
+            platform_override=platform,
+            target_chars=target_chars,
+        ))
+
+    background_tasks.add_task(_do_generate)
+    return RedirectResponse(url=redirect, status_code=303)
+
+
+@router.post("/posts/{post_id}/regen-axis")
+async def regen_axis_post(
+    post_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """言い回しモードを変えて再生成。既存ドラフトは rejected に。"""
+    db   = _db()
+    rows = db.table("posts").select("platform").eq("id", post_id).execute()
+    if not rows.data:
+        raise HTTPException(404, "投稿が見つかりません")
+
+    form         = await request.form()
+    trigger_axis = str(form.get("trigger_axis", ""))
+    redirect     = str(form.get("redirect", "/dashboard/"))
+    platform     = rows.data[0]["platform"]
+
+    db.table("posts").update({"status": "rejected"}).eq("id", post_id).execute()
+
+    async def _do_generate() -> None:
+        pipeline = Pipeline()
+        await pipeline.generate(PlannerInput(
+            platform_override=platform,
+            trigger_axis_override=trigger_axis or None,
+        ))
+
+    background_tasks.add_task(_do_generate)
+    return RedirectResponse(url=redirect, status_code=303)
+
+
+# ============================================================
+# 画像生成 / 添付
+# ============================================================
+
+async def _gen_image_gemini(prompt: str, api_key: str) -> bytes | None:
+    """Gemini Imagen 3 / Flash で画像生成してバイト列を返す。失敗時は None。"""
+    import base64
+    import httpx as _httpx
+    models = [
+        "gemini-2.0-flash-preview-image-generation",
+        "gemini-2.0-flash-exp-image-generation",
+    ]
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+    }
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        try:
+            async with _httpx.AsyncClient(timeout=90) as hc:
+                resp = await hc.post(url, json=payload)
+            if resp.status_code != 200:
+                continue
+            for cand in resp.json().get("candidates", []):
+                for part in cand.get("content", {}).get("parts", []):
+                    if "inlineData" in part:
+                        return base64.b64decode(part["inlineData"]["data"])
+        except Exception:
+            continue
+    return None
+
+
+async def _gen_image_openai(prompt: str, api_key: str) -> bytes | None:
+    """DALL-E 3 で画像生成してバイト列を返す。失敗時は None。"""
+    import httpx as _httpx
+    from openai import AsyncOpenAI
+    try:
+        oai  = AsyncOpenAI(api_key=api_key)
+        resp = await oai.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", n=1)
+        url  = resp.data[0].url  # type: ignore[index]
+        async with _httpx.AsyncClient(timeout=30) as hc:
+            dl = await hc.get(url)
+        return dl.content
+    except Exception:
+        return None
+
+
+@router.post("/posts/{post_id}/generate-image")
+async def generate_post_image(
+    post_id: str,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """Gemini（優先・無料枠あり）または DALL-E 3 で画像生成し posts.image_url を更新"""
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    if not gemini_key and not openai_key:
+        raise HTTPException(400, "GEMINI_API_KEY または OPENAI_API_KEY が未設定です（設定ページで確認）")
+
+    db   = _db()
+    rows = db.table("posts").select("content, platform").eq("id", post_id).execute()
+    if not rows.data:
+        raise HTTPException(404, "投稿が見つかりません")
+    content = rows.data[0]["content"]
+
+    prompt = (
+        "Professional flat-design illustration for a Japanese accounting SaaS social media post. "
+        "Warm pastel colors, clean minimal style, no text, no human faces. "
+        f"Topic: {content[:300]}"
+    )
+
+    img_bytes: bytes | None = None
+    if gemini_key:
+        img_bytes = await _gen_image_gemini(prompt, gemini_key)
+    if img_bytes is None and openai_key:
+        img_bytes = await _gen_image_openai(prompt, openai_key)
+    if img_bytes is None:
+        raise HTTPException(500, "画像の生成に失敗しました。APIキーや使用量を確認してください")
+
+    # Supabase Storage にアップロード → 永続 URL を取得
+    image_url: str = ""
+    bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "visuals-bucket")
+    try:
+        bucket = db.storage.from_(bucket_name)
+        fname  = f"posts/{post_id}.png"
+        bucket.upload(fname, img_bytes, {"content-type": "image/png", "upsert": "true"})
+        image_url = bucket.get_public_url(fname)
+    except Exception:
+        # ストレージ失敗時はローカル保存
+        import base64
+        image_url = f"data:image/png;base64,{base64.b64encode(img_bytes).decode()}"
+
+    try:
+        db.table("posts").update({"image_url": image_url}).eq("id", post_id).execute()
+    except Exception:
+        pass
+
+    return RedirectResponse(url=f"/dashboard/posts/{post_id}", status_code=303)
+
+
+@router.post("/posts/{post_id}/set-image-url")
+async def set_post_image_url(
+    post_id: str,
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """手動で画像 URL を設定する"""
+    db   = _db()
+    form = await request.form()
+    url  = str(form.get("image_url", "")).strip()
+    if url:
+        try:
+            db.table("posts").update({"image_url": url}).eq("id", post_id).execute()
+        except Exception:
+            pass
+    return RedirectResponse(url=f"/dashboard/posts/{post_id}", status_code=303)
+
+
+@router.post("/posts/{post_id}/remove-image")
+async def remove_post_image(
+    post_id: str,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """添付画像を削除する"""
+    db = _db()
+    try:
+        db.table("posts").update({"image_url": None}).eq("id", post_id).execute()
+    except Exception:
+        pass
+    return RedirectResponse(url=f"/dashboard/posts/{post_id}", status_code=303)
+
+
+@router.post("/posts/{post_id}/upload-image")
+async def upload_post_image(
+    post_id: str,
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """ユーザーがアップロードした画像を Supabase Storage に保存し posts.image_url を更新"""
+    import base64
+
+    db   = _db()
+    rows = db.table("posts").select("id").eq("id", post_id).execute()
+    if not rows.data:
+        raise HTTPException(404, "投稿が見つかりません")
+
+    form       = await request.form()
+    image_file = form.get("image_file")
+    if not image_file or not hasattr(image_file, "read"):
+        return RedirectResponse(url=f"/dashboard/posts/{post_id}", status_code=303)
+
+    content_type: str = getattr(image_file, "content_type", "image/jpeg") or "image/jpeg"
+    img_bytes: bytes  = await image_file.read()
+    if not img_bytes:
+        return RedirectResponse(url=f"/dashboard/posts/{post_id}", status_code=303)
+
+    ext = "jpg" if "jpeg" in content_type else content_type.split("/")[-1].split(";")[0].strip() or "png"
+
+    image_url: str = ""
+    bucket_name = os.getenv("SUPABASE_STORAGE_BUCKET", "visuals-bucket")
+    try:
+        bucket    = db.storage.from_(bucket_name)
+        fname     = f"posts/{post_id}_upload.{ext}"
+        bucket.upload(fname, img_bytes, {"content-type": content_type, "upsert": "true"})
+        image_url = bucket.get_public_url(fname)
+    except Exception:
+        image_url = f"data:{content_type};base64,{base64.b64encode(img_bytes).decode()}"
+
+    if image_url:
+        try:
+            db.table("posts").update({"image_url": image_url}).eq("id", post_id).execute()
+        except Exception:
+            pass
+
+    return RedirectResponse(url=f"/dashboard/posts/{post_id}", status_code=303)
 
 
 # ============================================================
@@ -524,6 +912,42 @@ def _trigger_cowork(instruction: str, params: dict, requested_by: str = "dashboa
     path = _COWORK_REQUESTS_DIR / filename
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
+
+
+# ============================================================
+# 設定保存 API
+# ============================================================
+
+@router.post("/api/settings/update")
+async def api_settings_update(
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """環境変数を .env ファイルに保存する。空欄は無視。"""
+    form = await request.form()
+    env_path = str(_ENV_PATH)
+    for key, value in form.multi_items():
+        if key.startswith("env_") and isinstance(value, str) and value.strip():
+            env_var = key[4:]
+            try:
+                _dotenv_set_key(env_path, env_var, value.strip())
+                os.environ[env_var] = value.strip()
+            except Exception:
+                pass
+    return RedirectResponse(url="/dashboard/?view=settings", status_code=303)
+
+
+@router.post("/api/settings/char-names")
+async def api_settings_char_names(
+    request: Request,
+    _user: str = Depends(_auth),
+) -> RedirectResponse:
+    """キャラクター表示名を保存する（ローカル JSON + Supabase Storage）。"""
+    form  = await request.form()
+    names = {k: str(v).strip() for k, v in form.items() if k in _CHAR_EMOJI and str(v).strip()}
+    _save_char_names(names)
+    templates.env.globals["_char_names"] = _load_char_names()
+    return RedirectResponse(url="/dashboard/?view=settings", status_code=303)
 
 
 # ============================================================

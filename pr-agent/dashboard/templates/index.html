@@ -1,5 +1,5 @@
 {% extends "_base.html" %}
-{% from "_macros.html" import character_badge, weapon_badge, trigger_badge %}
+{% from "_macros.html" import character_badge, persona_badge, weapon_badge, trigger_badge %}
 
 {% block title %}ダッシュボード{% endblock %}
 
@@ -33,14 +33,26 @@
             </span>
             <span class="text-sm font-semibold text-gray-900 capitalize">{{ platform }}</span>
           </div>
-          <form action="/dashboard/api/automation/{{ platform }}/toggle" method="POST">
-            <button type="submit"
-              class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors
-                     {% if is_on %}bg-indigo-600{% else %}bg-gray-200{% endif %}">
-              <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform
-                           {% if is_on %}translate-x-4{% else %}translate-x-0.5{% endif %}"></span>
-            </button>
-          </form>
+          <div class="relative group">
+            <form action="/dashboard/api/automation/{{ platform }}/toggle" method="POST">
+              <button type="submit"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors
+                       {% if is_on %}bg-indigo-600{% else %}bg-gray-200{% endif %}">
+                <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform
+                             {% if is_on %}translate-x-4{% else %}translate-x-0.5{% endif %}"></span>
+              </button>
+            </form>
+            <div class="pointer-events-none absolute bottom-full right-0 mb-2 opacity-0 group-hover:opacity-100
+                        transition-opacity duration-150 bg-white border border-gray-200 text-gray-700 text-xs rounded-lg px-3 py-2
+                        z-20 shadow-md w-56">
+              {% if is_on %}
+                ✅ <strong>自動投稿 ON</strong><br>生成した下書きを自動で公開します。クリックでOFFに切り替え。
+              {% else %}
+                ⏸ <strong>自動投稿 OFF</strong><br>生成後に承認が必要です。クリックでONに切り替え。
+              {% endif %}
+              <span class="absolute top-full right-3 border-[5px] border-transparent border-t-gray-200"></span>
+            </div>
+          </div>
         </div>
         {% if ri and ri.sample > 0 %}
           <div class="text-xs text-gray-500">
@@ -70,17 +82,23 @@
     {# note 生成ボタン + ツールチップ #}
     <div class="relative group flex-1">
       <div class="pointer-events-none absolute bottom-full left-0 mb-2 opacity-0 group-hover:opacity-100
-                  transition-opacity duration-150 bg-gray-900 text-white text-xs rounded-lg px-3 py-2
-                  z-20 shadow-lg w-64">
-        📝 note 向けの長文ドラフトを AI が生成し、Discord で通知します。<br>
-        Cowork キューに追加されます（生成に30〜60秒かかります）。
-        <span class="absolute top-full left-4 border-[5px] border-transparent border-t-gray-900"></span>
+                  transition-opacity duration-150 bg-white border border-gray-200 text-gray-700 text-xs rounded-lg px-3 py-2
+                  z-20 shadow-md w-72">
+        <p class="font-semibold mb-1">📝 ボタンを押すと…</p>
+        <ol class="list-decimal list-inside space-y-0.5 text-gray-500">
+          <li>AI が note 向け長文ドラフトを新規生成</li>
+          <li>note_drafts/ フォルダに保存</li>
+          <li>Discord に「確認してください」と通知</li>
+        </ol>
+        <p class="mt-1.5 text-gray-400">※ 下の投稿カードとは別に新規生成します（30〜60秒）</p>
+        <span class="absolute top-full left-4 border-[5px] border-transparent border-t-gray-200"></span>
       </div>
       <form action="/dashboard/api/note/generate" method="POST">
         <button type="submit"
+                onclick="return confirm('AI が note 向けドラフトを新規生成し Discord に通知します（30〜60秒）。実行しますか？')"
           class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
           <i data-lucide="file-plus" class="w-4 h-4"></i>
-          note 記事を生成して Cowork に依頼
+          note 新規ドラフトを AI 生成（Discord 通知）
         </button>
       </form>
     </div>
@@ -88,11 +106,11 @@
     {# Zenn 生成ボタン + ツールチップ #}
     <div class="relative group flex-1 flex gap-2">
       <div class="pointer-events-none absolute bottom-full left-0 mb-2 opacity-0 group-hover:opacity-100
-                  transition-opacity duration-150 bg-gray-900 text-white text-xs rounded-lg px-3 py-2
-                  z-20 shadow-lg w-64">
+                  transition-opacity duration-150 bg-white border border-gray-200 text-gray-700 text-xs rounded-lg px-3 py-2
+                  z-20 shadow-md w-64">
         👾 トピックを入力して Zenn 技術記事のドラフトを生成します。<br>
         zenn_drafts/ フォルダに保存され、Discord で通知されます。
-        <span class="absolute top-full left-4 border-[5px] border-transparent border-t-gray-900"></span>
+        <span class="absolute top-full left-4 border-[5px] border-transparent border-t-gray-200"></span>
       </div>
       <form action="/dashboard/api/zenn/generate" method="POST" class="flex-1 flex gap-2">
         <input type="text" name="topic" placeholder="Zennトピック（例: Memory Bank 設計）"
@@ -170,12 +188,15 @@
             {{ character_badge(post.character_id) }}
             {{ weapon_badge(post.weapon) }}
             {{ trigger_badge(post.trigger_axis) }}
-            <span class="text-xs text-gray-400 ml-auto">{{ post.persona }}</span>
+            {{ persona_badge(post.persona) }}
           </div>
           {# 本文プレビュー #}
           <p class="text-sm text-gray-800 line-clamp-3 leading-relaxed">{{ post.content }}</p>
-          {# 日時 #}
-          <time class="block mt-3 text-xs text-gray-400">{{ post.created_at[:16].replace("T", " ") if post.created_at else "" }}</time>
+          {# 日時 + 文字数 #}
+          <div class="flex items-center justify-between mt-3">
+            <time class="text-xs text-gray-400">{{ post.created_at[:16].replace("T", " ") if post.created_at else "" }}</time>
+            <span class="text-xs text-gray-400">{{ post.content | length }}文字</span>
+          </div>
         </a>
 
         {# ---- インライン修正エリア (hidden by default) ---- #}
@@ -215,16 +236,48 @@
             </select>
           </form>
 
-          {# 言い回し変更プルダウン #}
-          <form action="/dashboard/posts/{{ post.id }}/update-content" method="POST" class="flex-1 min-w-0">
+          {# 言い回し変更プルダウン → 再生成 + ツールチップ #}
+          <div class="flex-1 min-w-0 flex items-center gap-0.5">
+            <form action="/dashboard/posts/{{ post.id }}/regen-axis" method="POST" class="flex-1 min-w-0">
+              <input type="hidden" name="redirect" value="/dashboard/?view=posts&status_filter={{ status_filter }}">
+              <select name="trigger_axis" onchange="this.form.submit()"
+                      class="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 cursor-pointer focus:outline-none focus:border-indigo-400">
+                <option value="antagonism"   {% if post.trigger_axis == 'antagonism' %}selected{% endif %}>⚔️ 対立</option>
+                <option value="altruism"     {% if post.trigger_axis == 'altruism' %}selected{% endif %}>🤝 利他</option>
+                <option value="storytelling" {% if post.trigger_axis == 'storytelling' %}selected{% endif %}>📖 物語</option>
+                <option value="curiosity"    {% if post.trigger_axis == 'curiosity' %}selected{% endif %}>🔍 好奇心</option>
+                <option value="empathy"      {% if post.trigger_axis == 'empathy' %}selected{% endif %}>😊 共感</option>
+              </select>
+            </form>
+            {# モード解説ツールチップ (fixed-position で overflow-hidden を回避) #}
+            <button type="button" class="flex-shrink-0 text-gray-300 hover:text-indigo-400 text-xs leading-none px-0.5 cursor-pointer select-none"
+                    onmouseenter="showAxisTooltip(this)"
+                    onmouseleave="scheduleHideAxisTooltip()"
+                    onclick="pinAxisTooltip(this)">ⓘ</button>
+          </div>
+
+          {# 文字量調整（プリセット + 自由入力） #}
+          <form action="/dashboard/posts/{{ post.id }}/regen-length" method="POST" class="flex-shrink-0">
             <input type="hidden" name="redirect" value="/dashboard/?view=posts&status_filter={{ status_filter }}">
-            <select name="trigger_axis" onchange="this.form.submit()"
-                    title="言い回し(トリガー)を変更"
-                    class="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 cursor-pointer focus:outline-none focus:border-indigo-400">
-              <option value="antagonism"   {% if post.trigger_axis == 'antagonism' %}selected{% endif %}>⚔️ 対立</option>
-              <option value="altruism"     {% if post.trigger_axis == 'altruism' %}selected{% endif %}>🤝 利他</option>
-              <option value="storytelling" {% if post.trigger_axis == 'storytelling' %}selected{% endif %}>📖 物語</option>
+            <select name="target_chars" onchange="this.value && this.form.submit()"
+                    title="文字量を選んで再生成"
+                    class="text-xs border border-gray-200 rounded-l-lg px-1 py-1.5 bg-white text-gray-500 cursor-pointer focus:outline-none focus:border-indigo-400">
+              <option value="">↔字</option>
+              <option value="80">80</option>
+              <option value="150">150</option>
+              <option value="250">250</option>
+              <option value="400">400</option>
+              <option value="800">800</option>
+              <option value="1500">1500</option>
+              <option value="2000">2000</option>
             </select>
+          </form>
+          <form action="/dashboard/posts/{{ post.id }}/regen-length" method="POST" class="flex-shrink-0">
+            <input type="hidden" name="redirect" value="/dashboard/?view=posts&status_filter={{ status_filter }}">
+            <input type="number" name="target_chars" placeholder="字" min="50" max="5000" step="50"
+                   title="文字数を直接入力してEnter"
+                   onkeydown="if(event.key==='Enter'&&this.value){event.preventDefault();this.form.submit();}"
+                   class="w-11 text-xs border border-l-0 border-gray-200 rounded-r-lg px-1 py-1.5 bg-white text-gray-500 focus:outline-none focus:border-indigo-400" style="-moz-appearance:textfield">
           </form>
 
           {# 修正ボタン #}
@@ -244,6 +297,14 @@
               <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
             </button>
           </form>
+
+          {# X 投稿準備ボタン（常に最右端表示） #}
+          <button type="button"
+                  onclick="openXPost('{{ post.id }}', {{ post.content | tojson }})"
+                  title="テキストをコピーして X の投稿ページを開く"
+                  class="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:border-sky-400 hover:text-sky-500 hover:bg-sky-50 transition-colors flex-shrink-0">
+            <i data-lucide="twitter" class="w-3.5 h-3.5"></i>
+          </button>
 
         </div>
       </div>
@@ -535,10 +596,251 @@
 
 </div>
 
+{# ============================================================
+   設定ビュー
+   ============================================================ #}
+{% elif view == "settings" %}
+
+<div class="p-4 md:p-6 space-y-6 max-w-3xl">
+  <div>
+    <h1 class="text-xl font-bold text-gray-900">設定</h1>
+    <p class="text-sm text-gray-500 mt-1">アカウント情報を入力して保存できます。<span class="text-amber-600 font-medium">Render でホストしている場合、環境変数の変更は Render ダッシュボードで設定してください（フォームからの変更はサーバー再起動でリセットされます）。</span></p>
+  </div>
+
+{% if settings_data %}
+{% set sd = settings_data %}
+
+{# ===== 設定フォームマクロ ===== #}
+{% macro settings_var_row(v) %}
+<div class="mb-4 last:mb-0">
+  <div class="flex items-center gap-2 mb-1.5">
+    <code class="text-xs bg-gray-50 text-gray-600 border border-gray-200 px-1.5 py-0.5 rounded font-mono">{{ v.key }}</code>
+    <span class="text-xs font-medium {% if v.configured %}text-emerald-600{% elif v.required %}text-red-500{% else %}text-gray-400{% endif %}">
+      {% if v.configured %}✓ 設定済{% elif v.required %}未設定{% else %}任意{% endif %}
+    </span>
+  </div>
+  <input type="{% if 'KEY' in v.key or 'TOKEN' in v.key or 'SECRET' in v.key or 'PASS' in v.key or 'WEBHOOK' in v.key %}password{% else %}text{% endif %}"
+         name="env_{{ v.key }}"
+         placeholder="{{ '●●●● 変更する場合のみ入力' if v.configured else v.desc }}"
+         autocomplete="off"
+         class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
+  <p class="text-xs text-gray-400 mt-1">{{ v.desc }}</p>
+</div>
+{% endmacro %}
+
+  {# ===== キャラクター名 ===== #}
+  <section>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">キャラクター名</h2>
+    <form method="POST" action="/dashboard/api/settings/char-names" class="bg-white border border-gray-200 rounded-xl p-5">
+      <p class="text-xs text-gray-400 mb-4">投稿カードに表示されるキャラクター名を変更できます。</p>
+      <div class="space-y-3">
+        {% for c in sd.char_names_config %}
+        <div class="flex items-center gap-3">
+          <span class="text-xl leading-none w-8 text-center flex-shrink-0">{{ c.emoji }}</span>
+          <code class="text-xs text-gray-400 w-36 flex-shrink-0">{{ c.id }}</code>
+          <input type="text" name="{{ c.id }}" value="{{ c.name }}"
+                 class="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent">
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-4 pt-3 border-t border-gray-100">
+        <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+          キャラクター名を保存
+        </button>
+      </div>
+    </form>
+  </section>
+
+  {# ===== SNS 接続 ===== #}
+  <section>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">SNS 接続設定</h2>
+    <div class="space-y-3">
+      {% for pf in sd.platforms %}
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-{% if pf.vars %}5{% else %}0{% endif %}">
+          <span class="text-xl leading-none">{{ pf.emoji }}</span>
+          <div>
+            <span class="font-semibold text-gray-900 text-sm">{{ pf.name }}</span>
+            <span class="ml-2 text-xs px-2 py-0.5 rounded-full
+              {% if pf.mode == '手動投稿' %}bg-amber-50 text-amber-700
+              {% elif pf.mode == 'Cowork 経由' %}bg-sky-50 text-sky-700
+              {% else %}bg-indigo-50 text-indigo-700{% endif %}">{{ pf.mode }}</span>
+          </div>
+        </div>
+        {% if pf.vars %}
+        <form method="POST" action="/dashboard/api/settings/update">
+          {% for v in pf.vars %}{{ settings_var_row(v) }}{% endfor %}
+          <button type="submit" class="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+            保存
+          </button>
+        </form>
+        {% else %}
+        <p class="text-xs text-gray-400">API 接続不要 — ダッシュボードから手動で操作します</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ===== AI / ストレージ ===== #}
+  <section>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">AI / ストレージ</h2>
+    <div class="space-y-3">
+      {% for svc in sd.ai %}
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-5">
+          <span class="text-xl leading-none">{{ svc.emoji }}</span>
+          <span class="font-semibold text-gray-900 text-sm">{{ svc.name }}</span>
+        </div>
+        <form method="POST" action="/dashboard/api/settings/update">
+          {% for v in svc.vars %}{{ settings_var_row(v) }}{% endfor %}
+          <button type="submit" class="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+            保存
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ===== 通知 ===== #}
+  <section>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">通知</h2>
+    <div class="space-y-3">
+      {% for svc in sd.notify %}
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-5">
+          <span class="text-xl leading-none">{{ svc.emoji }}</span>
+          <span class="font-semibold text-gray-900 text-sm">{{ svc.name }}</span>
+        </div>
+        <form method="POST" action="/dashboard/api/settings/update">
+          {% for v in svc.vars %}{{ settings_var_row(v) }}{% endfor %}
+          <button type="submit" class="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+            保存
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ===== ダッシュボード ===== #}
+  <section>
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">ダッシュボード</h2>
+    <div class="space-y-3">
+      {% for svc in sd.dashboard_cfg %}
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-5">
+          <span class="text-xl leading-none">{{ svc.emoji }}</span>
+          <span class="font-semibold text-gray-900 text-sm">{{ svc.name }}</span>
+        </div>
+        <form method="POST" action="/dashboard/api/settings/update">
+          {% for v in svc.vars %}{{ settings_var_row(v) }}{% endfor %}
+          <button type="submit" class="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+            保存
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-gray-400 mt-2">認証情報の変更は次回ログイン時に適用されます。</p>
+  </section>
+
+{% else %}
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+    <p class="text-sm text-amber-800 font-medium">設定データを読み込めませんでした。</p>
+    <p class="text-xs text-amber-700 mt-1">サーバーログを確認してください。</p>
+  </div>
+{% endif %}{# end if settings_data #}
+
+</div>
+
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
+
+{# 言い回しモード解説 — fixed-position ピン留めフローティングウィンドウ #}
+<div id="axis-tooltip"
+     class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-4 w-64 text-xs text-gray-700"
+     style="top:0;left:0"
+     onmouseenter="cancelHideAxisTooltip()"
+     onmouseleave="scheduleHideAxisTooltip()">
+  <div class="flex items-center justify-between mb-2.5">
+    <p class="font-semibold text-gray-500 text-[10px] uppercase tracking-wide">言い回しモード</p>
+    <button onclick="closeAxisTooltip()" class="text-gray-400 hover:text-gray-700 text-base leading-none font-medium">✕</button>
+  </div>
+  <dl class="space-y-2.5">
+    <div><dt class="font-semibold text-gray-800">⚔️ 対立</dt><dd class="text-gray-400 mt-0.5 leading-relaxed">古いやり方を少し強めに否定し、新しさを強調</dd></div>
+    <div><dt class="font-semibold text-gray-800">🤝 利他</dt><dd class="text-gray-400 mt-0.5 leading-relaxed">役立つ情報をシェアする。宣伝色を薄め保存促進</dd></div>
+    <div><dt class="font-semibold text-gray-800">📖 物語</dt><dd class="text-gray-400 mt-0.5 leading-relaxed">開発秘話・感情体験で共感を呼ぶ</dd></div>
+    <div><dt class="font-semibold text-gray-800">🔍 好奇心</dt><dd class="text-gray-400 mt-0.5 leading-relaxed">意外な事実や数字で「えっ？」と引き込む</dd></div>
+    <div><dt class="font-semibold text-gray-800">😊 共感</dt><dd class="text-gray-400 mt-0.5 leading-relaxed">あるある体験をユーモアで語り親近感を演出</dd></div>
+  </dl>
+  <p id="axis-pin-hint" class="text-[10px] text-indigo-400 mt-2.5 border-t border-gray-100 pt-2">ⓘ クリックでピン留め</p>
+</div>
+
+<script>
+let _axisPinned = false;
+let _axisTimer  = null;
+
+function _positionAxisTooltip(el) {
+  const t = document.getElementById('axis-tooltip');
+  const r = el.getBoundingClientRect();
+  const tw = 256, margin = 10;
+  let left = r.right + margin;
+  if (left + tw > window.innerWidth) left = Math.max(8, r.left - tw - margin);
+  t.style.left = left + 'px';
+  t.style.top  = Math.max(8, r.top) + 'px';
+}
+
+function showAxisTooltip(el) {
+  clearTimeout(_axisTimer);
+  if (_axisPinned) return;
+  _positionAxisTooltip(el);
+  document.getElementById('axis-tooltip').classList.remove('hidden');
+}
+
+function scheduleHideAxisTooltip() {
+  if (_axisPinned) return;
+  _axisTimer = setTimeout(() => {
+    if (!_axisPinned) document.getElementById('axis-tooltip').classList.add('hidden');
+  }, 200);
+}
+
+function cancelHideAxisTooltip() {
+  clearTimeout(_axisTimer);
+}
+
+function pinAxisTooltip(el) {
+  if (_axisPinned) {
+    _axisPinned = false;
+    document.getElementById('axis-tooltip').classList.add('hidden');
+    document.getElementById('axis-pin-hint').textContent = 'ⓘ クリックでピン留め';
+  } else {
+    _axisPinned = true;
+    _positionAxisTooltip(el);
+    document.getElementById('axis-tooltip').classList.remove('hidden');
+    document.getElementById('axis-pin-hint').textContent = '📌 ピン留め中 — ✕で閉じる';
+  }
+}
+
+function closeAxisTooltip() {
+  _axisPinned = false;
+  clearTimeout(_axisTimer);
+  document.getElementById('axis-tooltip').classList.add('hidden');
+  const hint = document.getElementById('axis-pin-hint');
+  if (hint) hint.textContent = 'ⓘ クリックでピン留め';
+}
+
+function openXPost(postId, content) {
+  navigator.clipboard.writeText(content).then(() => {
+    window.open('https://twitter.com/compose/tweet', '_blank');
+  }).catch(() => {
+    window.open('https://twitter.com/compose/tweet', '_blank');
+  });
+}
+</script>
 {% if view == "reports" and report_content %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>

@@ -1,5 +1,5 @@
 {% extends "_base.html" %}
-{% from "_macros.html" import character_badge, weapon_badge, trigger_badge %}
+{% from "_macros.html" import weapon_badge %}
 
 {% block title %}投稿詳細{% endblock %}
 
@@ -30,11 +30,9 @@
       {% else %}bg-gray-50{% endif %}">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-2 flex-wrap">
-          {# プラットフォーム #}
           <span class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium bg-white/70 text-gray-700">
             {{ post.platform_emoji }} {{ post.platform }}
           </span>
-          {# ステータス #}
           <span class="inline-flex items-center text-xs font-semibold rounded-md px-2 py-1
             {% if status == 'published' %}bg-emerald-100 text-emerald-800
             {% elif status == 'awaiting_manual_post' %}bg-amber-100 text-amber-800
@@ -54,11 +52,61 @@
       </div>
     </div>
 
-    {# メタ情報: キャラクター・構文・トリガー #}
+    {# メタ情報: キャラ(プルダウン)・言い回し(プルダウン)・構文・スケジュール #}
     <div class="px-5 py-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
-      {{ character_badge(post.character_id) }}
+
+      {# キャラ変更プルダウン #}
+      <form action="/dashboard/posts/{{ post.id }}/update-content" method="POST">
+        <input type="hidden" name="redirect" value="/dashboard/posts/{{ post.id }}">
+        <select name="character_id" onchange="this.form.submit()"
+                class="text-xs rounded-full px-2.5 py-0.5 bg-indigo-50 text-indigo-700 font-medium border-0 cursor-pointer hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 appearance-none pr-5 bg-no-repeat"
+                style="background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236366f1%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-position:right 4px center;">
+          <option value="shoyo_kun"       {% if post.character_id == 'shoyo_kun' %}selected{% endif %}>🧑‍💼 しょうよ君</option>
+          <option value="shoyo_chan"      {% if post.character_id == 'shoyo_chan' %}selected{% endif %}>👧 しょうよちゃん</option>
+          <option value="zeirishi_sensei" {% if post.character_id == 'zeirishi_sensei' %}selected{% endif %}>👨‍🏫 税理士先生</option>
+          <option value="keiri_san"       {% if post.character_id == 'keiri_san' %}selected{% endif %}>👩‍💻 経理さん</option>
+          <option value="shacho"          {% if post.character_id == 'shacho' %}selected{% endif %}>🧔 社長</option>
+        </select>
+      </form>
+
+      {# 言い回し変更プルダウン → 再生成 + ツールチップ #}
+      <div class="relative group flex items-center gap-0.5">
+      <form action="/dashboard/posts/{{ post.id }}/regen-axis" method="POST">
+        <input type="hidden" name="redirect" value="/dashboard/posts/{{ post.id }}">
+        <select name="trigger_axis" onchange="this.form.submit()"
+                title="言い回しを変えて再生成（バックグラウンドで新しい文章を生成します）"
+                class="text-xs rounded-full px-2.5 py-0.5 font-medium border-0 cursor-pointer transition-colors focus:outline-none focus:ring-2 appearance-none pr-5 bg-no-repeat
+                  {% if post.trigger_axis == 'antagonism' %}bg-rose-50 text-rose-700 focus:ring-rose-300
+                  {% elif post.trigger_axis == 'altruism' %}bg-emerald-50 text-emerald-700 focus:ring-emerald-300
+                  {% elif post.trigger_axis == 'curiosity' %}bg-amber-50 text-amber-700 focus:ring-amber-300
+                  {% elif post.trigger_axis == 'empathy' %}bg-pink-50 text-pink-700 focus:ring-pink-300
+                  {% else %}bg-sky-50 text-sky-700 focus:ring-sky-300{% endif %}"
+                style="background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-position:right 4px center;">
+          <option value="antagonism"   {% if post.trigger_axis == 'antagonism' %}selected{% endif %}>⚔️ 対立</option>
+          <option value="altruism"     {% if post.trigger_axis == 'altruism' %}selected{% endif %}>🤝 利他</option>
+          <option value="storytelling" {% if post.trigger_axis == 'storytelling' %}selected{% endif %}>📖 物語</option>
+          <option value="curiosity"    {% if post.trigger_axis == 'curiosity' %}selected{% endif %}>🔍 好奇心</option>
+          <option value="empathy"      {% if post.trigger_axis == 'empathy' %}selected{% endif %}>😊 共感</option>
+        </select>
+      </form>
+      <span class="cursor-help text-gray-300 hover:text-indigo-400 text-xs leading-none px-0.5">ⓘ</span>
+      <div class="pointer-events-none absolute bottom-full left-0 mb-2 opacity-0 group-hover:opacity-100
+                  transition-opacity duration-150 bg-white border border-gray-200 text-gray-700 text-xs rounded-lg p-3
+                  z-30 shadow-md w-60">
+        <p class="font-semibold text-gray-500 mb-2 text-[10px] uppercase tracking-wide">言い回しモード</p>
+        <dl class="space-y-1.5">
+          <div><dt class="font-medium">⚔️ 対立</dt><dd class="text-gray-400">古いやり方を否定し新しさを強調</dd></div>
+          <div><dt class="font-medium">🤝 利他</dt><dd class="text-gray-400">役立つ情報を惜しみなくシェア</dd></div>
+          <div><dt class="font-medium">📖 物語</dt><dd class="text-gray-400">開発秘話・感情で共感を呼ぶ</dd></div>
+          <div><dt class="font-medium">🔍 好奇心</dt><dd class="text-gray-400">意外な事実で「えっ？」と引き込む</dd></div>
+          <div><dt class="font-medium">😊 共感</dt><dd class="text-gray-400">あるある体験で親近感を演出</dd></div>
+        </dl>
+        <p class="text-[10px] text-indigo-500 mt-2">▶ 変更するとバックグラウンドで再生成</p>
+        <span class="absolute top-full left-4 border-[5px] border-transparent border-t-gray-200"></span>
+      </div>
+      </div>
+
       {{ weapon_badge(post.weapon) }}
-      {{ trigger_badge(post.trigger_axis) }}
       <span class="text-xs text-gray-400">{{ post.persona }}</span>
       {% if post.scheduled_at %}
         <span class="ml-auto flex items-center gap-1 text-xs text-gray-400">
@@ -72,13 +120,133 @@
     <div class="px-5 py-5">
       <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">投稿本文</p>
       <p id="post-content" class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{{ post.content }}</p>
-      <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-        <span id="char-count" class="text-xs text-gray-400">{{ post.content | length }} 文字</span>
-        <button onclick="copyContent()"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors">
-          <i data-lucide="clipboard" class="w-3.5 h-3.5"></i> コピー
-        </button>
+
+      {# インライン編集エリア (デフォルト非表示) #}
+      <div id="edit-area" class="hidden mt-3">
+        <form action="/dashboard/posts/{{ post.id }}/update-content" method="POST">
+          <input type="hidden" name="redirect" value="/dashboard/posts/{{ post.id }}">
+          <textarea name="content" rows="10"
+                    class="w-full text-sm text-gray-800 border border-indigo-300 rounded-lg p-3 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none">{{ post.content }}</textarea>
+          <div class="mt-2 flex gap-2">
+            <button type="submit"
+                    class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors">
+              保存する
+            </button>
+            <button type="button" onclick="toggleEdit()"
+                    class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm rounded-lg transition-colors">
+              キャンセル
+            </button>
+          </div>
+        </form>
       </div>
+
+      <div class="mt-4 pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+        <span id="char-count" class="text-xs text-gray-400 flex-shrink-0">{{ post.content | length }}文字</span>
+        <form action="/dashboard/posts/{{ post.id }}/regen-length" method="POST" class="flex items-center">
+          <input type="hidden" name="redirect" value="/dashboard/posts/{{ post.id }}">
+          <select name="target_chars" onchange="this.value && this.form.submit()"
+                  title="文字量を選択して再生成"
+                  class="text-xs border border-gray-200 rounded-l-lg px-2 py-1 bg-white text-gray-500 cursor-pointer focus:outline-none focus:border-indigo-400">
+            <option value="">文字量 ▼</option>
+            <option value="80">80字</option>
+            <option value="150">150字</option>
+            <option value="250">250字</option>
+            <option value="400">400字</option>
+            <option value="800">800字</option>
+            <option value="1500">1500字</option>
+            <option value="2000">2000字</option>
+          </select>
+        </form>
+        <form action="/dashboard/posts/{{ post.id }}/regen-length" method="POST" class="flex items-center gap-1">
+          <input type="hidden" name="redirect" value="/dashboard/posts/{{ post.id }}">
+          <input type="number" name="target_chars" placeholder="カスタム字" min="50" max="10000" step="50"
+                 title="文字数を直接入力してEnter"
+                 onkeydown="if(event.key==='Enter'&&this.value){event.preventDefault();this.form.submit();}"
+                 class="w-24 text-xs border border-gray-200 rounded-l-lg border-r-0 px-2 py-1 bg-white text-gray-500 focus:outline-none focus:border-indigo-400" style="-moz-appearance:textfield">
+          <button type="submit" class="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-r-lg border border-gray-200 border-l-0 transition-colors">
+            再生成
+          </button>
+        </form>
+        <div class="ml-auto flex items-center gap-2">
+          <button onclick="toggleEdit()"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i> 修正
+          </button>
+          <button onclick="copyContent()"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors">
+            <i data-lucide="clipboard" class="w-3.5 h-3.5"></i> コピー
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {# ===== 添付画像セクション ===== #}
+    <div class="px-5 py-4 border-t border-gray-100">
+      <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">添付画像</p>
+
+      {% if post.get('image_url') %}
+      {# レイアウトプレビュー（投稿イメージ） #}
+      <div class="mb-3 border border-gray-200 rounded-xl overflow-hidden relative group/img">
+        <p class="px-3 py-1.5 text-[10px] text-gray-400 bg-gray-50 border-b border-gray-100">投稿イメージプレビュー</p>
+        <img src="{{ post.image_url }}" alt="投稿画像"
+             class="w-full object-cover max-h-64">
+        <div class="p-3 bg-white border-t border-gray-100">
+          <p class="text-xs text-gray-700 line-clamp-3 leading-relaxed">{{ post.content }}</p>
+        </div>
+        <form method="POST" action="/dashboard/posts/{{ post.id }}/remove-image"
+              class="absolute top-8 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity">
+          <button type="submit"
+                  onclick="return confirm('画像を削除しますか？')"
+                  class="p-1.5 bg-white/90 hover:bg-red-50 border border-red-200 text-red-500 rounded-lg shadow-sm transition-colors">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+      <div class="flex flex-col sm:flex-row gap-2 flex-wrap">
+        {# AI 生成ボタン #}
+        <form method="POST" action="/dashboard/posts/{{ post.id }}/generate-image" class="flex-1 min-w-[200px]">
+          <button type="submit"
+                  onclick="return confirm('AI で画像を生成します（Gemini 優先、なければ DALL-E 3）。10〜20秒かかります。よろしいですか？')"
+                  class="w-full inline-flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+            AI で画像生成
+          </button>
+        </form>
+
+        {# ファイルアップロード #}
+        <form method="POST" action="/dashboard/posts/{{ post.id }}/upload-image"
+              enctype="multipart/form-data" class="flex-1 min-w-[200px]">
+          <label class="cursor-pointer block">
+            <input type="file" name="image_file" accept="image/*" class="hidden"
+                   onchange="this.form.submit()">
+            <div class="w-full inline-flex items-center justify-center gap-2 py-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium transition-colors">
+              <i data-lucide="upload" class="w-4 h-4"></i>
+              自分の画像をアップロード
+            </div>
+          </label>
+        </form>
+
+        {# URL 手動入力 #}
+        <details class="flex-1 min-w-[200px]">
+          <summary class="cursor-pointer inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-white hover:bg-gray-50 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium transition-colors list-none w-full">
+            <i data-lucide="link" class="w-4 h-4"></i>
+            URL を貼り付け
+          </summary>
+          <form method="POST" action="/dashboard/posts/{{ post.id }}/set-image-url" class="mt-2 flex gap-2">
+            <input type="url" name="image_url" placeholder="https://..." value="{{ post.get('image_url', '') }}"
+                   class="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 min-w-0">
+            <button type="submit"
+                    class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg font-medium transition-colors">
+              保存
+            </button>
+          </form>
+        </details>
+      </div>
+      {% if not post.get('image_url') %}
+        <p class="text-xs text-gray-400 mt-2">Gemini は無料枠あり（<code class="bg-gray-100 px-1 rounded">GEMINI_API_KEY</code>）。DALL-E 3 は有料（<code class="bg-gray-100 px-1 rounded">OPENAI_API_KEY</code>）。</p>
+      {% endif %}
     </div>
 
     {# X 手動投稿UI #}
@@ -92,17 +260,16 @@
         <a href="https://twitter.com/compose/tweet" target="_blank" class="underline font-medium">twitter.com/compose</a>
         に貼り付けてください。
       </p>
-      <button onclick="copyContent()"
+      <button onclick="copyAndOpenX()"
               class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2">
-        <i data-lucide="clipboard" class="w-4 h-4"></i> X 投稿文をコピー
+        <i data-lucide="external-link" class="w-4 h-4"></i> コピーして X を開く
       </button>
     </div>
     {% endif %}
 
-    {# 承認・却下ボタン #}
-    {% if status in ('draft', 'approved') %}
+    {# 承認・やり直し・却下ボタン #}
     <div class="px-5 pb-5 flex flex-col sm:flex-row gap-3">
-      {# 承認ボタン #}
+      {% if status in ('draft', 'approved') %}
       <form method="POST" action="/dashboard/posts/{{ post.id }}/approve"
             onsubmit="return confirmApprove()" class="flex-1">
         <button type="submit"
@@ -111,7 +278,17 @@
           承認して{{ "手動投稿待ちに設定" if post.platform == "x" else "自動投稿" }}する
         </button>
       </form>
-      {# 却下ボタン #}
+      {% endif %}
+
+      <form method="POST" action="/dashboard/posts/{{ post.id }}/regenerate"
+            onsubmit="return confirm('この投稿を却下して新たに生成し直しますか？')">
+        <button type="submit"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-600 rounded-lg font-medium text-sm transition-colors">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i> やり直し
+        </button>
+      </form>
+
+      {% if status in ('draft', 'approved') %}
       <form method="POST" action="/dashboard/posts/{{ post.id }}/reject"
             onsubmit="return confirm('却下しますか？')">
         <button type="submit"
@@ -119,8 +296,8 @@
           <i data-lucide="x" class="w-4 h-4"></i> 却下する
         </button>
       </form>
+      {% endif %}
     </div>
-    {% endif %}
 
   </div>
 
@@ -137,6 +314,25 @@
       btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 inline"></i> コピーしました';
       lucide.createIcons();
       setTimeout(() => { btn.innerHTML = orig; lucide.createIcons(); }, 2000);
+    });
+  }
+
+  function toggleEdit() {
+    const area = document.getElementById('edit-area');
+    const content = document.getElementById('post-content');
+    area.classList.toggle('hidden');
+    content.classList.toggle('hidden');
+    if (!area.classList.contains('hidden')) {
+      area.querySelector('textarea').focus();
+    }
+  }
+
+  function copyAndOpenX() {
+    const text = document.getElementById('post-content').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      window.open('https://twitter.com/compose/tweet', '_blank');
+    }).catch(() => {
+      window.open('https://twitter.com/compose/tweet', '_blank');
     });
   }
 

@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 .pytest_cache/
 visuals/raw/auto/
+config/character_name_overrides.json
+dashboard/output/
