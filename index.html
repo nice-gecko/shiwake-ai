@@ -4684,7 +4684,10 @@ function openAutoIntakeSettings() {
   window.incrementSupabaseCount = async function(uid, n) {
     const res = typeof _orig === 'function' ? await _orig(uid, n) : null;
     if (res && res.graduation && res.graduation.just_graduated) {
-      setTimeout(showGradModal, 500);
+      if (localStorage.getItem('shiwake_graduated_modal_shown') !== '1') {
+        localStorage.setItem('shiwake_graduated_modal_shown', '1');
+        setTimeout(showGradModal, 500);
+      }
     }
     return res;
   };
@@ -4935,6 +4938,12 @@ window.addEventListener('DOMContentLoaded', () => {
       loadInboxTray();
       setupAutoIntakeMenuItem();
       startInboxPolling();
+      // 既に卒業済みのユーザーはlocalStorageフラグだけ立てる（モーダルは出さない）
+      fetchGraduationStatus().then(grad => {
+        if (grad && grad.graduated && !localStorage.getItem('shiwake_graduated_modal_shown')) {
+          localStorage.setItem('shiwake_graduated_modal_shown', '1');
+        }
+      });
     }
   }, 1000);
 });

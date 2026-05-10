@@ -349,8 +349,9 @@ async function bumpCumulativeAndCheckGraduation(uid, addCount) {
     const newCount = (user.cumulative_shiwake_count || 0) + addCount;
     const updates = { cumulative_shiwake_count: newCount };
     let justGraduated = false;
+    const isPaid = user.is_paid === true;
     const isAgent = user.plan_key && user.plan_key.startsWith('agent_');
-    if (user.is_paid && !isAgent && !user.graduated_rookie_at && newCount >= 50) {
+    if (isPaid && !isAgent && !user.graduated_rookie_at && newCount >= 50) {
       updates.graduated_rookie_at = new Date().toISOString();
       justGraduated = true;
     }
