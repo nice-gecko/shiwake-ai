@@ -5210,7 +5210,7 @@ function buildWsCard(ws, isArchived) {
   const statsText = (ws.stats && ws.stats.shiwake_count != null)
     ? `仕訳: ${ws.stats.shiwake_count}件` : '';
   let badges = '';
-  if (ws.is_default) badges += '<span class="ws-badge-default">既定</span>';
+  if (ws.is_default) badges += '<span class="ws-badge-default">デフォルト</span>';
   if (isArchived) badges += '<span class="ws-badge-archived">アーカイブ済み</span>';
   let btns = '';
   if (!isArchived) {
@@ -5473,10 +5473,10 @@ function renderWsEditBody(ws) {
   const stats = ws.stats || {};
   const createdAt = ws.created_at ? new Date(ws.created_at).toLocaleDateString('ja-JP') : '—';
   const lastAct = stats.last_activity_at ? new Date(stats.last_activity_at).toLocaleDateString('ja-JP') : '—';
-  const status = ws.is_archived ? 'アーカイブ済み' : (ws.is_default ? '既定' : 'アクティブ');
+  const status = ws.is_archived ? 'アーカイブ済み' : (ws.is_default ? 'デフォルト' : 'アクティブ');
 
   body.innerHTML = `
-    ${ws.is_default ? '<div class="ws-edit-hint">これは既定のワークスペースです</div>' : ''}
+    ${ws.is_default ? '<div class="ws-edit-hint">デフォルトのワークスペースのため、アーカイブ・削除できません</div>' : ''}
     <div class="ws-form-row">
       <label>名前 <span style="color:#dc2626">*</span></label>
       <input type="text" id="wsEditName" value="${escapeHtml(ws.name)}" maxlength="64">
