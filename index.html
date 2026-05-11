@@ -678,28 +678,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .inbox-tray-btn-primary{background:#1D9E75;color:#fff;border-color:#1D9E75;}
 .inbox-tray-btn-primary:hover{background:#178A65;}
 .inbox-tray-empty{font-size:13px;color:#aaa;padding:8px 0;}
-/* v2.3.0: ルーキー卒業モーダル */
-.grad-modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;}
-.grad-modal-inner{background:#fff;border-radius:16px;padding:32px 28px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.18);text-align:center;}
-.grad-emoji{font-size:48px;margin-bottom:12px;}
-.grad-modal h2{font-size:22px;font-weight:700;margin-bottom:10px;}
-.grad-modal p{font-size:14px;color:#555;line-height:1.65;margin-bottom:16px;}
-.grad-unlock{background:#F0FDF8;border:1px solid #A7F3D0;border-radius:10px;padding:16px;text-align:left;margin-bottom:20px;}
-.grad-unlock h3{font-size:14px;font-weight:700;color:#1D9E75;margin-bottom:6px;}
-.grad-unlock p{font-size:13px;color:#555;margin:0;}
-.grad-actions{display:flex;gap:10px;justify-content:center;}
-.grad-actions button{padding:10px 20px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13px;cursor:pointer;font-family:inherit;}
-.grad-actions button:first-child{background:#1D9E75;color:#fff;border-color:#1D9E75;}
 /* v2.3.0: 自動取り込み設定 */
 .lock-badge{font-size:10px;background:#e0dfd8;color:#777;border-radius:4px;padding:1px 5px;margin-left:auto;white-space:nowrap;}
 .intake-settings-section{background:#fff;border-radius:12px;border:1px solid #E8E2D5;padding:18px;margin-bottom:16px;}
 .intake-settings-section h3{font-size:14px;font-weight:700;margin-bottom:14px;color:#2A2A2A;}
 .intake-settings-section h4{font-size:13px;font-weight:600;margin:14px 0 6px;color:#2A2A2A;}
-.grad-progress-wrap{margin-bottom:14px;}
-.grad-progress-bar-bg{height:8px;background:#f0efe9;border-radius:4px;overflow:hidden;margin-bottom:6px;}
-.grad-progress-bar-fill{height:100%;background:#BA7517;border-radius:4px;transition:width 0.5s;}
-.grad-progress-text{font-size:12px;color:#555;}
-.grad-hint-text{font-size:11px;color:#888;margin-top:4px;}
 .switch-row{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:#2A2A2A;}
 .switch-row input[type=checkbox]{width:18px;height:18px;cursor:pointer;}
 .setting-hint{font-size:11px;color:#888;margin-top:4px;line-height:1.5;}
@@ -1150,7 +1133,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       ・
       <a href="mailto:support@shiwake-ai.com" style="color:#999;text-decoration:none;">お問い合わせ</a>
     </div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.3.0</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.3.1</div>
   </div>
 </div>
 
@@ -1262,7 +1245,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       📊 キャッシュ統計
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.0 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.1 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1341,23 +1324,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </section>
 
-  <!-- v2.3.0: 卒業演出モーダル -->
-  <div class="grad-modal" id="gradModal" hidden>
-    <div class="grad-modal-inner">
-      <div class="grad-emoji">🎉</div>
-      <h2>ルーキー卒業!</h2>
-      <p>累計50件の仕訳をクリアしました。<br>あなたは<strong>ジュニア</strong>に昇格しました。</p>
-      <div class="grad-unlock">
-        <h3>🔓 アンロック: 自動取り込み</h3>
-        <p>これからは、領収書をメールで送信したり、Dropbox/Google Drive のフォルダに放り込むだけで、shiwake-ai が自動で取り込んでくれます。</p>
-      </div>
-      <div class="grad-actions">
-        <button onclick="openAutoIntakeSettings()">今すぐ設定する</button>
-        <button onclick="document.getElementById('gradModal').hidden=true">あとで設定</button>
-      </div>
-    </div>
-  </div>
-
   <!-- 仕訳処理パネル -->
   <div class="panel active" id="panel-siwake">
     <button class="mobile-scan-btn" onclick="document.getElementById(&quot;scanInput&quot;).click()">
@@ -1426,7 +1392,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <div class="dash-card">
         <div class="incentive-header">
           <span class="incentive-title">🏪 取引先マスタ</span>
-          <span class="incentive-badge" style="background:#E1F5EE;color:#0F6E56;">育成中</span>
+          <span class="incentive-badge" style="background:#E1F5EE;color:#0F6E56;">学習中</span>
         </div>
         <div class="ds-row">
           <div class="ds-main">
@@ -1444,8 +1410,8 @@ window.incrementSupabaseCount = incrementMonthlyCount;
             <div class="master-extra-value" id="topMasterName">—</div>
           </div>
           <div class="master-extra-right">
-            <div class="master-extra-label">育成度</div>
-            <div class="master-extra-stars" id="masterStars">☆☆☆☆☆</div>
+            <div class="master-extra-label">学習取引先数</div>
+            <div class="master-extra-value" id="masterCountDisplay" style="color:#0F6E56;">0社</div>
           </div>
         </div>
       </div>
@@ -1712,7 +1678,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
 
       <!-- Agent版 -->
       <div class="pricing-section-title" style="margin-top:28px;">🤖 Agent版 — 自走する記帳エージェント</div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">ルーキーから、エージェントへ。そしてエリートへ。AIが自律的に仕訳・ルール学習・自動取り込みを行います。</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">AIが自律的に仕訳・ルール学習・自動取り込み・自動承認を行います。精度を確認しながら、お好きな機能を有効化できます。</div>
       <div class="pricing-card" onclick="startCheckout('agent_lite')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">Agent ライト</span>
@@ -1732,7 +1698,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <span class="pricing-card-name">Agent プレミアム</span>
           <span class="pricing-card-price">¥150,000<span>/月</span></span>
         </div>
-        <div class="pricing-card-desc">月1,500件含む。大規模処理・キャリアパス全機能対応。</div>
+        <div class="pricing-card-desc">月1,500件含む。大規模処理・全自動化機能対応。</div>
       </div>
       <div class="pricing-card" onclick="startCheckout('agent_elite')" style="border-color:#185FA5;position:relative;">
         <div class="pricing-badge">★ 最上位プラン</div>
@@ -1865,19 +1831,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <div class="panel" id="panel-auto-intake">
     <p class="main-subcopy">メール・Dropbox・Google Drive から領収書を自動で取り込みます。</p>
 
-    <!-- 卒業ステータス（未卒業のみ） -->
-    <div class="intake-settings-section" id="gradStatusSection" hidden>
-      <h3>📊 ルーキー進捗</h3>
-      <div class="grad-progress-wrap">
-        <div class="grad-progress-bar-bg">
-          <div class="grad-progress-bar-fill" id="gradProgressBarFill" style="width:0%"></div>
-        </div>
-        <div class="grad-progress-text"><span id="gradCountText">0</span> / 50 件 で<strong>ルーキー卒業</strong></div>
-        <div class="grad-hint-text">卒業すると自動取り込み機能が使えるようになります。</div>
-      </div>
-    </div>
-
-    <!-- 機能ON/OFF（卒業後 or Agent版） -->
+    <!-- 自動取り込み設定 -->
     <div class="intake-settings-section" id="autoIntakeSection" hidden>
       <h3>⚙ 自動取り込み設定</h3>
       <label class="switch-row">
@@ -2675,13 +2629,10 @@ function updateAiStats(){
       elTop.style.color = '#aaa';
     }
   }
-  // 育成度（20件で1個・100件超えで⭐に変化）
-  const elStars = document.getElementById('masterStars');
-  if(elStars){
-    const filled = Math.min(5, Math.floor(masterCount / 20));
-    const isMax = masterCount >= 100;
-    const star = isMax ? '⭐' : '★';
-    elStars.textContent = star.repeat(filled) + '☆'.repeat(5-filled);
+  // 学習取引先数の表示
+  const elCountDisp = document.getElementById('masterCountDisplay');
+  if(elCountDisp){
+    elCountDisp.textContent = `${masterCount}社`;
   }
 
   // 左カード切替
@@ -4666,33 +4617,6 @@ function startInboxPolling() {
   _inboxTrayInterval = setInterval(loadInboxTray, 30000);
 }
 
-// ===== 卒業演出 =====
-function showGradModal() {
-  const modal = document.getElementById('gradModal');
-  if (modal) modal.hidden = false;
-}
-
-function openAutoIntakeSettings() {
-  const modal = document.getElementById('gradModal');
-  if (modal) modal.hidden = true;
-  if (typeof switchTab === 'function') switchTab('auto-intake');
-}
-
-// incrementMonthlyCount のレスポンスから卒業チェック（既存関数をラップ）
-(function() {
-  const _orig = window.incrementSupabaseCount;
-  window.incrementSupabaseCount = async function(uid, n) {
-    const res = typeof _orig === 'function' ? await _orig(uid, n) : null;
-    if (res && res.graduation && res.graduation.just_graduated) {
-      if (localStorage.getItem('shiwake_graduated_modal_shown') !== '1') {
-        localStorage.setItem('shiwake_graduated_modal_shown', '1');
-        setTimeout(showGradModal, 500);
-      }
-    }
-    return res;
-  };
-})();
-
 // ===== 自動取り込み設定パネル =====
 async function loadAutoIntakeSettings() {
   const uid = window._firebaseUser?.uid;
@@ -4701,7 +4625,6 @@ async function loadAutoIntakeSettings() {
     const grad = await fetchGraduationStatus();
     const settings = await fetchInboxSettings();
 
-    const gradSection    = document.getElementById('gradStatusSection');
     const intakeSection  = document.getElementById('autoIntakeSection');
     const autoIntakeToggle = document.getElementById('autoIntakeToggle');
     const autoShiwakeToggle = document.getElementById('autoShiwakeToggle');
@@ -4711,36 +4634,24 @@ async function loadAutoIntakeSettings() {
     const autoShiwakeRow = document.getElementById('autoShiwakeRow');
 
     if (!grad || !grad.is_paid) {
-      if (gradSection) gradSection.hidden = true;
       if (intakeSection) intakeSection.hidden = true;
       return;
     }
 
-    const canUse = grad.is_agent || grad.graduated;
-    if (!canUse) {
-      // ルーキー進捗表示
-      if (gradSection) gradSection.hidden = false;
-      if (intakeSection) intakeSection.hidden = true;
-      const fill = document.getElementById('gradProgressBarFill');
-      const cnt  = document.getElementById('gradCountText');
-      if (fill) fill.style.width = (grad.progress_pct || 0) + '%';
-      if (cnt)  cnt.textContent = grad.cumulative_count || 0;
-    } else {
-      if (gradSection) gradSection.hidden = true;
-      if (intakeSection) intakeSection.hidden = false;
-      if (autoIntakeToggle) autoIntakeToggle.checked = settings.auto_intake_enabled;
-      if (autoShiwakeToggle) autoShiwakeToggle.checked = settings.auto_shiwake_enabled;
+    // 有料プランなら全員設定可能
+    if (intakeSection) intakeSection.hidden = false;
+    if (autoIntakeToggle) autoIntakeToggle.checked = settings.auto_intake_enabled;
+    if (autoShiwakeToggle) autoShiwakeToggle.checked = settings.auto_shiwake_enabled;
 
-      const isOn = settings.auto_intake_enabled;
-      if (emailRow)       emailRow.hidden       = !isOn;
-      if (dropboxRow)     dropboxRow.hidden      = !isOn;
-      if (gdriveRow)      gdriveRow.hidden       = !isOn;
-      if (autoShiwakeRow) autoShiwakeRow.hidden  = !isOn;
+    const isOn = settings.auto_intake_enabled;
+    if (emailRow)       emailRow.hidden       = !isOn;
+    if (dropboxRow)     dropboxRow.hidden      = !isOn;
+    if (gdriveRow)      gdriveRow.hidden       = !isOn;
+    if (autoShiwakeRow) autoShiwakeRow.hidden  = !isOn;
 
-      if (isOn) {
-        loadInboxAddress();
-        loadCloudConnections();
-      }
+    if (isOn) {
+      loadInboxAddress();
+      loadCloudConnections();
     }
   } catch(e) { console.warn('loadAutoIntakeSettings error:', e); }
 }
@@ -4891,21 +4802,11 @@ async function setupAutoIntakeMenuItem() {
   if (!menuItem) return;
   const grad = await fetchGraduationStatus();
   if (!grad) { menuItem.style.display = 'none'; return; }
-  if (!grad.is_paid) {
-    menuItem.style.display = 'none';
-  } else if (grad.is_agent || grad.graduated) {
-    menuItem.style.display = '';
-    const lb = menuItem.querySelector('.lock-badge');
-    if (lb) lb.remove();
-  } else {
-    menuItem.style.display = '';
-    if (!menuItem.querySelector('.lock-badge')) {
-      const badge = document.createElement('span');
-      badge.className = 'lock-badge';
-      badge.textContent = `🔒 ${grad.cumulative_count}/50`;
-      menuItem.appendChild(badge);
-    }
-  }
+  // 有料プランなら表示、無料は非表示
+  menuItem.style.display = grad.is_paid ? '' : 'none';
+  // 既存のロックバッジは念のため削除
+  const lb = menuItem.querySelector('.lock-badge');
+  if (lb) lb.remove();
 }
 
 // Dropbox OAuth callback (?dropbox=connected) の処理
