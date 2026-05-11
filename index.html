@@ -567,6 +567,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .master-plus-pop{position:absolute;top:50%;left:50%;font-size:22px;font-weight:800;color:#1ABE7E;pointer-events:none;animation:masterPlusPop 1.2s ease forwards;text-shadow:0 2px 8px rgba(26,190,126,0.4);z-index:10;}
 .dash-card{position:relative;}
 
+/* 信頼度ダッシュボード */
+#trustDashboard{margin:0 0 12px;}
+.trust-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+.trust-rookie-progress{margin-top:8px;}
+.trust-rookie-bar{height:8px;background:#e8e7e0;border-radius:4px;overflow:hidden;margin-top:4px;}
+.trust-rookie-fill{height:100%;background:linear-gradient(90deg,#185FA5,#1D9E75);border-radius:4px;transition:width 0.6s ease;}
+.trust-rookie-label{font-size:11px;color:#888;margin-top:4px;}
+.trust-score-big{font-size:28px;font-weight:700;color:#185FA5;line-height:1;}
+.trust-score-big span{font-size:13px;font-weight:500;color:#888;margin-left:2px;}
+.trust-field-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.trust-field-item{font-size:11px;background:#f4f6f9;border-radius:6px;padding:3px 8px;color:#444;}
+.trust-field-item strong{color:#185FA5;}
+.trust-detail-toggle{font-size:11px;color:#185FA5;cursor:pointer;margin-top:6px;display:inline-block;}
+.trust-detail-panel{display:none;margin-top:8px;padding-top:8px;border-top:1px solid #f0eee6;}
+.trust-detail-panel.open{display:block;}
+.trust-mature-compact{font-size:11px;color:#888;display:flex;align-items:center;gap:6px;}
+.trust-mature-score{font-weight:700;color:#185FA5;}
+
 /* 承認アニメーション */
 @keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
 .card.approving{animation:approveSlide 0.5s ease forwards;}
@@ -1058,6 +1076,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         }
       } catch(e) { console.warn('incentive init error:', e); }
       updateAiStats();
+      loadTrustMetrics();
       // 初回ログイン時にチュートリアル自動表示
       try {
         const tutorialKey = 'shiwake_tutorial_shown_v1';
@@ -1416,6 +1435,8 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         </div>
       </div>
     </div>
+    <!-- 信頼度ダッシュボード -->
+    <div id="trustDashboard" style="display:none;"></div>
     <!-- 縦型ステッパー -->
     <div class="v-stepper">
       <!-- ① 書類の種類を選択 -->
@@ -3247,7 +3268,10 @@ async function processOneFile(f){
           });
           localStorage.setItem('shiwake_master_usage', JSON.stringify(usage));
         }
-        items.forEach(it=>results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null}));
+        items.forEach(it=>{
+          it._aiProposed={debit_account:it.debit,credit_account:it.credit,tax_category:it.tax,memo:it.memo};
+          results.push({...it,_sourceUrl:srcUrl,_lineItemMode:lineItemMode||'total_only',_sourceB64:srcB64||null,_sourceMediaType:srcMediaType||null,_sourceFileName:f.name||null});
+        });
       };
 
       // まず通常向きで解析（Haikuがorientationを返す）
@@ -3487,7 +3511,7 @@ function buildGroupCard(g, gi, dupGroupSet, approvedTitles, cardNum){
     ?`<div class="card-foot"><button class="btn-restore" onclick="restoreGroup(${JSON.stringify(indices)})">↩ グループを元に戻す</button></div>`
     :`<div class="card-foot" id="foot${indices[0]}">
   <button class="btn-ok${allApproved?' done':''}" id="ok${indices[0]}" onclick="approveGroup(${JSON.stringify(indices)})">${allApproved?'✓ 承認済み':'✓ 承認'}</button>
-  ${isMulti?`<button class="btn-ed" onclick="document.getElementById('gep${gi}').style.display=document.getElementById('gep${gi}').style.display==='none'?'block':'none'">修正</button>`:`<button class="btn-ed" onclick="document.getElementById('ep${indices[0]}').classList.toggle('show')">修正</button>`}
+  ${allApproved?'':(isMulti?`<button class="btn-ed" onclick="document.getElementById('gep${gi}').style.display=document.getElementById('gep${gi}').style.display==='none'?'block':'none'">修正</button>`:`<button class="btn-ed" onclick="document.getElementById('ep${indices[0]}').classList.toggle('show')">修正</button>`)}
   <button class="btn-del" onclick="deleteGroup(${JSON.stringify(indices)})">削除</button>
   ${hasB64?`<button class="btn-reanalyze" id="reanalyze-btn-${indices[0]}" onclick="reanalyzeWithMode(${indices[0]})">${lineItemMode==='individual'?'🔀 合計のみにまとめる':'🔀 内訳を個別仕訳にする'}</button>`:''}
 </div>`;
@@ -3551,6 +3575,77 @@ function renderCards(){
 
 // グループ承認
 // 新規マスタ学習時のアニメーション（フラッシュ + +Nポップアップ）
+// ========== 信頼度ダッシュボード ==========
+async function loadTrustMetrics(){
+  const uid=window._firebaseUser?.uid;
+  if(!uid) return;
+  const workspaceId='default'; // A-3a 実装後に切替
+  try {
+    const res=await fetch(`/api/trust-metrics?uid=${uid}&workspace_id=${workspaceId}`);
+    if(!res.ok) return;
+    const m=await res.json();
+    renderTrustDashboard(m);
+  } catch(e){ console.warn('trust metrics load error:',e); }
+}
+
+function renderTrustDashboard(m){
+  const el=document.getElementById('trustDashboard');
+  if(!el) return;
+  const layout=getDashboardLayout(m);
+  let html='';
+  if(layout==='rookie_layout'){
+    const total=m.total_approved||0;
+    const threshold=30;
+    const pct=Math.min(100,Math.round(total/threshold*100));
+    const remaining=Math.max(0,threshold-total);
+    html=`<div class="trust-card">
+<div class="incentive-header">
+  <span class="incentive-title">📊 AI精度</span>
+  <span class="incentive-badge">データ蓄積中</span>
+</div>
+<div class="trust-rookie-progress">
+  <div style="font-size:12px;color:#444;">あと<strong>${remaining}件</strong>の承認で精度レポートを表示します</div>
+  <div class="trust-rookie-bar"><div class="trust-rookie-fill" style="width:${pct}%"></div></div>
+  <div class="trust-rookie-label">累計承認 ${total}件 / ${threshold}件</div>
+</div></div>`;
+  } else if(layout==='stable_layout'){
+    const score=m.trust_score_recent!=null?m.trust_score_recent.toFixed(1):'-';
+    const fa=m.field_accuracy_recent||{};
+    const fields=[['借方科目',fa.debit_account],['貸方科目',fa.credit_account],['税区分',fa.tax_category],['摘要',fa.memo]];
+    const fieldHtml=fields.filter(([,v])=>v!=null).map(([k,v])=>`<span class="trust-field-item">${k} <strong>${Math.round(v)}%</strong></span>`).join('');
+    html=`<div class="trust-card">
+<div class="incentive-header">
+  <span class="incentive-title">📊 AI精度</span>
+  <span class="incentive-badge" style="background:#E1F5EE;color:#0F6E56;">承認率 ${score}%</span>
+</div>
+<div class="ds-row" style="margin-top:8px;">
+  <div class="ds-main"><div class="ds-main-label">直近30日 承認率</div><div class="trust-score-big">${score}<span>%</span></div></div>
+  <div class="ds-sub"><div class="ds-sub-label">累計承認</div><div class="ds-sub-value">${m.total_approved||0}<span>件</span></div></div>
+</div>
+<span class="trust-detail-toggle" onclick="this.nextElementSibling.classList.toggle('open');this.textContent=this.nextElementSibling.classList.contains('open')?'▲ 詳細を閉じる':'▼ 項目別精度を見る'">▼ 項目別精度を見る</span>
+<div class="trust-detail-panel">
+  <div class="trust-field-row">${fieldHtml}</div>
+</div></div>`;
+  } else {
+    const score=m.trust_score_recent!=null?m.trust_score_recent.toFixed(1):'-';
+    html=`<div class="trust-card" style="padding:8px 14px;">
+<div class="trust-mature-compact">
+  <span>📊 AI精度</span>
+  <span class="trust-mature-score">${score}%</span>
+  <span style="color:#bbb;">|</span>
+  <span>累計 ${m.total_approved||0}件承認</span>
+</div></div>`;
+  }
+  el.innerHTML=html;
+  el.style.display='';
+}
+
+function getDashboardLayout(m){
+  if((m.total_approved||0)<50) return 'rookie_layout';
+  if((m.trust_score_recent||0)>=95&&(m.total_approved||0)>=200) return 'mature_layout';
+  return 'stable_layout';
+}
+
 function flashMasterCount(n){
   const el = document.getElementById('statMasterCount');
   if(!el) return;
@@ -3656,6 +3751,32 @@ async function approve(i){
   approved.add(i);deleted.delete(i);
   await autoLearn(results[i]);
   syncSessionSave();
+
+  // === shiwake_records への永続保存 ===
+  try {
+    const uid=window._firebaseUser?.uid;
+    const workspaceId='default'; // A-3a 実装後に getCurrentWorkspaceId() に切替
+    if(uid){
+      await fetch('/api/shiwake/approve',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          uid,workspace_id:workspaceId,session_id:SESSION_ID,
+          record:{
+            shiwake_date:results[i].date,partner_name:results[i].title,
+            debit_account:results[i].debit,credit_account:results[i].credit,
+            tax_category:results[i].tax,amount:results[i].amount,
+            memo:results[i].memo,invoice_number:results[i].invoice_number,
+            ai_proposed:results[i]._aiProposed||null,
+            matched_master_key:results[i].masterKey||null,
+            master_hit_method:results[i].masterApplied?'partial':null,
+            source_file_name:results[i]._sourceFileName||null
+          }
+        })
+      });
+    }
+  } catch(e){ console.warn('shiwake record save error:',e); }
+
   // 同じ取引先の未承認カードにマスタを即時適用
   const rule={debit:results[i].debit,credit:results[i].credit,tax:results[i].tax,memo:results[i].memo};
   results.forEach((r,j)=>{
