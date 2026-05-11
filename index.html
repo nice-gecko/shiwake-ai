@@ -5176,29 +5176,31 @@ async function loadWsManageList() {
   const usageEl = document.getElementById('wsManageUsage');
   if (body) body.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px;">読み込み中...</div>';
   try {
-    const r = await fetch('/api/workspaces?uid=' + uid);
+    const r = await fetch('/api/workspaces?uid=' + uid + '&include_archived=true');
     const d = await r.json();
-    const active = d.workspaces || [];
+    const all = d.workspaces || [];
+    const active = all.filter(w => !w.is_archived);
+    const archived = all.filter(w => w.is_archived);
     const used = d.used ?? active.length;
     const limit = d.limit ?? 10;
     if (usageEl) usageEl.textContent = `ご利用中: ${used} / ${limit} ワークスペース`;
-    renderWsManageList(active);
+    renderWsManageList(active, archived);
   } catch(e) {
     if (body) body.innerHTML = '<div style="text-align:center;padding:20px;color:#e55;font-size:13px;">読み込みに失敗しました</div>';
   }
 }
 
-function renderWsManageList(active) {
+function renderWsManageList(active, archived = []) {
   const body = document.getElementById('wsManageBody');
   if (!body) return;
   let html = '';
-  if (active.length === 0 && _wsMgArchivedList.length === 0) {
+  if (active.length === 0 && archived.length === 0) {
     html = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px;">ワークスペースがありません</div>';
   } else {
     for (const ws of active) html += buildWsCard(ws, false);
-    if (_wsMgArchivedList.length > 0) {
+    if (archived.length > 0) {
       html += '<div class="ws-manage-section-title">アーカイブ済み</div>';
-      for (const ws of _wsMgArchivedList) html += buildWsCard(ws, true);
+      for (const ws of archived) html += buildWsCard(ws, true);
     }
   }
   body.innerHTML = html;
@@ -5358,8 +5360,6 @@ async function archiveWorkspace(id, name) {
     });
     const d = await r.json();
     if (!d.ok) { alert(d.error || 'アーカイブに失敗しました'); return; }
-    const ws = (window._workspaces || []).find(w => w.id === id);
-    if (ws) _wsMgArchivedList.push({...ws, is_archived: true});
     showToast('アーカイブしました', 2000);
     if (id === window._currentWorkspaceId) {
       closeWsManage();
@@ -5367,9 +5367,6 @@ async function archiveWorkspace(id, name) {
       return;
     }
     await loadWsManageList();
-    if (_wsMgArchivedList.length > 0) renderWsManageList(
-      (await (await fetch('/api/workspaces?uid=' + uid)).json()).workspaces || []
-    );
   } catch(e) { alert('アーカイブに失敗しました'); }
 }
 
@@ -5383,7 +5380,6 @@ async function restoreWorkspace(id, name) {
       body: JSON.stringify({ uid, is_archived: false })
     });
     if (!r.ok) { alert('復元に失敗しました'); return; }
-    _wsMgArchivedList = _wsMgArchivedList.filter(w => w.id !== id);
     showToast('✓ 復元しました', 2000);
     await loadWsManageList();
   } catch(e) { alert('復元に失敗しました'); }

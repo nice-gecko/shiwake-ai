@@ -2805,17 +2805,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/workspaces?uid=xxx → ワークスペース一覧
+  // GET /api/workspaces?uid=xxx[&include_archived=true] → ワークスペース一覧
   if (req.method === 'GET' && reqPath === '/api/workspaces') {
-    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    const _params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = _params.get('uid');
+    const includeArchived = _params.get('include_archived') === 'true';
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
+      const archiveFilter = includeArchived ? '' : '&is_archived=eq.false';
       const [workspaces, userData] = await Promise.all([
-        supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=*&order=display_order.asc,created_at.asc`),
+        supabaseQuery(`/workspaces?owner_uid=eq.${uid}${archiveFilter}&select=*&order=display_order.asc,created_at.asc`),
         supabaseQuery(`/users?id=eq.${uid}&select=current_workspace_id`)
       ]);
       const wsList = workspaces || [];
       const current_workspace_id = userData?.[0]?.current_workspace_id || null;
+      // used は is_archived=false 件数のみ(枠の消費は実働 WS のみカウント)
+      const usedCount = includeArchived ? wsList.filter(w => !w.is_archived).length : wsList.length;
 
       // 一括で stats 取得（workspace_trust_metrics から）
       const statsArr = await Promise.all(wsList.map(w => buildWorkspaceStats(w.id)));
@@ -2826,6 +2831,7 @@ const server = http.createServer(async (req, res) => {
         name: w.name,
         slug: w.slug || null,
         is_default: w.is_default,
+        is_archived: w.is_archived || false,
         color: w.color || null,
         icon: w.icon || null,
         created_at: w.created_at,
@@ -2837,7 +2843,7 @@ const server = http.createServer(async (req, res) => {
         workspaces: result,
         current_workspace_id,
         limit: 10,
-        used: wsList.length
+        used: usedCount
       }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
