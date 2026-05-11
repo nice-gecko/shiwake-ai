@@ -183,3 +183,75 @@
 ---
 
 **END OF HANDOFF MEMO**
+
+---
+
+## 【v2.3.1 完了記録 - 2026-05-11】
+
+### 完了事項
+- Group 1(DB変更): shiwake_records、workspace_trust_metrics、workspaces 仮設、calc_trust_metrics RPC関数
+- Group 2(master.js): findMasterMatch() 戻り値拡張(method 追加)
+- Group 3(server.js): /api/shiwake/approve、/api/trust-metrics、ensureDefaultWorkspace()、recalculateTrustMetrics()
+- Group 4(index.html): _aiProposed スナップショット、承認API呼び出し、信頼度ダッシュボード(rookie/stable/mature 3パターン)、承認後編集禁止
+- Group 5(UI言語置換): キャリアパス物語語彙の完全削除、業務語彙への置換、卒業モーダル削除
+
+### 動作確認済み
+- 仕訳承認 → shiwake_records への INSERT 成功
+- /api/trust-metrics → 30件未満で insufficient_data 返却(設計通り)
+- default ワークスペース自動作成 → workspaces に1行作成、users.current_workspace_id にセット
+- UUID workspace_id 解決の自動フォールバック動作確認
+
+### 既知の未対応項目(v2.3.2 で対応予定)
+1. workspaces テーブルの UNIQUE 制約 unique_owner_default(owner_uid, is_default) 未追加
+   - 理由: ADD CONSTRAINT IF NOT EXISTS が PostgreSQL でサポートされていない構文のため
+   - 対処: DO $$ BEGIN IF NOT EXISTS ... END $$ で別途追加
+2. shiwake_records、workspace_trust_metrics への FK制約(workspaces への外部キー)未追加
+   - 理由: CREATE TABLE IF NOT EXISTS で既存テーブルがスキップされたため
+   - 対処: v2.3.2 で workspaces 機能本格実装時に ALTER TABLE で追加
+
+### コミット履歴(v2.3.1 Phase A1)
+- 2c0d0ed: feat: findMasterMatch() 戻り値拡張
+- 75f5c83: docs: 設計書一式を配置
+- 5dfae3f: v2.3.1: 成長物語語彙完全削除、業務語彙置換
+- fd82c43: v2.3.1: server.js Group3実装 + DBマイグレーション
+- e01ff8c: docs: CLAUDE.md 出力フォーマット色分けルール追記
+- b9864f5: v2.3.1: Group 4 フロント実装
+- (追加コミット): fix workspace_id='default'、fix amount 数値変換
+
+---
+
+## 【将来のビジネス展開メモ - 2026-05-11 着想】
+
+shiwake-ai が運用フェーズに入ると、ユーザー全体の仕訳データが蓄積される。これを二次利用したビジネス展開の方向性を検討する価値あり(規約整備前提)。
+
+### 想定される方向性
+
+| 方向性 | 概要 | 優先度 | リスク |
+|---|---|---|---|
+| A. 個社向け分析 | 顧問先ごとに「あなたの会社の経費構造」レポート提供 | 高 | 規約整備で対応可、最も無難 |
+| B. 業界ベンチマーク | 匿名化集計データを業種別に比較提供 | 中 | 個社特定リスク、最小サンプル数設計必要 |
+| C. マクロ経済データ販売 | 業種別の平均仕入率等を金融機関等に提供 | 中 | 法的論点(個情法、金商法) |
+| D. AI学習データ販売 | 仕訳データセットを他社AIに販売 | 低 | ユーザー反発リスク大 |
+| E. 与信・スコアリング | 仕訳の健全性から事業者評価 | 低 | 金商法・貸金業法、極めて慎重に |
+
+### 検討メモ
+- **A(個社分析)から始めるのが筋**(自社ユーザーへの還元、規約も最小限で済む、信頼度を損なわない)
+- B 以降は「データ提供への明示的同意」を利用規約に組み込んでから検討
+- 全方向性に共通して、匿名化処理・k-匿名性の確保が必須
+- 税理士の倫理基準(税理士法、職業倫理)に抵触しないか要検討
+- 法務レビューが必須(個人情報保護法、特定商取引法)
+
+### 次のアクション(将来)
+- v2.5.x で代理店向けの「ベンチマーク機能」として A を実装検討
+- 規約改定: 「匿名化された統計データの二次利用に同意する」条項追加(同意取得)
+
+---
+
+## 【次回セッション開始時のチェックリスト】
+
+1. git log で最新状態確認
+2. 本ドキュメント末尾の「未対応項目」を確認
+3. 次の作業:
+   - **A**: v2.3.2(ワークスペース機能本格実装)へ進む
+   - **B**: リポジトリ整理(散らかった旧ファイル削除/移動)
+   - **C**: 二次利用ビジネス検討の深掘り
