@@ -2760,7 +2760,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { uid, name, slug, color, icon } = JSON.parse(body);
+        const { uid, name, slug, color, icon, is_archived } = JSON.parse(body);
         if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
         const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
         if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
@@ -2770,10 +2770,11 @@ const server = http.createServer(async (req, res) => {
           if (dup && dup.length > 0) { res.writeHead(409); res.end(JSON.stringify({ error: 'slug already in use' })); return; }
         }
         const patch = { updated_at: new Date().toISOString() };
-        if (name  !== undefined) patch.name  = name;
-        if (slug  !== undefined) patch.slug  = slug;
-        if (color !== undefined) patch.color = color;
-        if (icon  !== undefined) patch.icon  = icon;
+        if (name        !== undefined) patch.name        = name;
+        if (slug        !== undefined) patch.slug        = slug;
+        if (color       !== undefined) patch.color       = color;
+        if (icon        !== undefined) patch.icon        = icon;
+        if (is_archived !== undefined) patch.is_archived = is_archived;
         const updated = await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', patch, { 'Prefer': 'return=representation' });
         const w = updated?.[0] || { ...ws[0], ...patch };
         const stats = await buildWorkspaceStats(wsId);
