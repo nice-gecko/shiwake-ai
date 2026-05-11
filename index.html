@@ -1003,6 +1003,8 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       window._firebaseUser = user;
       // ワークスペース一覧取得・グローバル保持 §4.1
       window._workspacesReady = fetchWorkspaces(user.uid);
+      await window._workspacesReady;
+      loadMasterFromServer();
       // role判定：オーナーならスタッフ管理メニューを表示
       const role = window._supabaseUser?.role || 'owner';
       window._userRole = role;
@@ -2202,7 +2204,6 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('mDebit').innerHTML+=`<option>${a}</option>`;
     document.getElementById('mCredit').innerHTML+=`<option>${a}</option>`;
   });
-  loadMasterFromServer();
 });
 
 function switchTab(tab){
