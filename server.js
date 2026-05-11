@@ -2889,6 +2889,9 @@ const server = http.createServer(async (req, res) => {
         color: w.color || null,
         icon: w.icon || null,
         created_at: w.created_at,
+        client_email_addresses: w.client_email_addresses || [],
+        client_email_domains:   w.client_email_domains   || [],
+        subject_keywords:       w.subject_keywords       || [],
         stats: statsMap[w.id]
       }));
 
@@ -2946,6 +2949,9 @@ const server = http.createServer(async (req, res) => {
         color: w.color || null,
         icon: w.icon || null,
         created_at: w.created_at,
+        client_email_addresses: w.client_email_addresses || [],
+        client_email_domains:   w.client_email_domains   || [],
+        subject_keywords:       w.subject_keywords       || [],
         stats
       }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
