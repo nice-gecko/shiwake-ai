@@ -296,6 +296,28 @@ shiwake-ai プロジェクト(`tmddairlgpyinqfekkfg`)に、pr-agent 用テーブ
 - DB操作前に必ず Project ID を確認
 - pr-agent 関連のテーブル名(leads, engagements, outreach_history, posts, trends, memory_bank, success_patterns, visual_assets, git_commits)をこのプロジェクトに作成しようとした場合は、**即座に作業を止めてユーザーに確認**
 
+### 2026-05-11: v2.3.2 実装で得た学び・ハマりポイント
+
+#### 1. DB UNIQUE 制約の罠
+- workspaces テーブルに `UNIQUE(owner_uid, is_default)` のような複合 UNIQUE を使うと事故になる
+- 意図は「デフォルト WS は 1 アカウント 1 個まで」だが、複合 UNIQUE は `is_default=false` の組み合わせも一意制約の対象になるため、**is_default=false の WS を 2 個以上作成できない**
+- 正しくは部分インデックス: `CREATE UNIQUE INDEX unique_owner_default_true ON workspaces(owner_uid) WHERE is_default = true;`
+
+#### 2. フロントのレースコンディション
+- workspace_id が必要な API は、**認証完了 + WS 取得完了より前に叩いてはいけない**
+- `window._workspacesReady` のような Promise ゲートで全 fetch を待たせる
+- `DOMContentLoaded` ではなく `onAuthStateChanged` コールバックの中で初期化フローを起動するのが安全
+
+#### 3. 「設計外の周辺修正」の見落とし防止
+- `PATCH /api/workspaces/:id` に `is_archived` を受け付けるフィールドを入れ忘れ → 復元機能が動かない事故
+- 関連エンドポイント全体の整合性(どのフィールドをどの API で受け付けるか)を**実装前に一覧化してから**個別実装する
+
+#### 4. 「コスト増になるのでは?」直感をコードで否定した例
+- 書類選択 UI を廃止するとき「Haiku 呼び出しが増えてコスト増では?」という直感があった
+- コードを読むと、docType の有無に関わらず **Haiku は常に同じフルプロンプトで呼ばれていた**ことが判明
+- 廃止してもコスト影響ゼロと実証できた
+- **直感だけで判断せず、コードベースで実証する**習慣を続ける
+
 ---
 
 ## プロジェクトナレッジと GitHub の同期に関する注意
