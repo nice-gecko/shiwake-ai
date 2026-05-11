@@ -2638,6 +2638,124 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.3.2 Group 4-A: ワークスペース管理 API(読み取り系 + 切り替え) =====
+
+  // POST /api/workspaces/check-slug → slug 重複チェック
+  if (req.method === 'POST' && reqPath === '/api/workspaces/check-slug') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, slug, exclude_id } = JSON.parse(body);
+        if (!uid || !slug) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and slug required' })); return; }
+        let q = `/workspaces?owner_uid=eq.${uid}&slug=eq.${encodeURIComponent(slug)}&select=id`;
+        if (exclude_id) q += `&id=neq.${exclude_id}`;
+        const existing = await supabaseQuery(q);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ available: !existing || existing.length === 0 }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/workspaces?uid=xxx → ワークスペース一覧
+  if (req.method === 'GET' && reqPath === '/api/workspaces') {
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const [workspaces, userData] = await Promise.all([
+        supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=*&order=display_order.asc,created_at.asc`),
+        supabaseQuery(`/users?id=eq.${uid}&select=current_workspace_id`)
+      ]);
+      const wsList = workspaces || [];
+      const current_workspace_id = userData?.[0]?.current_workspace_id || null;
+
+      // workspace_trust_metrics から trust_score / total_approved を一括取得
+      let trustMap = {};
+      if (wsList.length > 0) {
+        try {
+          const wsIds = wsList.map(w => w.id).join(',');
+          const metrics = await supabaseQuery(
+            `/workspace_trust_metrics?workspace_id=in.(${wsIds})&select=workspace_id,trust_score_recent,total_approved`
+          );
+          for (const m of metrics || []) trustMap[m.workspace_id] = m;
+        } catch(e) { /* workspace_trust_metrics 未存在でも続行 */ }
+      }
+
+      const result = wsList.map(w => ({
+        id: w.id,
+        name: w.name,
+        slug: w.slug || null,
+        is_default: w.is_default,
+        color: w.color || null,
+        icon: w.icon || null,
+        created_at: w.created_at,
+        stats: {
+          shiwake_count: trustMap[w.id]?.total_approved || 0,
+          last_activity_at: null,
+          master_count: 0,
+          trust_score: trustMap[w.id]?.trust_score_recent || null
+        }
+      }));
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        workspaces: result,
+        current_workspace_id,
+        limit: 10,
+        used: wsList.length
+      }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // POST /api/workspaces/:id/switch → カレントワークスペース切り替え
+  if (req.method === 'POST' && reqPath.startsWith('/api/workspaces/') && reqPath.endsWith('/switch')) {
+    const wsId = reqPath.slice('/api/workspaces/'.length, -'/switch'.length);
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id`);
+        if (!ws || ws.length === 0) {
+          res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return;
+        }
+        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { current_workspace_id: wsId });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, current_workspace_id: wsId }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/workspaces/:id?uid=xxx → 単一ワークスペース詳細
+  if (req.method === 'GET' && /^\/api\/workspaces\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
+    const wsId = reqPath.slice('/api/workspaces/'.length);
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
+      if (!ws || ws.length === 0) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return;
+      }
+      const w = ws[0];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        id: w.id,
+        name: w.name,
+        slug: w.slug || null,
+        is_default: w.is_default,
+        is_archived: w.is_archived || false,
+        color: w.color || null,
+        icon: w.icon || null,
+        created_at: w.created_at
+      }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
   // POST /api/workspaces/ensure-default → ログイン済みユーザーに default ワークスペースを付与
   if (req.method === 'POST' && reqPath === '/api/workspaces/ensure-default') {
     let body = '';
