@@ -252,7 +252,36 @@ async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
 
 // ===== v2.3.1: ワークスペース + 信頼度メトリクス ヘルパー =====
 
+// workspace_id を解決する（Group 3-B 共通ヘルパー）
+// - queryWsId 指定あり: owner_uid=uid で所有確認 → 他人のWSなら 403 エラー
+// - queryWsId 未指定: users.current_workspace_id を採用 → null なら null を返す(呼び出し側で 400)
+// ※ ensureDefaultWorkspace が /api/user/upsert(新規作成時)と /api/user(ログイン時フォールバック)で
+//   呼ばれるため、ログイン済みユーザーで current_workspace_id が null になることは通常ない
+async function resolveWorkspaceId(uid, queryWsId) {
+  if (queryWsId) {
+    const ws = await supabaseQuery(
+      `/workspaces?id=eq.${queryWsId}&owner_uid=eq.${uid}&select=id`
+    );
+    if (!ws || ws.length === 0) {
+      const err = new Error('workspace not found or access denied');
+      err.status = 403;
+      throw err;
+    }
+    return queryWsId;
+  }
+  const user = await supabaseQuery(`/users?id=eq.${uid}&select=current_workspace_id`);
+  return user?.[0]?.current_workspace_id || null;
+}
+
+// resolveWorkspaceId のエラーをレスポンスに変換するヘルパー
+function handleWsError(e, res) {
+  const status = e.status === 403 ? 403 : 500;
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: e.message }));
+}
+
 // default ワークスペースを保証する（なければ作成し workspace_id を返す）
+// 冪等: 既存の default WS があればそのまま id を返す（重複作成しない）
 async function ensureDefaultWorkspace(uid) {
   const existing = await supabaseQuery(
     `/workspaces?owner_uid=eq.${uid}&is_default=eq.true&select=id`
@@ -268,6 +297,29 @@ async function ensureDefaultWorkspace(uid) {
     is_default: true
   });
   await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { current_workspace_id: wsId });
+
+  // 旧形式ファイルを新形式にrename（master_<uid>.json → master_<uid>_<wsId>.json）
+  // master.js / hashes.js の lazy migrate と二重にならないよう existsSync で保護
+  const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const MASTER_DIR_LOCAL = path.join(__dirname, 'masters');
+  const HASH_DIR_LOCAL   = path.join(__dirname, 'hashes');
+  try {
+    const oldMaster = path.join(MASTER_DIR_LOCAL, `master_${safeUid}.json`);
+    const newMaster = path.join(MASTER_DIR_LOCAL, `master_${safeUid}_${wsId}.json`);
+    if (fs.existsSync(oldMaster) && !fs.existsSync(newMaster)) {
+      fs.renameSync(oldMaster, newMaster);
+      console.log(`マスタファイル migrate: master_${safeUid}.json → master_${safeUid}_${wsId}.json`);
+    }
+  } catch(e) { console.warn('master file rename error:', e.message); }
+  try {
+    const oldHash = path.join(HASH_DIR_LOCAL, `hashes_${safeUid}.json`);
+    const newHash = path.join(HASH_DIR_LOCAL, `hashes_${safeUid}_${wsId}.json`);
+    if (fs.existsSync(oldHash) && !fs.existsSync(newHash)) {
+      fs.renameSync(oldHash, newHash);
+      console.log(`ハッシュファイル migrate: hashes_${safeUid}.json → hashes_${safeUid}_${wsId}.json`);
+    }
+  } catch(e) { console.warn('hash file rename error:', e.message); }
+
   return wsId;
 }
 
@@ -317,8 +369,8 @@ async function recalculateTrustMetrics(workspaceId) {
 
 // OAuthステート管理（インメモリ・10分TTL）
 const oauthStateStore = new Map();
-function saveOAuthState(state, uid, provider, ttlSeconds = 600) {
-  oauthStateStore.set(state, { uid, provider, expiresAt: Date.now() + ttlSeconds * 1000 });
+function saveOAuthState(state, uid, provider, ttlSeconds = 600, workspaceId = null) {
+  oauthStateStore.set(state, { uid, provider, workspaceId, expiresAt: Date.now() + ttlSeconds * 1000 });
   for (const [k, v] of oauthStateStore.entries()) { if (v.expiresAt < Date.now()) oauthStateStore.delete(k); }
 }
 function consumeOAuthState(state) {
@@ -1085,24 +1137,49 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ===== マスタAPI =====
-  if (req.method === 'GET' && (req.url === '/api/master' || req.url.startsWith('/api/master?'))) { getMasterRoutes(req, res); return; }
-  if (req.method === 'POST' && (req.url === '/api/master' || req.url.startsWith('/api/master?'))) { updateMasterRoute(req, res); return; }
-  if (req.method === 'DELETE' && (req.url === '/api/master' || req.url.startsWith('/api/master?'))) { deleteMasterRoute(req, res); return; }
+  if (req.method === 'GET' && (req.url === '/api/master' || req.url.startsWith('/api/master?'))) {
+    const _url = new URL(req.url, 'http://localhost');
+    const _uid = _url.searchParams.get('uid');
+    try {
+      const wsId = await resolveWorkspaceId(_uid, _url.searchParams.get('workspace_id'));
+      if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
+      getMasterRoutes(req, res, wsId);
+    } catch(e) { handleWsError(e, res); }
+    return;
+  }
+  if (req.method === 'POST' && (req.url === '/api/master' || req.url.startsWith('/api/master?'))) {
+    const _url = new URL(req.url, 'http://localhost');
+    const _uid = _url.searchParams.get('uid');
+    try {
+      const wsId = await resolveWorkspaceId(_uid, _url.searchParams.get('workspace_id'));
+      if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
+      updateMasterRoute(req, res, wsId);
+    } catch(e) { handleWsError(e, res); }
+    return;
+  }
+  if (req.method === 'DELETE' && (req.url === '/api/master' || req.url.startsWith('/api/master?'))) {
+    const _url = new URL(req.url, 'http://localhost');
+    const _uid = _url.searchParams.get('uid');
+    try {
+      const wsId = await resolveWorkspaceId(_uid, _url.searchParams.get('workspace_id'));
+      if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
+      deleteMasterRoute(req, res, wsId);
+    } catch(e) { handleWsError(e, res); }
+    return;
+  }
   if (req.method === 'POST' && req.url.startsWith('/api/master/clear')) {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const { uid } = JSON.parse(body || '{}');
-        saveMaster(uid || null, {});
+        const { uid, workspace_id } = JSON.parse(body || '{}');
+        const wsId = await resolveWorkspaceId(uid || null, workspace_id);
+        if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
+        saveMaster(uid || null, wsId, {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
-        console.log(`マスタをクリアしました uid=${uid}`);
-      } catch(e) {
-        saveMaster(null, {});
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true }));
-      }
+        console.log(`マスタをクリアしました uid=${uid} wsId=${wsId}`);
+      } catch(e) { handleWsError(e, res); }
     });
     return;
   }
@@ -1167,8 +1244,17 @@ const server = http.createServer(async (req, res) => {
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
       const data = await supabaseQuery(`/users?id=eq.${uid}&select=*`);
+      const user = data?.[0] || null;
+      // フォールバック: current_workspace_id が未設定(ワークスペース0件)ならここで保証
+      if (user && !user.current_workspace_id) {
+        const wsId = await ensureDefaultWorkspace(uid).catch(e => {
+          console.warn('ensureDefaultWorkspace fallback error:', e.message);
+          return null;
+        });
+        if (wsId) user.current_workspace_id = wsId;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ user: data?.[0] || null }));
+      res.end(JSON.stringify({ user }));
     } catch(e) {
       res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
     }
@@ -1211,8 +1297,10 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { uid, amount } = JSON.parse(body);
+        const { uid, amount, workspace_id } = JSON.parse(body);
         const n = amount || 1;
+        // workspace_id を解決(信頼度メトリクス再計算で使用)
+        const wsId = await resolveWorkspaceId(uid, workspace_id).catch(() => null);
         // 現在の値を取得
         const current = await supabaseQuery(`/users?id=eq.${uid}&select=monthly_count,incentive_total,incentive_unredeemed,stripe_plan,plan_key,incentive_plan,billing_period_end`);
         const row = current?.[0] || {};
@@ -1240,8 +1328,10 @@ const server = http.createServer(async (req, res) => {
         }
         await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patch);
 
-        // v2.3.0: 累計件数インクリメント + ルーキー卒業判定（非同期・レスポンスには含める）
+        // 累計件数インクリメント + 卒業判定
         const gradResult = await bumpCumulativeAndCheckGraduation(uid, n).catch(() => null);
+        // workspace_id が解決できた場合は信頼度メトリクスを再計算
+        if (wsId) recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error:', e.message));
 
         // 1000件到達チェック → オーナーとadminにメール通知
         if (isAgency) {
@@ -1816,8 +1906,10 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { owner_uid, email } = JSON.parse(body);
+        const { owner_uid, email, workspace_id } = JSON.parse(body);
         if (!owner_uid || !email) { res.writeHead(400); res.end(JSON.stringify({ error: 'owner_uid and email required' })); return; }
+        // workspace_id を解決(invites テーブルに workspace_id 列なし、所有確認のみ)
+        try { await resolveWorkspaceId(owner_uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
         // オーナー確認
         const ownerData = await supabaseQuery(`/users?id=eq.${owner_uid}&select=role,email,display_name`);
         const owner = ownerData?.[0];
@@ -1891,15 +1983,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/staff?owner_uid=xxx → スタッフ一覧取得
+  // GET /api/staff?owner_uid=xxx&workspace_id=yyy → スタッフ一覧取得
   if (req.method === 'GET' && req.url.startsWith('/api/staff?')) {
-    const owner_uid = new URL(req.url, 'http://localhost').searchParams.get('owner_uid');
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const owner_uid = params.get('owner_uid');
     if (!owner_uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'owner_uid required' })); return; }
     try {
+      // workspace_id を検証(指定された場合は所有確認、未指定は current_workspace_id でフォールバック)
+      // staff_members テーブル未実装のため wsId はフィルタに未使用
+      await resolveWorkspaceId(owner_uid, params.get('workspace_id')).catch(e => { if (e.status === 403) throw e; });
       const data = await supabaseQuery(`/users?owner_id=eq.${owner_uid}&role=eq.staff&select=id,email,display_name,incentive_total,incentive_unredeemed,monthly_count`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ staff: data || [] }));
     } catch(e) {
+      if (e.status === 403) { res.writeHead(403); res.end(JSON.stringify({ error: e.message })); return; }
       res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
     }
     return;
@@ -1932,17 +2029,25 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/inbox/address?uid=xxx
+  // GET /api/inbox/address?uid=xxx&workspace_id=yyy (将来用、現状は uid 単位)
   if (req.method === 'GET' && reqPath === '/api/inbox/address') {
-    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
+      // workspace_id は受け取るが、専用アドレスは uid 単位のため現在は検証のみ
+      if (params.get('workspace_id')) {
+        await resolveWorkspaceId(uid, params.get('workspace_id'));
+      }
       const data = await supabaseQuery(`/inbox_addresses?uid=eq.${uid}&is_active=eq.true&select=local_part,created_at`);
       const addr = data?.[0];
       if (!addr) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ address: null })); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ address: `${addr.local_part}@inbox.shiwake-ai.com`, created_at: addr.created_at }));
-    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    } catch(e) {
+      if (e.status === 403) { res.writeHead(403); res.end(JSON.stringify({ error: e.message })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
 
@@ -1974,11 +2079,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/inbox/settings?uid=xxx
+  // GET /api/inbox/settings?uid=xxx&workspace_id=yyy
   if (req.method === 'GET' && reqPath === '/api/inbox/settings') {
-    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
+      // workspace_id を検証(inbox_settings テーブル未実装のため検証のみ、フィルタは uid 単位)
+      try { await resolveWorkspaceId(uid, params.get('workspace_id')); } catch(e) { handleWsError(e, res); return; }
       const data = await supabaseQuery(`/users?id=eq.${uid}&select=auto_intake_enabled,auto_shiwake_enabled,graduated_rookie_at`);
       const u = data?.[0];
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1997,8 +2105,10 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, auto_intake_enabled, auto_shiwake_enabled } = JSON.parse(body);
+        const { uid, auto_intake_enabled, auto_shiwake_enabled, workspace_id } = JSON.parse(body);
         if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        // workspace_id を検証(inbox_settings テーブル未実装のため検証のみ)
+        try { await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
         if (auto_intake_enabled === true) {
           const check = await canUseAutoIntake(uid);
           if (!check.allowed) { res.writeHead(403); res.end(JSON.stringify({ error: check.reason, ...check })); return; }
@@ -2014,21 +2124,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/inbox?uid=xxx&status=pending
+  // GET /api/inbox?uid=xxx&workspace_id=yyy&status=pending
   if (req.method === 'GET' && reqPath === '/api/inbox') {
     const params = new URL(req.url, 'http://localhost').searchParams;
     const uid = params.get('uid');
     const status = params.get('status') || 'pending';
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
-      let q = `/inbox_files?uid=eq.${uid}&select=id,source,sender,filename,mime_type,byte_size,status,error_message,created_at&order=created_at.desc&limit=100`;
+      const wsId = await resolveWorkspaceId(uid, params.get('workspace_id'));
+      if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
+      let q = `/inbox_files?uid=eq.${uid}&workspace_id=eq.${wsId}&select=id,source,sender,filename,mime_type,byte_size,status,error_message,created_at&order=created_at.desc&limit=100`;
       if (status === 'pending') q += '&status=in.(pending,processing,failed)';
       else if (status === 'archived') q += '&status=eq.archived';
       const data = await supabaseQuery(q);
       const files = data || [];
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ files, pending_count: files.filter(f => f.status === 'pending').length }));
-    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    } catch(e) {
+      if (e.status === 403) { res.writeHead(403); res.end(JSON.stringify({ error: e.message })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
 
@@ -2167,16 +2282,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/dropbox/auth-url?uid=xxx
+  // GET /api/dropbox/auth-url?uid=xxx&workspace_id=yyy
   if (req.method === 'GET' && reqPath === '/api/dropbox/auth-url') {
-    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
+      const wsId = await resolveWorkspaceId(uid, qp.get('workspace_id'));
+      if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
       const check = await canUseAutoIntake(uid);
       if (!check.allowed) { res.writeHead(403); res.end(JSON.stringify({ error: check.reason })); return; }
       if (!process.env.DROPBOX_APP_KEY) { res.writeHead(503); res.end(JSON.stringify({ error: 'Dropbox not configured' })); return; }
       const state = crypto.randomBytes(16).toString('hex');
-      saveOAuthState(state, uid, 'dropbox', 600);
+      saveOAuthState(state, uid, 'dropbox', 600, wsId);
       const params = new URLSearchParams({
         client_id: process.env.DROPBOX_APP_KEY,
         response_type: 'code',
@@ -2186,7 +2304,10 @@ const server = http.createServer(async (req, res) => {
       });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ url: `https://www.dropbox.com/oauth2/authorize?${params}` }));
-    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    } catch(e) {
+      if (e.status === 403) { res.writeHead(403); res.end(JSON.stringify({ error: e.message })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
 
@@ -2249,10 +2370,14 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, path: folderPath } = JSON.parse(body);
+        const { uid, path: folderPath, workspace_id } = JSON.parse(body);
         if (!uid || !folderPath || !folderPath.startsWith('/')) { res.writeHead(400); res.end(JSON.stringify({ error: 'invalid_path' })); return; }
-        await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true`, 'PATCH', { watched_path: folderPath, watched_path_label: folderPath, cursor: null, updated_at: new Date().toISOString() });
-        const connData = await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true&select=*`);
+        let wsId;
+        try { wsId = await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
+        if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
+        const wsFilter = wsId ? `&workspace_id=eq.${wsId}` : '';
+        await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true${wsFilter}`, 'PATCH', { watched_path: folderPath, watched_path_label: folderPath, cursor: null, updated_at: new Date().toISOString() });
+        const connData = await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true${wsFilter}&select=*`);
         if (connData?.[0]) syncDropboxFolder(connData[0]).catch(e => console.error('initial dropbox sync failed:', e.message));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
@@ -2282,8 +2407,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/gdrive/info → サービスアカウントメール取得
+  // GET /api/gdrive/info?uid=xxx&workspace_id=yyy → サービスアカウントメール取得
   if (req.method === 'GET' && reqPath === '/api/gdrive/info') {
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
+    // workspace_id 受け取り: uid がある場合のみ検証(静的情報なので uid なしでも返す)
+    if (uid && qp.get('workspace_id')) {
+      try { await resolveWorkspaceId(uid, qp.get('workspace_id')); } catch(e) { handleWsError(e, res); return; }
+    }
     let serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
     if (!serviceAccountEmail) {
       try {
@@ -2302,8 +2433,11 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, folder_id } = JSON.parse(body);
+        const { uid, folder_id, workspace_id } = JSON.parse(body);
         if (!uid || !folder_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and folder_id required' })); return; }
+        let wsId;
+        try { wsId = await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
+        if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
         const check = await canUseAutoIntake(uid);
         if (!check.allowed) { res.writeHead(403); res.end(JSON.stringify({ error: check.reason })); return; }
         let drive;
@@ -2312,6 +2446,7 @@ const server = http.createServer(async (req, res) => {
         if (meta.data.mimeType !== 'application/vnd.google-apps.folder') { res.writeHead(400); res.end(JSON.stringify({ error: 'not_a_folder' })); return; }
         await supabaseQuery('/cloud_connections', 'POST', {
           uid, provider: 'gdrive', access_token: 'service_account',
+          workspace_id: wsId,
           watched_path: folder_id, watched_path_label: meta.data.name,
           is_active: true, updated_at: new Date().toISOString()
         }, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
