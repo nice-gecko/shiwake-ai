@@ -29,6 +29,52 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-dropdown-action:hover{background:#f5f4f0;color:#333;}
 .ws-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#555;background:#f0efe9;border:1px solid #e0dfd8;border-radius:5px;padding:2px 7px;}
 
+/* ===== ワークスペース管理モーダル ===== */
+.ws-manage-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:flex-start;justify-content:center;padding:32px 16px 48px;overflow-y:auto;}
+.ws-manage-overlay.show{display:flex;}
+.ws-manage-inner{background:#fff;border-radius:16px;width:100%;max-width:620px;padding:26px 26px 22px;margin:auto;}
+.ws-manage-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.ws-manage-title{font-size:17px;font-weight:700;color:#1a1a1a;}
+.ws-manage-close{background:none;border:none;font-size:24px;color:#aaa;cursor:pointer;line-height:1;padding:0 2px;}
+.ws-manage-close:hover{color:#555;}
+.ws-manage-usage{font-size:12px;color:#999;margin-bottom:18px;}
+.ws-manage-section-title{font-size:11px;color:#bbb;font-weight:600;letter-spacing:0.05em;margin:16px 0 8px;padding-top:8px;border-top:1px solid #f0efe9;}
+.ws-card{border:1px solid #e0dfd8;border-radius:10px;padding:13px 15px;margin-bottom:9px;background:#fff;}
+.ws-card.archived{opacity:0.6;background:#faf9f6;}
+.ws-card-top{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+.ws-card-icon{font-size:20px;line-height:1;flex-shrink:0;}
+.ws-card-name{font-size:14px;font-weight:600;color:#1a1a1a;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ws-card-badges{display:flex;gap:4px;flex-shrink:0;}
+.ws-badge-default{font-size:10px;background:#EBF4FD;color:#185FA5;border:1px solid #b8d4f0;border-radius:4px;padding:1px 6px;font-weight:600;}
+.ws-badge-archived{font-size:10px;background:#f3f3f0;color:#999;border:1px solid #ddd;border-radius:4px;padding:1px 6px;}
+.ws-card-meta{font-size:11px;color:#bbb;margin-bottom:9px;}
+.ws-card-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.ws-card-btn{padding:5px 11px;font-size:12px;border-radius:6px;cursor:pointer;border:1px solid #ddd;background:#fff;color:#555;}
+.ws-card-btn:hover{background:#f5f4f0;}
+.ws-card-btn.danger{border-color:#fca5a5;color:#dc2626;}
+.ws-card-btn.danger:hover{background:#FEF2F2;}
+.ws-card-btn.restore{border-color:#6ee7b7;color:#1D9E75;}
+.ws-card-btn.restore:hover{background:#F0FBF6;}
+.ws-card-btn:disabled{opacity:0.4;cursor:not-allowed;pointer-events:none;}
+.ws-manage-add-btn{width:100%;padding:11px;border:2px dashed #d0cfc8;border-radius:10px;background:transparent;font-size:13px;color:#999;cursor:pointer;margin-top:4px;transition:all 0.15s;}
+.ws-manage-add-btn:hover{border-color:#185FA5;color:#185FA5;background:#EBF4FD;}
+/* 新規作成フォーム */
+.ws-create-form{border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:12px;background:#fafaf8;}
+.ws-create-form h4{font-size:13px;font-weight:600;margin-bottom:12px;color:#333;}
+.ws-form-row{margin-bottom:10px;}
+.ws-form-row label{display:block;font-size:11px;color:#666;margin-bottom:3px;}
+.ws-form-row input{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;outline:none;box-sizing:border-box;}
+.ws-form-row input:focus{border-color:#185FA5;}
+.ws-form-slug-status{font-size:10px;margin-top:3px;color:#bbb;}
+.ws-form-slug-status.ok{color:#1D9E75;}
+.ws-form-slug-status.err{color:#dc2626;}
+.ws-icon-row{display:flex;gap:8px;align-items:center;}
+.ws-icon-input{width:58px!important;text-align:center;font-size:18px;}
+.ws-form-btns{display:flex;gap:8px;margin-top:14px;}
+.ws-form-btn-submit{flex:1;padding:8px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
+.ws-form-btn-submit:disabled{opacity:0.5;cursor:not-allowed;}
+.ws-form-btn-cancel{padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#555;cursor:pointer;}
+
 /* サイドバー */
 .sidebar{width:240px;flex-shrink:0;background:#f0efe9;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:0;min-height:100vh;}
 .sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid #e0dfd8;}
@@ -5064,7 +5110,7 @@ function renderWorkspaceSelector() {
     </div>`;
   }
   html += `<hr class="ws-dropdown-divider">
-  <div class="ws-dropdown-action" onclick="closeWsDropdown();switchTab('auto-intake')">⚙ ワークスペースを管理</div>`;
+  <div class="ws-dropdown-action" onclick="openWsManage()">⚙ ワークスペースを管理</div>`;
   dd.innerHTML = html;
 }
 
@@ -5082,6 +5128,261 @@ document.addEventListener('click', function(e) {
   const sel = document.getElementById('wsSelector');
   if (sel && !sel.contains(e.target)) closeWsDropdown();
 });
+
+// ===== ワークスペース管理画面 =====
+let _wsMgArchivedList = [];
+
+async function openWsManage() {
+  closeWsDropdown();
+  const overlay = document.getElementById('wsManageOverlay');
+  if (overlay) overlay.classList.add('show');
+  _wsMgArchivedList = [];
+  await loadWsManageList();
+}
+
+function closeWsManage() {
+  const overlay = document.getElementById('wsManageOverlay');
+  if (overlay) overlay.classList.remove('show');
+  const uid = window._firebaseUser?.uid;
+  if (uid) {
+    window._workspacesReady = fetchWorkspaces(uid);
+  }
+}
+
+function wsManageOverlayClick(e) {
+  if (e.target === document.getElementById('wsManageOverlay')) closeWsManage();
+}
+
+async function loadWsManageList() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  const body = document.getElementById('wsManageBody');
+  const usageEl = document.getElementById('wsManageUsage');
+  if (body) body.innerHTML = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px;">読み込み中...</div>';
+  try {
+    const r = await fetch('/api/workspaces?uid=' + uid);
+    const d = await r.json();
+    const active = d.workspaces || [];
+    const used = d.used ?? active.length;
+    const limit = d.limit ?? 10;
+    if (usageEl) usageEl.textContent = `ご利用中: ${used} / ${limit} ワークスペース`;
+    renderWsManageList(active);
+  } catch(e) {
+    if (body) body.innerHTML = '<div style="text-align:center;padding:20px;color:#e55;font-size:13px;">読み込みに失敗しました</div>';
+  }
+}
+
+function renderWsManageList(active) {
+  const body = document.getElementById('wsManageBody');
+  if (!body) return;
+  let html = '';
+  if (active.length === 0 && _wsMgArchivedList.length === 0) {
+    html = '<div style="text-align:center;padding:20px;color:#bbb;font-size:13px;">ワークスペースがありません</div>';
+  } else {
+    for (const ws of active) html += buildWsCard(ws, false);
+    if (_wsMgArchivedList.length > 0) {
+      html += '<div class="ws-manage-section-title">アーカイブ済み</div>';
+      for (const ws of _wsMgArchivedList) html += buildWsCard(ws, true);
+    }
+  }
+  body.innerHTML = html;
+}
+
+function buildWsCard(ws, isArchived) {
+  const statsText = (ws.stats && ws.stats.shiwake_count != null)
+    ? `仕訳: ${ws.stats.shiwake_count}件` : '';
+  let badges = '';
+  if (ws.is_default) badges += '<span class="ws-badge-default">既定</span>';
+  if (isArchived) badges += '<span class="ws-badge-archived">アーカイブ済み</span>';
+  let btns = '';
+  if (!isArchived) {
+    btns += `<button class="ws-card-btn" onclick="openWsSettings('${ws.id}')">設定</button>`;
+    if (!ws.is_default) {
+      btns += `<button class="ws-card-btn" onclick="archiveWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">アーカイブ</button>`;
+    }
+  } else {
+    btns += `<button class="ws-card-btn restore" onclick="restoreWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">復元</button>`;
+    btns += `<button class="ws-card-btn danger" onclick="deleteWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">削除</button>`;
+  }
+  return `<div class="ws-card${isArchived?' archived':''}" id="ws-card-${ws.id}">
+    <div class="ws-card-top">
+      <span class="ws-card-icon">${escapeHtml(ws.icon||'🏢')}</span>
+      <span class="ws-card-name">${escapeHtml(ws.name)}</span>
+      <span class="ws-card-badges">${badges}</span>
+    </div>
+    ${statsText?`<div class="ws-card-meta">${statsText}</div>`:''}
+    <div class="ws-card-btns">${btns}</div>
+  </div>`;
+}
+
+function showWsCreateForm() {
+  if (document.getElementById('wsCreateForm')) return;
+  const addBtn = document.getElementById('wsManageAddBtn');
+  if (!addBtn) return;
+  const formHtml = `<div class="ws-create-form" id="wsCreateForm">
+    <h4>新しいワークスペースを作成</h4>
+    <div class="ws-form-row">
+      <label>名前 <span style="color:#dc2626">*</span></label>
+      <input type="text" id="wsNewName" placeholder="例: 合同会社A商事" maxlength="64">
+    </div>
+    <div class="ws-form-row">
+      <label>スラグ（任意・英小文字・数字・ハイフン）</label>
+      <input type="text" id="wsNewSlug" placeholder="例: a-corp" maxlength="32" oninput="scheduleWsSlugCheck()">
+      <div id="wsSlugStatus" class="ws-form-slug-status">設定しない場合は自動生成されます</div>
+    </div>
+    <div class="ws-form-row">
+      <label>アイコン（絵文字・任意）</label>
+      <div class="ws-icon-row">
+        <input type="text" id="wsNewIcon" class="ws-icon-input" placeholder="🏢" maxlength="4">
+      </div>
+    </div>
+    <div class="ws-form-btns">
+      <button class="ws-form-btn-cancel" onclick="hideWsCreateForm()">キャンセル</button>
+      <button class="ws-form-btn-submit" id="wsCreateSubmitBtn" onclick="submitCreateWorkspace()">作成</button>
+    </div>
+  </div>`;
+  addBtn.insertAdjacentHTML('beforebegin', formHtml);
+  addBtn.style.display = 'none';
+  document.getElementById('wsNewName')?.focus();
+}
+
+function hideWsCreateForm() {
+  const form = document.getElementById('wsCreateForm');
+  if (form) form.remove();
+  const addBtn = document.getElementById('wsManageAddBtn');
+  if (addBtn) addBtn.style.display = '';
+}
+
+let _wsSlugCheckTimer = null;
+function scheduleWsSlugCheck() {
+  clearTimeout(_wsSlugCheckTimer);
+  _wsSlugCheckTimer = setTimeout(checkWsSlugAvailability, 500);
+}
+
+async function checkWsSlugAvailability() {
+  const slug = document.getElementById('wsNewSlug')?.value.trim();
+  const st = document.getElementById('wsSlugStatus');
+  if (!st) return;
+  if (!slug) { st.className = 'ws-form-slug-status'; st.textContent = '設定しない場合は自動生成されます'; return; }
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  st.className = 'ws-form-slug-status'; st.textContent = 'チェック中...';
+  try {
+    const r = await fetch('/api/workspaces/check-slug', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ uid, slug })
+    });
+    const d = await r.json();
+    if (d.available) {
+      st.className = 'ws-form-slug-status ok'; st.textContent = '✓ 使用できます';
+    } else {
+      st.className = 'ws-form-slug-status err'; st.textContent = 'このスラグは既に使用されています';
+    }
+  } catch(e) {
+    st.className = 'ws-form-slug-status'; st.textContent = 'チェックに失敗しました';
+  }
+}
+
+async function submitCreateWorkspace() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  const name = document.getElementById('wsNewName')?.value.trim();
+  if (!name) { alert('名前は必須です'); return; }
+  const slug = document.getElementById('wsNewSlug')?.value.trim() || null;
+  const icon = document.getElementById('wsNewIcon')?.value.trim() || null;
+  const slugSt = document.getElementById('wsSlugStatus');
+  if (slug && slugSt?.classList.contains('err')) {
+    alert('スラグが重複しています。別のスラグを入力してください。');
+    return;
+  }
+  const btn = document.getElementById('wsCreateSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '作成中...'; }
+  try {
+    const r = await fetch('/api/workspaces', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ uid, name, slug, icon })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error || '作成に失敗しました'); return; }
+    showToast('✓ ワークスペースを作成しました', 2000);
+    if (d.workspace?.id) {
+      await fetch('/api/workspaces/' + d.workspace.id + '/switch', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ uid })
+      });
+    }
+    closeWsManage();
+    setTimeout(() => location.reload(), 800);
+  } catch(e) {
+    alert('作成に失敗しました');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '作成'; }
+  }
+}
+
+async function archiveWorkspace(id, name) {
+  if (!confirm(`「${name}」をアーカイブしますか？\nデータは保持されます。後から復元または削除できます。`)) return;
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/workspaces/' + id + '/archive', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ uid })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error || 'アーカイブに失敗しました'); return; }
+    const ws = (window._workspaces || []).find(w => w.id === id);
+    if (ws) _wsMgArchivedList.push({...ws, is_archived: true});
+    showToast('アーカイブしました', 2000);
+    if (id === window._currentWorkspaceId) {
+      closeWsManage();
+      setTimeout(() => location.reload(), 800);
+      return;
+    }
+    await loadWsManageList();
+    if (_wsMgArchivedList.length > 0) renderWsManageList(
+      (await (await fetch('/api/workspaces?uid=' + uid)).json()).workspaces || []
+    );
+  } catch(e) { alert('アーカイブに失敗しました'); }
+}
+
+async function restoreWorkspace(id, name) {
+  if (!confirm(`「${name}」を復元しますか？`)) return;
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/workspaces/' + id, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ uid, is_archived: false })
+    });
+    if (!r.ok) { alert('復元に失敗しました'); return; }
+    _wsMgArchivedList = _wsMgArchivedList.filter(w => w.id !== id);
+    showToast('✓ 復元しました', 2000);
+    await loadWsManageList();
+  } catch(e) { alert('復元に失敗しました'); }
+}
+
+async function deleteWorkspace(id, name) {
+  if (!confirm(`「${name}」を完全に削除しますか？\n⚠ 取引先マスタ・仕訳記録も全て削除されます。元に戻せません。`)) return;
+  if (!confirm(`「${name}」を本当に削除しますか？`)) return;
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/workspaces/' + id + '?uid=' + encodeURIComponent(uid), {
+      method: 'DELETE'
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error || '削除に失敗しました'); return; }
+    _wsMgArchivedList = _wsMgArchivedList.filter(w => w.id !== id);
+    showToast('削除しました', 2000);
+    await loadWsManageList();
+  } catch(e) { alert('削除に失敗しました'); }
+}
+
+function openWsSettings(wsId) {
+  // TODO: Group 5-C で実装予定
+  showToast('設定画面は近日公開予定です', 2000);
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   // 認証状態の変化を監視して初期化
@@ -5118,5 +5419,19 @@ window.addEventListener('DOMContentLoaded', () => {
   }catch(e){console.warn('scanic読み込み失敗:',e.message);}
 })();
 </script>
+
+<!-- ===== ワークスペース管理モーダル ===== -->
+<div id="wsManageOverlay" class="ws-manage-overlay" onclick="wsManageOverlayClick(event)">
+  <div class="ws-manage-inner">
+    <div class="ws-manage-header">
+      <span class="ws-manage-title">ワークスペース管理</span>
+      <button class="ws-manage-close" onclick="closeWsManage()">×</button>
+    </div>
+    <div class="ws-manage-usage" id="wsManageUsage"></div>
+    <div id="wsManageBody"></div>
+    <button class="ws-manage-add-btn" id="wsManageAddBtn" onclick="showWsCreateForm()">＋ 新しいワークスペースを追加</button>
+  </div>
+</div>
+
 </body>
 </html>
