@@ -16,9 +16,27 @@ if (!fs.existsSync(HASH_DIR)) {
   fs.mkdirSync(HASH_DIR, { recursive: true });
 }
 
-function hashFilePath(uid) {
-  const safe = (uid || 'anonymous').replace(/[^a-zA-Z0-9_-]/g, '_');
-  return path.join(HASH_DIR, `hashes_${safe}.json`);
+function hashFilePath(uid, workspaceId) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
+  const safeUid = (uid || 'anonymous').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeWs = workspaceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(HASH_DIR, `hashes_${safeUid}_${safeWs}.json`);
+}
+
+// 旧パス(hashes/hashes_<uid>.json)が存在する場合、新パスへ自動 rename
+function migrateHashIfNeeded(uid, workspaceId) {
+  if (!uid || !workspaceId) return;
+  const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const oldPath = path.join(HASH_DIR, `hashes_${safeUid}.json`);
+  const newPath = hashFilePath(uid, workspaceId);
+  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+    try {
+      fs.renameSync(oldPath, newPath);
+      console.log(`ハッシュキャッシュをマイグレーション: hashes_${safeUid}.json → hashes_${safeUid}_${workspaceId}.json`);
+    } catch(e) {
+      console.warn('hashes migration error:', e.message);
+    }
+  }
 }
 
 // base64画像データからハッシュを計算（SHA-256）
@@ -26,10 +44,12 @@ function computeHash(base64Data) {
   return crypto.createHash('sha256').update(base64Data).digest('hex');
 }
 
-// UID単位でハッシュキャッシュを読み込み
+// ワークスペース単位でハッシュキャッシュを読み込み
 // 同時にTTL超過・件数超過のエントリをクリーンアップ
-function loadHashes(uid) {
-  const filePath = hashFilePath(uid);
+function loadHashes(uid, workspaceId) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
+  migrateHashIfNeeded(uid, workspaceId);
+  const filePath = hashFilePath(uid, workspaceId);
   let data = {};
   try {
     if (fs.existsSync(filePath)) {
@@ -54,8 +74,9 @@ function loadHashes(uid) {
   return Object.fromEntries(entries);
 }
 
-function saveHashes(uid, hashes) {
-  const filePath = hashFilePath(uid);
+function saveHashes(uid, workspaceId, hashes) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
+  const filePath = hashFilePath(uid, workspaceId);
   try {
     fs.writeFileSync(filePath, JSON.stringify(hashes), 'utf8');
   } catch(e) {
@@ -64,27 +85,29 @@ function saveHashes(uid, hashes) {
 }
 
 // ハッシュをキーにキャッシュ取得（ヒット時はitemsを返す、なければnull）
-function getHashedResult(uid, hash) {
+function getHashedResult(uid, workspaceId, hash) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
   if (!hash) return null;
-  const hashes = loadHashes(uid);
+  const hashes = loadHashes(uid, workspaceId);
   const entry = hashes[hash];
   if (!entry) return null;
   // 保存と同時に書き戻して有効期限を延長（アクセス時刻を更新）
   hashes[hash] = { ...entry, lastAccessedAt: new Date().toISOString() };
-  saveHashes(uid, hashes);
+  saveHashes(uid, workspaceId, hashes);
   return entry.items || null;
 }
 
 // ハッシュキャッシュに保存
-function setHashedResult(uid, hash, items) {
+function setHashedResult(uid, workspaceId, hash, items) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
   if (!hash || !Array.isArray(items)) return;
-  const hashes = loadHashes(uid);
+  const hashes = loadHashes(uid, workspaceId);
   hashes[hash] = {
     items,
     savedAt: new Date().toISOString(),
     lastAccessedAt: new Date().toISOString()
   };
-  saveHashes(uid, hashes);
+  saveHashes(uid, workspaceId, hashes);
 }
 
 // 起動時に全ユーザーのハッシュをクリーンアップ（古い・上限超過を削除）

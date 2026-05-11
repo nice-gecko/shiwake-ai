@@ -10,14 +10,34 @@ if (!fs.existsSync(MASTER_DIR)) {
   fs.mkdirSync(MASTER_DIR, { recursive: true });
 }
 
-function masterFilePath(uid) {
+function masterFilePath(uid, workspaceId) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
   if (!uid) return LEGACY_FILE;
-  const safe = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return path.join(MASTER_DIR, `master_${safe}.json`);
+  const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeWs = workspaceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(MASTER_DIR, `master_${safeUid}_${safeWs}.json`);
 }
 
-function loadMaster(uid) {
-  const filePath = masterFilePath(uid);
+// 旧パス(masters/master_<uid>.json)が存在する場合、新パスへ自動 rename
+function migrateMasterIfNeeded(uid, workspaceId) {
+  if (!uid || !workspaceId) return;
+  const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const oldPath = path.join(MASTER_DIR, `master_${safeUid}.json`);
+  const newPath = masterFilePath(uid, workspaceId);
+  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+    try {
+      fs.renameSync(oldPath, newPath);
+      console.log(`マスタファイルをマイグレーション: master_${safeUid}.json → master_${safeUid}_${workspaceId}.json`);
+    } catch(e) {
+      console.warn('master migration error:', e.message);
+    }
+  }
+}
+
+function loadMaster(uid, workspaceId) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
+  migrateMasterIfNeeded(uid, workspaceId);
+  const filePath = masterFilePath(uid, workspaceId);
   try {
     if (fs.existsSync(filePath)) {
       return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -30,28 +50,43 @@ function loadMaster(uid) {
   return {};
 }
 
-function saveMaster(uid, master) {
-  const filePath = masterFilePath(uid);
+function saveMaster(uid, workspaceId, master) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
+  const filePath = masterFilePath(uid, workspaceId);
   fs.writeFileSync(filePath, JSON.stringify(master, null, 2), 'utf8');
 }
 
 function getMasterRoutes(req, res) {
-  const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
-  const master = loadMaster(uid);
+  const url = new URL(req.url, 'http://localhost');
+  const uid = url.searchParams.get('uid');
+  const workspaceId = url.searchParams.get('workspace_id');
+  if (!workspaceId) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'workspace_id is required' }));
+    return;
+  }
+  const master = loadMaster(uid, workspaceId);
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(master));
 }
 
 function updateMasterRoute(req, res) {
-  const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+  const url = new URL(req.url, 'http://localhost');
+  const uid = url.searchParams.get('uid');
+  const workspaceId = url.searchParams.get('workspace_id');
+  if (!workspaceId) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'workspace_id is required' }));
+    return;
+  }
   let body = '';
   req.on('data', chunk => body += chunk);
   req.on('end', () => {
     try {
       const updates = JSON.parse(body);
-      const master = loadMaster(uid);
+      const master = loadMaster(uid, workspaceId);
       Object.assign(master, updates);
-      saveMaster(uid, master);
+      saveMaster(uid, workspaceId, master);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, master }));
     } catch(e) {
@@ -62,15 +97,22 @@ function updateMasterRoute(req, res) {
 }
 
 function deleteMasterRoute(req, res) {
-  const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+  const url = new URL(req.url, 'http://localhost');
+  const uid = url.searchParams.get('uid');
+  const workspaceId = url.searchParams.get('workspace_id');
+  if (!workspaceId) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'workspace_id is required' }));
+    return;
+  }
   let body = '';
   req.on('data', chunk => body += chunk);
   req.on('end', () => {
     try {
       const { title } = JSON.parse(body);
-      const master = loadMaster(uid);
+      const master = loadMaster(uid, workspaceId);
       delete master[title];
-      saveMaster(uid, master);
+      saveMaster(uid, workspaceId, master);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     } catch(e) {
