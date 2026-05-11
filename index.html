@@ -153,6 +153,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .v-step-spinner{width:12px;height:12px;border:2px solid #d0d0d0;border-top-color:#185FA5;border-radius:50%;animation:spin 0.8s linear infinite;display:none;}
 .v-step-spinner.show{display:inline-block;}
 .v-step-auto-hint{font-size:11px;color:#888;margin-top:6px;}
+.v-step-desc{font-size:11px;color:#aaa;margin-top:2px;margin-bottom:4px;}
 
 /* ヘッダー（サイドバーに移動後は非表示にしてもよいが残す） */
 .header{background:#fff;border-bottom:1px solid #e5e5e5;padding:14px 24px;display:flex;align-items:center;gap:10px;}
@@ -1531,7 +1532,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <!-- 信頼度ダッシュボード -->
     <div id="trustDashboard" style="display:none;"></div>
-    <!-- 縦型ステッパー(v2.3.2: 2ステップに変更) -->
+    <!-- 縦型ステッパー(v2.3.2: 4ステップ) -->
     <div class="v-stepper">
       <!-- ① 証憑をアップロード -->
       <div class="v-step-row">
@@ -1541,6 +1542,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
         </div>
         <div class="v-step-content">
           <div class="v-step-label">証憑をアップロード</div>
+          <div class="v-step-desc">ファイルをドラッグまたはクリックで投入</div>
           <div class="drop" id="dz" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
             <svg class="drop-icon" viewBox="0 0 44 44" fill="none"><rect x="5" y="7" width="34" height="30" rx="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M14 24 L22 16 L30 24" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="22" y1="16" x2="22" y2="32" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             <p><strong>クリックまたはドラッグ</strong>で証憑をアップロード</p>
@@ -1554,13 +1556,36 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       <div class="v-step-row">
         <div class="v-step-spine">
           <div class="v-step-circle">2</div>
+          <div class="v-step-line"></div>
         </div>
-        <div class="v-step-content last">
+        <div class="v-step-content">
           <div class="v-step-label-row">
             <div class="v-step-label">仕訳を自動生成<div class="v-step-spinner" id="vStepSpinner"></div></div>
             <button class="btn-reset-inline" id="btnResetSession" onclick="resetSession()" style="display:none;">🗑 クリア</button>
           </div>
+          <div class="v-step-desc">AIが科目・税区分・摘要を自動判定（待つだけ）</div>
           <div class="v-step-auto-hint" id="vStepHint">アップロードすると自動で生成します</div>
+        </div>
+      </div>
+      <!-- ③ 内容を確認・承認 -->
+      <div class="v-step-row">
+        <div class="v-step-spine">
+          <div class="v-step-circle">3</div>
+          <div class="v-step-line"></div>
+        </div>
+        <div class="v-step-content">
+          <div class="v-step-label">内容を確認・承認</div>
+          <div class="v-step-desc">内容をチェック、必要なら修正して承認</div>
+        </div>
+      </div>
+      <!-- ④ CSV を出力 -->
+      <div class="v-step-row">
+        <div class="v-step-spine">
+          <div class="v-step-circle">4</div>
+        </div>
+        <div class="v-step-content last">
+          <div class="v-step-label">CSV を出力</div>
+          <div class="v-step-desc">会計ソフトに合わせた CSV をダウンロード</div>
         </div>
       </div>
     </div>
@@ -4702,6 +4727,7 @@ async function loadInboxTray() {
     const count = data.pending_count || 0;
     badge.textContent = count;
     badge.className = 'inbox-tray-badge' + (count === 0 ? ' zero' : '');
+    tray.hidden = count === 0;
     list.innerHTML = '';
 
     if (!data.files || data.files.length === 0) {
