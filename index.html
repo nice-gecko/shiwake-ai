@@ -3579,9 +3579,8 @@ function renderCards(){
 async function loadTrustMetrics(){
   const uid=window._firebaseUser?.uid;
   if(!uid) return;
-  const workspaceId='default'; // A-3a 実装後に切替
   try {
-    const res=await fetch(`/api/trust-metrics?uid=${uid}&workspace_id=${workspaceId}`);
+    const res=await fetch(`/api/trust-metrics?uid=${uid}`);
     if(!res.ok) return;
     const m=await res.json();
     renderTrustDashboard(m);
@@ -3755,13 +3754,12 @@ async function approve(i){
   // === shiwake_records への永続保存 ===
   try {
     const uid=window._firebaseUser?.uid;
-    const workspaceId='default'; // A-3a 実装後に getCurrentWorkspaceId() に切替
     if(uid){
       await fetch('/api/shiwake/approve',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          uid,workspace_id:workspaceId,session_id:SESSION_ID,
+          uid,session_id:SESSION_ID,
           record:{
             shiwake_date:results[i].date,partner_name:results[i].title,
             debit_account:results[i].debit,credit_account:results[i].credit,
