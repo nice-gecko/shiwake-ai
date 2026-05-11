@@ -247,6 +247,52 @@ shiwake-ai が運用フェーズに入ると、ユーザー全体の仕訳デー
 
 ---
 
+## 【v2.3.2 進捗記録 - 2026-05-11】
+
+### 完了事項
+
+**Group 1: DB追加変更**(コミット未該当、SQL Editor で直接実行)
+- workspaces テーブルに UNIQUE 制約 `unique_owner_default(owner_uid, is_default)` 追加(DO $$ BEGIN ... END $$ 構文で対応)
+- shiwake_records に FK 制約 `fk_shiwake_records_workspace` 追加
+- workspace_trust_metrics に FK 制約 `fk_workspace_trust_metrics_workspace` 追加
+- inbox_files, inbox_addresses, cloud_connections の3テーブルに workspace_id 列追加(NULL 許可、FK制約+インデックス込み)
+- 設計書 §2.2 の inbox_settings, staff_members, oauth_tokens は **テーブル自体が未実装** なので対象外(将来実装時に対応)
+
+**Group 2: master.js + hashes.js 改修**(コミット 55d24dc)
+- master.js: loadMaster/saveMaster/masterFilePath に workspaceId 引数追加
+- hashes.js: loadHashes/saveHashes/getHashedResult/setHashedResult/hashFilePath に workspaceId 引数追加
+- 旧パス自動マイグレーション関数 migrateMasterIfNeeded/migrateHashIfNeeded 追加(冪等性・安全ガード付き)
+- ファイルパス: master_<uid>.json → master_<uid>_<workspaceId>.json(hashes も同様)
+- 防御: workspaceId が falsy なら TypeError スロー
+
+### 残作業(次セッションで実装)
+
+**Group 3: server.js API 改修**
+- 既存 API に workspace_id 対応(フォールバック処理込み)
+- 新規エンドポイント 8種(/api/workspaces 系)
+- メール振り分けロジック(設計書 §5.2)
+
+**Group 4: フロント実装**
+- 切替セレクタ(WS1個のみ非表示、2個以上で表示)
+- ワークスペース管理画面
+- 設定画面
+- 未振り分けトレイ
+
+### Group 3 で修正が必要な server.js の呼び出し箇所(Claude Code 調査済み)
+
+| 行番号 | 関数 | 修正内容 |
+|---|---|---|
+| L1097 | saveMaster(uid \|\| null, {}) | saveMaster(uid \|\| null, workspaceId, {}) に変更。workspaceId をリクエストボディから取得 |
+| L1102 | saveMaster(null, {}) | 同上(catch ブロック内のフォールバック) |
+| L1666 | getHashedResult(cacheUid, imageHash) | getHashedResult(cacheUid, workspaceId, imageHash) に変更 |
+| L1683 | loadMaster(cacheUid) | loadMaster(cacheUid, workspaceId) に変更 |
+| L1786 | setHashedResult(cacheUid, imageHash, items) | setHashedResult(cacheUid, workspaceId, imageHash, items) に変更 |
+| L1088-1090 | getMasterRoutes / updateMasterRoute / deleteMasterRoute | ルートハンドラ自体は master.js 内で workspace_id 抽出済み。server.js 側は変更不要だが、/api/master/clear (L1091-1108) の saveMaster 呼び出しは要修正 |
+
+### Group 3 の Claude Code 依頼文(次セッションで貼り付け用)
+
+---
+
 ## 【次回セッション開始時のチェックリスト】
 
 1. git log で最新状態確認
