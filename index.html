@@ -142,7 +142,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .step-arrow{color:#ccc;font-size:12px;margin:0 4px;}
 
 /* 縦型ステッパー */
-.v-stepper{display:flex;flex-direction:column;margin-bottom:14px;}
+.v-stepper{display:flex;flex-direction:column;margin-bottom:6px;}
 .v-step-row{display:flex;gap:12px;}
 .v-step-spine{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:24px;}
 .v-step-circle{width:24px;height:24px;border-radius:50%;background:#185FA5;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -616,11 +616,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .plan-status-bar{width:80px;height:5px;background:#e5e5e5;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin:0 6px;}
 .plan-status-bar-fill{height:100%;background:#185FA5;border-radius:3px;transition:width 0.3s;}
 .plan-status-upgrade{font-size:11px;color:#185FA5;white-space:nowrap;cursor:pointer;text-decoration:underline;}
-.dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:stretch;}
+.dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;align-items:stretch;}
 .dashboard-left{display:flex;flex-direction:column;}
 .dashboard-left > .dash-card{flex:1;}
-.dash-card{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);display:flex;flex-direction:column;}
-.incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.dash-card{background:#fff;border-radius:10px;padding:10px 12px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);display:flex;flex-direction:column;}
+.incentive-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
 .incentive-title{font-size:12px;font-weight:600;color:#555;}
 .incentive-badge{font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:10px;font-weight:600;}
 .ds-row{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;}
@@ -642,7 +642,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 @keyframes countPop{0%{transform:scale(1);}40%{transform:scale(1.18);color:#1D9E75;}100%{transform:scale(1);}}
 .ds-main-value.pop{animation:countPop 0.35s ease;}
 @media (max-width:560px){.dashboard-grid{grid-template-columns:1fr;}}
-.master-extra{margin-top:10px;padding-top:10px;border-top:1px solid #f0eee6;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;}
+.master-extra{margin-top:6px;padding-top:6px;border-top:1px solid #f0eee6;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;}
 .master-extra-left{flex:1;min-width:0;}
 .master-extra-right{flex:0 0 auto;text-align:right;}
 .master-extra-label{font-size:10px;color:#888;margin-bottom:2px;}
@@ -763,7 +763,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .pricing-nav-btn:hover{background:#e0dfd8;color:#185FA5;}
 .pricing-nav-btn.active{background:#fff;color:#185FA5;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
 /* v2.3.0: 取り込みトレイ */
-.inbox-tray{margin:0 0 16px;border-radius:12px;background:#fff;border:1px solid #E8E2D5;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+.inbox-tray{margin:0 0 8px;border-radius:12px;background:#fff;border:1px solid #E8E2D5;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
 .inbox-tray-toggle{width:100%;display:flex;align-items:center;gap:10px;padding:14px 18px;background:transparent;border:0;cursor:pointer;text-align:left;font-size:15px;font-weight:600;color:#2A2A2A;font-family:inherit;}
 .inbox-tray-icon{font-size:18px;}
 .inbox-tray-title{flex:0 0 auto;}
@@ -1308,7 +1308,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
   <nav class="sidebar-nav">
     <!-- ワークスペースセクション(v2.3.2 Group 5-D) -->
     <div class="ws-sidebar-section">
-      <div class="sidebar-section-label" style="padding-top:2px;padding-bottom:6px;">ワークスペース</div>
+      <div class="sidebar-section-label" style="display:flex;align-items:center;justify-content:space-between;">
+        ワークスペース
+        <button onclick="openWsManage()" style="background:none;border:none;cursor:pointer;color:#aaa;padding:0 2px;font-size:12px;line-height:1;" title="ワークスペースを管理">⚙</button>
+      </div>
       <div id="wsSelector" class="ws-selector">
         <button class="ws-selector-btn" id="wsSelectorBtn" onclick="toggleWsDropdown()">
           <span id="wsSelectorIcon" class="ws-selector-icon">🏢</span>
@@ -1316,10 +1319,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <span class="ws-selector-chevron">▼</span>
         </button>
         <div id="wsDropdown" class="ws-dropdown"></div>
-      </div>
-      <div class="ws-sidebar-manage" onclick="openWsManage()">
-        <svg width="12" height="12" viewBox="0 0 15 15" fill="none"><path d="M7.5 1a6.5 6.5 0 100 13A6.5 6.5 0 007.5 1zm0 3a1 1 0 110 2 1 1 0 010-2zm0 3.5c.55 0 1 .45 1 1v2.5a1 1 0 01-2 0V8.5c0-.55.45-1 1-1z" fill="currentColor"/></svg>
-        ワークスペースを管理
       </div>
     </div>
     <div class="sidebar-section-label" style="margin-top:8px;">メニュー</div>
@@ -1419,26 +1418,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
 <div class="main-area">
 
 <div class="main">
-  <!-- ステップ進捗バー -->
-  <div class="step-bar">
-    <button class="hamburger" onclick="toggleSidebar()" aria-label="メニュー" style="margin-right:10px;">
-      <svg viewBox="0 0 18 18" fill="none" width="16" height="16"><line x1="2" y1="5" x2="16" y2="5" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="9" x2="16" y2="9" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="13" x2="16" y2="13" stroke="#555" stroke-width="1.5" stroke-linecap="round"/></svg>
-    </button>
-    <div class="step-item">
-      <div class="step-circle active" id="sc1">1</div>
-      <span class="step-label active" id="sl1">証憑をアップロード</span>
-    </div>
-    <span class="step-arrow">›</span>
-    <div class="step-item">
-      <div class="step-circle pending" id="sc2">2</div>
-      <span class="step-label" id="sl2">仕訳を確認・承認</span>
-    </div>
-    <span class="step-arrow">›</span>
-    <div class="step-item">
-      <div class="step-circle pending" id="sc3">3</div>
-      <span class="step-label" id="sl3">ファイルを出力</span>
-    </div>
-  </div>
+  <!-- モバイル用サイドバートグル -->
+  <button class="hamburger" onclick="toggleSidebar()" aria-label="メニュー" style="margin-bottom:8px;">
+    <svg viewBox="0 0 18 18" fill="none" width="16" height="16"><line x1="2" y1="5" x2="16" y2="5" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="9" x2="16" y2="9" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="13" x2="16" y2="13" stroke="#555" stroke-width="1.5" stroke-linecap="round"/></svg>
+  </button>
   <!-- v2.3.0: 取り込み予定トレイ -->
   <section id="inboxTray" class="inbox-tray" hidden>
     <button class="inbox-tray-toggle" id="inboxTrayToggle" aria-expanded="false">
@@ -1548,51 +1531,12 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
     <!-- 信頼度ダッシュボード -->
     <div id="trustDashboard" style="display:none;"></div>
-    <!-- 縦型ステッパー -->
+    <!-- 縦型ステッパー(v2.3.2: 2ステップに変更) -->
     <div class="v-stepper">
-      <!-- ① 書類の種類を選択 -->
+      <!-- ① 証憑をアップロード -->
       <div class="v-step-row">
         <div class="v-step-spine">
           <div class="v-step-circle">1</div>
-          <div class="v-step-line"></div>
-        </div>
-        <div class="v-step-content">
-          <div class="v-step-label">書類の種類を選択</div>
-          <div id="docTypeSelector">
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-              <div class="doc-type-wrap">
-                <button onclick="selectDocType('register_receipt')" class="doc-type-btn active" data-type="register_receipt">🧾 一般レシート</button>
-                <div class="doc-type-tooltip">コンビニ・スーパー・ドラッグストアなど</div>
-              </div>
-              <div class="doc-type-wrap">
-                <button onclick="selectDocType('restaurant')" class="doc-type-btn" data-type="restaurant">🍽️ 飲食店</button>
-                <div class="doc-type-tooltip">レストラン・居酒屋・カフェなど</div>
-              </div>
-              <div class="doc-type-wrap">
-                <button onclick="selectDocType('transportation')" class="doc-type-btn" data-type="transportation">🚃 交通費</button>
-                <div class="doc-type-tooltip">タクシー・電車・バス・新幹線・ETC</div>
-              </div>
-              <div class="doc-type-wrap">
-                <button onclick="selectDocType('handwritten')" class="doc-type-btn" data-type="handwritten">✍️ 手書き領収書</button>
-                <div class="doc-type-tooltip">個人商店・タクシー・飲食店など</div>
-              </div>
-              <div class="doc-type-wrap">
-                <button onclick="selectDocType('ec_online')" class="doc-type-btn" data-type="ec_online">📦 ECサイト・請求書</button>
-                <div class="doc-type-tooltip">Amazon・楽天・各種請求書</div>
-              </div>
-              <div class="doc-type-wrap">
-                <button onclick="selectDocType('bank_atm')" class="doc-type-btn" data-type="bank_atm">🏦 通帳・カード明細</button>
-                <div class="doc-type-tooltip">銀行通帳・ATM・クレジットカード明細</div>
-              </div>
-            </div>
-            <div id="docTypeDesc" style="font-size:11px;color:#888;margin-top:6px;text-align:center;line-height:1.5;min-height:1.4em;">コンビニ・スーパー・ドラッグストアなど印刷されたレシート</div>
-          </div>
-        </div>
-      </div>
-      <!-- ② 証憑をアップロード -->
-      <div class="v-step-row">
-        <div class="v-step-spine">
-          <div class="v-step-circle">2</div>
           <div class="v-step-line"></div>
         </div>
         <div class="v-step-content">
@@ -1606,10 +1550,10 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           <div class="previews" id="prev"></div>
         </div>
       </div>
-      <!-- ③ 仕訳を自動生成 -->
+      <!-- ② 仕訳を自動生成 -->
       <div class="v-step-row">
         <div class="v-step-spine">
-          <div class="v-step-circle">3</div>
+          <div class="v-step-circle">2</div>
         </div>
         <div class="v-step-content last">
           <div class="v-step-label-row">
@@ -2137,23 +2081,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
 const ACCTS=["現金","普通預金","当座預金","売掛金","買掛金","仕入高","売上高","給与手当","役員報酬","会議費","交際費","旅費交通費","消耗品費","地代家賃","水道光熱費","通信費","広告宣伝費","支払手数料","未払金","前払費用","仮払金","雑費","雑収入"];
 const TAXES=["課税仕入(10%)","課税仕入(8%軽減)","非課税","不課税"];
 let files=[],results=[],approved=new Set(),deleted=new Set();
-let selectedDocType='register_receipt';
-const DOC_TYPE_DESCS={
-  register_receipt:'コンビニ・スーパー・ドラッグストアなど印刷されたレシート',
-  handwritten:'個人商店・タクシー・飲食店などの手書き領収書',
-  restaurant:'レストラン・居酒屋・カフェなどの飲食店レシート',
-  bank_atm:'銀行通帳・ATM明細・クレジットカード明細',
-  transportation:'タクシー・電車・バス・新幹線・高速道路の領収書',
-  ec_online:'請求書・Amazon・楽天・通販サイトの明細',
-};
-function selectDocType(type){
-  selectedDocType=type;
-  document.querySelectorAll('.doc-type-btn').forEach(btn=>{
-    btn.classList.toggle('active',btn.dataset.type===type);
-  });
-  const desc=document.getElementById('docTypeDesc');
-  if(desc)desc.textContent=DOC_TYPE_DESCS[type]||'';
-}
 let abortController=null;
 let processQueue=[];
 let isProcessing=false;
@@ -3342,7 +3269,7 @@ async function processOneFile(f){
       setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
       try{
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data=await resp.json();
         if(data.error)throw new Error(data.error);
         results.push(...data.items);
@@ -3387,7 +3314,7 @@ async function processOneFile(f){
       };
 
       // まず通常向きで解析（Haikuがorientationを返す）
-      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
+      const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
       const data=await resp.json();
       if(data.error){showErr(data.error);return;}
       addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();notifyResultFeedback(data);
@@ -3398,20 +3325,20 @@ async function processOneFile(f){
         setProgress(65,'90°回転で追加解析中...',f.name);
         const b64r90raw=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data2=await resp2.json();
         if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90, mt90);notifyResultFeedback(data2);}appendNewCards();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
         const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
-        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
+        const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data3=await resp3.json();
         if(!data3.error){addItems(data3.items, data3.line_item_mode, b64r270, mt270);notifyResultFeedback(data3);}appendNewCards();
       } else if(detectedOrientation==='rotate'){
         setProgress(65,'回転補正で再解析中...',f.name);
         const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
-        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
+        const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data2=await resp2.json();
         if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);notifyResultFeedback(data2);}appendNewCards();
       }
@@ -3457,7 +3384,7 @@ async function startProcess(resume){
       setProgress(pct,`PDFを解析中 — ${ci+1}/${totalChunks}チャンク`,`${results.length}件読み込み済み · ${chunk.startPage}〜${chunk.endPage}ページ`);
       try{
         const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,docType:selectedDocType,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
+          body:JSON.stringify({imageDataList:[{data:chunk.data,mediaType:'application/pdf'}],fileNames:[`${f.name} p.${chunk.startPage}-${chunk.endPage}`],chunkIndex:ci,totalChunks,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data=await resp.json();
         if(data.error)throw new Error(data.error);
         results.push(...data.items);
