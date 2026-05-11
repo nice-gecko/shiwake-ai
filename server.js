@@ -2656,6 +2656,134 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.3.2 Group 4-B: ワークスペース管理 API(CRUD 系) =====
+
+  // POST /api/workspaces → 新規ワークスペース作成
+  if (req.method === 'POST' && reqPath === '/api/workspaces') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, name, slug, color, icon } = JSON.parse(body);
+        if (!uid || !name) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and name required' })); return; }
+        // 上限チェック(is_archived=false のみカウント、現状 limit=10 固定)
+        const existing = await supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=id`);
+        if ((existing || []).length >= 10) {
+          res.writeHead(402); res.end(JSON.stringify({ error: 'workspace limit reached (max 10)' })); return;
+        }
+        // slug 重複チェック
+        if (slug) {
+          const dup = await supabaseQuery(`/workspaces?owner_uid=eq.${uid}&slug=eq.${encodeURIComponent(slug)}&select=id`);
+          if (dup && dup.length > 0) { res.writeHead(409); res.end(JSON.stringify({ error: 'slug already in use' })); return; }
+        }
+        const wsId = crypto.randomUUID();
+        const created = await supabaseQuery('/workspaces', 'POST', {
+          id: wsId, owner_uid: uid, name,
+          slug: slug || null, color: color || null, icon: icon || null,
+          is_default: false, is_archived: false
+        }, { 'Prefer': 'return=representation' });
+        const w = created?.[0] || { id: wsId, owner_uid: uid, name, slug: slug || null, color: color || null, icon: icon || null, is_default: false, is_archived: false };
+        const stats = await buildWorkspaceStats(wsId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...w, stats }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/workspaces/:id/archive → アーカイブ(論理削除)
+  if (req.method === 'POST' && reqPath.startsWith('/api/workspaces/') && reqPath.endsWith('/archive')) {
+    const wsId = reqPath.slice('/api/workspaces/'.length, -'/archive'.length);
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
+        if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
+        if (ws[0].is_default) { res.writeHead(400); res.end(JSON.stringify({ error: 'cannot archive default workspace' })); return; }
+        await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', { is_archived: true, updated_at: new Date().toISOString() });
+        // current_workspace_id が archive 対象なら default WS(または最古の非 archive)に切り替え
+        const userData = await supabaseQuery(`/users?id=eq.${uid}&select=current_workspace_id`);
+        let newCurrentWsId = userData?.[0]?.current_workspace_id;
+        if (newCurrentWsId === wsId) {
+          const others = await supabaseQuery(
+            `/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&id=neq.${wsId}&select=id,is_default&order=is_default.desc,created_at.asc&limit=1`
+          );
+          newCurrentWsId = others?.[0]?.id || null;
+          if (newCurrentWsId) await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { current_workspace_id: newCurrentWsId });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, current_workspace_id: newCurrentWsId }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // DELETE /api/workspaces/:id → 完全削除
+  if (req.method === 'DELETE' && /^\/api\/workspaces\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
+    const wsId = reqPath.slice('/api/workspaces/'.length);
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
+      if (ws[0].is_default) { res.writeHead(400); res.end(JSON.stringify({ error: 'cannot delete default workspace' })); return; }
+      // current_workspace_id が削除対象なら切り替え
+      const userData = await supabaseQuery(`/users?id=eq.${uid}&select=current_workspace_id`);
+      let newCurrentWsId = userData?.[0]?.current_workspace_id;
+      if (newCurrentWsId === wsId) {
+        const others = await supabaseQuery(
+          `/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&id=neq.${wsId}&select=id,is_default&order=is_default.desc,created_at.asc&limit=1`
+        );
+        newCurrentWsId = others?.[0]?.id || null;
+        if (newCurrentWsId) await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { current_workspace_id: newCurrentWsId });
+      }
+      // DB 削除(ON DELETE CASCADE)
+      await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'DELETE');
+      // ファイル削除
+      const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeWs  = wsId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      try { const f = path.join(__dirname, 'masters', `master_${safeUid}_${safeWs}.json`); if (fs.existsSync(f)) fs.unlinkSync(f); } catch(e) { console.warn('master delete error:', e.message); }
+      try { const f = path.join(__dirname, 'hashes',  `hashes_${safeUid}_${safeWs}.json`); if (fs.existsSync(f)) fs.unlinkSync(f); } catch(e) { console.warn('hash delete error:', e.message); }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, current_workspace_id: newCurrentWsId }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // PATCH /api/workspaces/:id → ワークスペース編集
+  if (req.method === 'PATCH' && /^\/api\/workspaces\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
+    const wsId = reqPath.slice('/api/workspaces/'.length);
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, name, slug, color, icon } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
+        if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
+        // slug 変更時は重複チェック(自分自身は除外)
+        if (slug !== undefined && slug !== null) {
+          const dup = await supabaseQuery(`/workspaces?owner_uid=eq.${uid}&slug=eq.${encodeURIComponent(slug)}&id=neq.${wsId}&select=id`);
+          if (dup && dup.length > 0) { res.writeHead(409); res.end(JSON.stringify({ error: 'slug already in use' })); return; }
+        }
+        const patch = { updated_at: new Date().toISOString() };
+        if (name  !== undefined) patch.name  = name;
+        if (slug  !== undefined) patch.slug  = slug;
+        if (color !== undefined) patch.color = color;
+        if (icon  !== undefined) patch.icon  = icon;
+        const updated = await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', patch, { 'Prefer': 'return=representation' });
+        const w = updated?.[0] || { ...ws[0], ...patch };
+        const stats = await buildWorkspaceStats(wsId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...w, stats }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
   // ===== v2.3.2 Group 4-A: ワークスペース管理 API(読み取り系 + 切り替え) =====
 
   // POST /api/workspaces/check-slug → slug 重複チェック
