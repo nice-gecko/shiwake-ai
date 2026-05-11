@@ -621,6 +621,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .plan-status-bar{width:80px;height:5px;background:#e5e5e5;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin:0 6px;}
 .plan-status-bar-fill{height:100%;background:#185FA5;border-radius:3px;transition:width 0.3s;}
 .plan-status-upgrade{font-size:11px;color:#185FA5;white-space:nowrap;cursor:pointer;text-decoration:underline;}
+.plan-status-upgrade.warning{color:#d97706;font-weight:600;border:1px solid #d97706;border-radius:4px;padding:2px 6px;text-decoration:none;}
+.plan-status-upgrade.warning:hover{background:#fff7ed;}
+.plan-status-upgrade.danger{color:#e53e3e;font-weight:600;border:1px solid #e53e3e;border-radius:4px;padding:2px 6px;text-decoration:none;animation:upgrade-pulse 2s ease-in-out infinite;}
+.plan-status-upgrade.danger:hover{background:#fff5f5;}
+@keyframes upgrade-pulse{0%,100%{opacity:1;}50%{opacity:0.7;}}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;align-items:stretch;}
 .dashboard-left{display:flex;flex-direction:column;}
 .dashboard-left > .dash-card{flex:1;}
@@ -1013,11 +1018,23 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     await signOut(auth);
   };
 
+  function getNextPlan(planKey) {
+    const map = {
+      ai_saas_lite:      { key: 'ai_saas_unlimited', name: 'アンリミテッド' },
+      ai_saas_unlimited: { key: 'agent_lite',        name: 'Agent ライト' },
+      agent_lite:        { key: 'agent_std',         name: 'Agent スタンダード' },
+      agent_std:         { key: 'agent_premium',     name: 'Agent プレミアム' },
+      agent_premium:     { key: 'agent_elite',       name: 'Agent エリート' },
+    };
+    return map[planKey] || null;
+  }
+
   function renderPlanStatusBanner() {
     const el = document.getElementById('plan-status-banner');
     if (!el) return;
     const edition = window._userEdition || 'saas';
     const planName = window._userPlanName || '無料トライアル';
+    const planKey  = window._userPlanKey  || null;
     const usage = window._userUsage || {};
     const used  = usage.monthly_count ?? (window._userTotalCount || 0);
     const limit = usage.monthly_limit ?? null;
@@ -1035,9 +1052,24 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       usageHtml = `<span class="plan-status-usage">今月 ${used.toLocaleString()} 件（無制限）</span>`;
     }
 
-    const upgradeHtml = (edition === 'saas' && limit != null)
-      ? `<span class="plan-status-upgrade" onclick="showSection('pricing')">アップグレード</span>`
-      : '';
+    let upgradeHtml = '';
+    const nextPlan = getNextPlan(planKey);
+    if (nextPlan !== null && limit != null) {
+      const pct = Math.min(100, Math.round(used / limit * 100));
+      let ctaText, ctaClass;
+      if (pct >= 90) {
+        const remaining = limit - used;
+        ctaText  = `残り${remaining.toLocaleString()}件 → ${nextPlan.name}へ`;
+        ctaClass = 'plan-status-upgrade danger';
+      } else if (pct >= 70) {
+        ctaText  = `上限が近づいています → ${nextPlan.name}へ`;
+        ctaClass = 'plan-status-upgrade warning';
+      } else {
+        ctaText  = 'アップグレード';
+        ctaClass = 'plan-status-upgrade';
+      }
+      upgradeHtml = `<span class="${ctaClass}" onclick="showSection('pricing')">${ctaText}</span>`;
+    }
 
     el.className = `plan-status-banner${edition === 'elite' ? ' elite' : edition === 'agent' ? ' agent' : ''}`;
     el.innerHTML = `<span class="plan-status-plan">${planName}</span>${usageHtml}${upgradeHtml}`;
