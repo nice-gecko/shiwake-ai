@@ -323,6 +323,33 @@ async function ensureDefaultWorkspace(uid) {
   return wsId;
 }
 
+// メール振り分けロジック §5.1-5.2 (A3a設計書)
+// 戻り値: workspace_id (UUID) または null(未振り分け)
+async function classifyIncomingEmail(uid, fromAddress, subject) {
+  const workspaces = await supabaseQuery(
+    `/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=id,client_email_addresses,client_email_domains,subject_keywords&order=display_order.asc`
+  );
+  if (!Array.isArray(workspaces) || workspaces.length === 0) return null;
+
+  // 1. 送信元アドレス完全一致
+  for (const ws of workspaces) {
+    if (ws.client_email_addresses?.includes(fromAddress)) return ws.id;
+  }
+
+  // 2. ドメイン一致
+  const domain = fromAddress.split('@')[1] || '';
+  for (const ws of workspaces) {
+    if (domain && ws.client_email_domains?.includes(domain)) return ws.id;
+  }
+
+  // 3. 件名キーワード
+  for (const ws of workspaces) {
+    if (ws.subject_keywords?.some(kw => subject.includes(kw))) return ws.id;
+  }
+
+  return null;
+}
+
 // 信頼度メトリクスを再計算して workspace_trust_metrics を upsert
 async function recalculateTrustMetrics(workspaceId) {
   try {
@@ -2254,6 +2281,7 @@ const server = http.createServer(async (req, res) => {
       const { fields, files } = await parseMultipartFormData(req);
       const to = fields.to || '';
       const from = fields.from || '';
+      const subject = fields.subject || '';
       const text = fields.text || null;
       const spamScore = parseFloat(fields.spam_score || '0');
       if (spamScore > 5) {
@@ -2273,6 +2301,7 @@ const server = http.createServer(async (req, res) => {
       const featureCheck = await canUseAutoIntake(uid);
       if (!featureCheck.allowed) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: true, ignored: true })); return; }
 
+      const workspaceId = await classifyIncomingEmail(uid, from, subject).catch(() => null);
       const ALLOWED_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
       let savedCount = 0;
       for (const file of files) {
@@ -2285,7 +2314,8 @@ const server = http.createServer(async (req, res) => {
           await supabaseQuery('/inbox_files', 'POST', {
             id: inboxFileId, uid, source: 'email', source_id: messageId,
             sender: from, filename: file.originalname, mime_type: file.mimetype,
-            byte_size: file.size, storage_path: storagePath, status: 'pending', email_body: text
+            byte_size: file.size, storage_path: storagePath, status: 'pending', email_body: text,
+            workspace_id: workspaceId
           });
           savedCount++;
         } catch(e) { console.error('inbox email upload failed:', e.message); }
