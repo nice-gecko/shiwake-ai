@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PDFDocument } = require('pdf-lib');
-const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute } = require('./master');
+const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute, findMasterMatch } = require('./master');
 const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 const { computeHash, getHashedResult, setHashedResult, cleanupAllHashes } = require('./hashes');
 
@@ -14,24 +14,6 @@ try { DropboxClass = require('dropbox').Dropbox; } catch(e) { console.warn('drop
 // googleapis (オプション: npm install googleapis が必要)
 let googleApis;
 try { googleApis = require('googleapis').google; } catch(e) { console.warn('googleapis package not installed — GDrive integration disabled'); }
-
-// ===== 取引先マスタヒット判定（部分一致：マスタ名がレシートtitleに含まれるか）=====
-// 戻り値: ヒットしたらマスタキー、なければnull
-function findMasterMatch(rawTitle, master) {
-  if (!rawTitle || !master) return null;
-  const t = String(rawTitle).trim();
-  if (!t) return null;
-  // 完全一致を最優先
-  if (master[t]) return t;
-  // 部分一致（マスタキーがraw titleに含まれる、または逆）
-  // 長いキーから優先的にマッチさせる（より特異的なマッチを優先）
-  const keys = Object.keys(master).sort((a, b) => b.length - a.length);
-  for (const key of keys) {
-    if (!key) continue;
-    if (t.includes(key) || key.includes(t)) return key;
-  }
-  return null;
-}
 
 // インセンティブ設定（後から変更可能）
 const INCENTIVE_THRESHOLD = 1000; // 何枚でギフト券1枚
@@ -1711,16 +1693,17 @@ const server = http.createServer(async (req, res) => {
           })
           .map(item => {
             // マスタヒット判定（部分一致）
-            const matchedKey = findMasterMatch(item.title, master);
-            if (matchedKey) {
-              const rule = master[matchedKey];
+            const matchResult = findMasterMatch(item.title, master);
+            if (matchResult.matched_id) {
+              const rule = master[matchResult.matched_id];
               return {
                 ...item,
                 debit: rule.debit,
                 credit: rule.credit,
                 tax: rule.tax,
                 masterApplied: true,
-                masterKey: matchedKey  // どのマスタキーにヒットしたかフロントに伝える
+                masterKey: matchResult.matched_id,
+                masterMethod: matchResult.method
               };
             }
             return { ...item, masterApplied: false };

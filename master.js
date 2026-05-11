@@ -80,4 +80,20 @@ function deleteMasterRoute(req, res) {
   });
 }
 
-module.exports = { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute };
+// 戻り値: { matched_id, debit_account, method: 'exact'|'partial'|null }
+function findMasterMatch(rawTitle, master) {
+  if (!rawTitle || !master) return { matched_id: null, debit_account: null, method: null };
+  const t = String(rawTitle).trim();
+  if (!t) return { matched_id: null, debit_account: null, method: null };
+  // 完全一致を最優先
+  if (master[t]) return { matched_id: t, debit_account: master[t].debit || null, method: 'exact' };
+  // 部分一致（長いキーから優先）
+  const keys = Object.keys(master).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (!key) continue;
+    if (t.includes(key) || key.includes(t)) return { matched_id: key, debit_account: master[key].debit || null, method: 'partial' };
+  }
+  return { matched_id: null, debit_account: null, method: null };
+}
+
+module.exports = { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute, findMasterMatch };
