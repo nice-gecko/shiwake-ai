@@ -101,6 +101,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-form-btn-submit{flex:1;padding:8px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
 .ws-form-btn-submit:disabled{opacity:0.5;cursor:not-allowed;}
 .ws-form-btn-cancel{padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#555;cursor:pointer;}
+.ws-rule-section{border-top:1px solid #eee;margin-top:14px;padding-top:12px;}
+.ws-rule-section-title{font-size:10px;font-weight:700;color:#888;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px;}
+.ws-rule-block{margin-bottom:12px;}
+.ws-rule-block-label{font-size:11px;color:#555;font-weight:600;margin-bottom:5px;}
+.ws-rule-list{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}
+.ws-rule-item{display:flex;align-items:center;gap:6px;background:#f7f7f7;border-radius:5px;padding:3px 6px 3px 8px;font-size:12px;}
+.ws-rule-item-text{flex:1;color:#333;word-break:break-all;}
+.ws-rule-item-del{border:none;background:none;color:#aaa;font-size:14px;cursor:pointer;padding:0 2px;line-height:1;}
+.ws-rule-item-del:hover{color:#dc2626;}
+.ws-rule-add-row{display:flex;gap:6px;align-items:center;}
+.ws-rule-add-input{flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:12px;outline:none;}
+.ws-rule-add-input:focus{border-color:#185FA5;}
+.ws-rule-add-btn{padding:5px 10px;background:#185FA5;color:#fff;border:none;border-radius:5px;font-size:12px;cursor:pointer;white-space:nowrap;}
+.ws-rule-add-btn:hover{background:#1450a3;}
 
 /* サイドバー */
 .sidebar{width:240px;flex-shrink:0;background:#f0efe9;border-right:1px solid #e0dfd8;display:flex;flex-direction:column;padding:0;min-height:100vh;}
@@ -5408,6 +5422,9 @@ async function deleteWorkspace(id, name) {
 // ===== ワークスペース編集画面(Group 5-C) =====
 let _wsEditId = null;
 let _wsEditSlugTimer = null;
+let _wsEditEmails = [];
+let _wsEditDomains = [];
+let _wsEditKeywords = [];
 
 const WS_COLORS = [
   { value: null,      label: 'なし',         bg: '#f5f4f0', border: '#ddd' },
@@ -5451,9 +5468,63 @@ function wsEditOverlayClick(e) {
   if (e.target === document.getElementById('wsEditOverlay')) closeWsEdit();
 }
 
+function _wsRuleListHtml(type, items) {
+  const rows = items.map((v, i) =>
+    `<div class="ws-rule-item">
+      <span class="ws-rule-item-text">${escapeHtml(v)}</span>
+      <button type="button" class="ws-rule-item-del" onclick="wsRuleDel('${type}',${i})" title="削除">×</button>
+    </div>`
+  ).join('');
+  return `<div class="ws-rule-list" id="wsRuleList_${type}">${rows}</div>
+    <div class="ws-rule-add-row">
+      <input type="text" class="ws-rule-add-input" id="wsRuleInput_${type}" placeholder="${
+        type==='emails' ? '例: user@example.com' : type==='domains' ? '例: example.com' : '例: A社'
+      }" onkeydown="if(event.key==='Enter'){event.preventDefault();wsRuleAdd('${type}');}">
+      <button type="button" class="ws-rule-add-btn" onclick="wsRuleAdd('${type}')">+ 追加</button>
+    </div>`;
+}
+
+function wsRuleAdd(type) {
+  const input = document.getElementById('wsRuleInput_' + type);
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+  // フロント側簡易バリデーション
+  if (type === 'emails' && !/^\S+@\S+\.\S+$/.test(val)) { showToast('メールアドレスの形式が正しくありません', 2500); return; }
+  if (type === 'domains' && !/^[^@]+\.[^@]+$/.test(val)) { showToast('ドメインの形式が正しくありません(例: example.com)', 2500); return; }
+  if (type === 'keywords' && (val.length < 1 || val.length > 100)) { showToast('キーワードは1〜100文字にしてください', 2500); return; }
+  const arr = type === 'emails' ? _wsEditEmails : type === 'domains' ? _wsEditDomains : _wsEditKeywords;
+  if (arr.includes(val)) { showToast('既に登録されています', 2000); return; }
+  if (arr.length >= 50) { showToast('最大50件まで登録できます', 2000); return; }
+  arr.push(val);
+  input.value = '';
+  _refreshWsRuleList(type);
+}
+
+function wsRuleDel(type, idx) {
+  const arr = type === 'emails' ? _wsEditEmails : type === 'domains' ? _wsEditDomains : _wsEditKeywords;
+  arr.splice(idx, 1);
+  _refreshWsRuleList(type);
+}
+
+function _refreshWsRuleList(type) {
+  const arr = type === 'emails' ? _wsEditEmails : type === 'domains' ? _wsEditDomains : _wsEditKeywords;
+  const listEl = document.getElementById('wsRuleList_' + type);
+  if (!listEl) return;
+  listEl.innerHTML = arr.map((v, i) =>
+    `<div class="ws-rule-item">
+      <span class="ws-rule-item-text">${escapeHtml(v)}</span>
+      <button type="button" class="ws-rule-item-del" onclick="wsRuleDel('${type}',${i})" title="削除">×</button>
+    </div>`
+  ).join('');
+}
+
 function renderWsEditBody(ws) {
   const body = document.getElementById('wsEditBody');
   if (!body) return;
+  _wsEditEmails   = Array.isArray(ws.client_email_addresses) ? [...ws.client_email_addresses] : [];
+  _wsEditDomains  = Array.isArray(ws.client_email_domains)   ? [...ws.client_email_domains]   : [];
+  _wsEditKeywords = Array.isArray(ws.subject_keywords)       ? [...ws.subject_keywords]       : [];
   const curColor = ws.color || null;
   const curIcon = ws.icon || '🏢';
   const ICONS = ['🏢','🏪','🏬','🏭','🏛','🚀','💼','📊','🎯','✨'];
@@ -5499,6 +5570,21 @@ function renderWsEditBody(ws) {
       <label>アイコン</label>
       <div class="ws-icon-picker" id="wsEditIconPicker">${iconBtns}</div>
       <input type="hidden" id="wsEditIcon" value="${escapeHtml(curIcon)}">
+    </div>
+    <div class="ws-rule-section">
+      <div class="ws-rule-section-title">自動振り分けルール</div>
+      <div class="ws-rule-block">
+        <div class="ws-rule-block-label">このメール送信元はこのワークスペースへ</div>
+        ${_wsRuleListHtml('emails', _wsEditEmails)}
+      </div>
+      <div class="ws-rule-block">
+        <div class="ws-rule-block-label">このドメインからのメールはここへ</div>
+        ${_wsRuleListHtml('domains', _wsEditDomains)}
+      </div>
+      <div class="ws-rule-block">
+        <div class="ws-rule-block-label">件名にこのキーワードがあればここへ</div>
+        ${_wsRuleListHtml('keywords', _wsEditKeywords)}
+      </div>
     </div>
     <div class="ws-edit-stats">
       <div class="ws-edit-stats-title">統計情報（読み取り専用）</div>
@@ -5578,7 +5664,11 @@ async function submitWsEdit() {
   try {
     const r = await fetch('/api/workspaces/' + _wsEditId, {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ uid, name, slug, color, icon })
+      body: JSON.stringify({ uid, name, slug, color, icon,
+        client_email_addresses: [..._wsEditEmails],
+        client_email_domains:   [..._wsEditDomains],
+        subject_keywords:       [..._wsEditKeywords]
+      })
     });
     const d = await r.json();
     if (!d.id) { alert(d.error || '保存に失敗しました'); return; }

@@ -2790,10 +2790,31 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { uid, name, slug, color, icon, is_archived } = JSON.parse(body);
+        const { uid, name, slug, color, icon, is_archived,
+                client_email_addresses, client_email_domains, subject_keywords } = JSON.parse(body);
         if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
         const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
         if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
+        // 振り分けルール配列バリデーション
+        const _validateArr = (arr, label, maxLen, itemCheck) => {
+          if (arr === undefined) return null;
+          if (!Array.isArray(arr)) return `${label} は配列で指定してください`;
+          if (arr.length > maxLen) return `${label} は最大 ${maxLen} 件です`;
+          for (const item of arr) {
+            if (typeof item !== 'string') return `${label} の要素は文字列で指定してください`;
+            const e = itemCheck(item); if (e) return e;
+          }
+          return null;
+        };
+        const emailErr = _validateArr(client_email_addresses, 'メールアドレス', 50,
+          v => /^\S+@\S+\.\S+$/.test(v) ? null : `無効なメールアドレス: ${v}`);
+        if (emailErr) { res.writeHead(400); res.end(JSON.stringify({ error: emailErr })); return; }
+        const domainErr = _validateArr(client_email_domains, 'ドメイン', 50,
+          v => /^[^@]+\.[^@]+$/.test(v) ? null : `無効なドメイン: ${v}`);
+        if (domainErr) { res.writeHead(400); res.end(JSON.stringify({ error: domainErr })); return; }
+        const kwErr = _validateArr(subject_keywords, 'キーワード', 50,
+          v => { const t = v.trim(); return (t.length >= 1 && t.length <= 100) ? null : 'キーワードは1〜100文字にしてください'; });
+        if (kwErr) { res.writeHead(400); res.end(JSON.stringify({ error: kwErr })); return; }
         // slug 変更時は重複チェック(自分自身は除外)
         if (slug !== undefined && slug !== null) {
           const dup = await supabaseQuery(`/workspaces?owner_uid=eq.${uid}&slug=eq.${encodeURIComponent(slug)}&id=neq.${wsId}&select=id`);
@@ -2805,6 +2826,9 @@ const server = http.createServer(async (req, res) => {
         if (color       !== undefined) patch.color       = color;
         if (icon        !== undefined) patch.icon        = icon;
         if (is_archived !== undefined) patch.is_archived = is_archived;
+        if (client_email_addresses !== undefined) patch.client_email_addresses = client_email_addresses;
+        if (client_email_domains   !== undefined) patch.client_email_domains   = client_email_domains;
+        if (subject_keywords       !== undefined) patch.subject_keywords       = subject_keywords;
         const updated = await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', patch, { 'Prefer': 'return=representation' });
         const w = updated?.[0] || { ...ws[0], ...patch };
         const stats = await buildWorkspaceStats(wsId);
