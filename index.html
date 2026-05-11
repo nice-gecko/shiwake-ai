@@ -14,6 +14,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 /* ===== ワークスペースセレクタ ===== */
 .ws-selector{position:relative;margin-left:auto;flex-shrink:0;}
 .ws-selector-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;background:#f0efe9;border:1px solid #e0dfd8;border-radius:7px;font-size:12px;color:#333;cursor:pointer;white-space:nowrap;max-width:160px;transition:background 0.15s;}
+/* サイドバー内ワークスペースセクション */
+.ws-sidebar-section{padding:8px 8px 6px;border-bottom:1px solid #e0dfd8;}
+.ws-sidebar-section .ws-selector{margin-left:0;width:100%;}
+.ws-sidebar-section .ws-selector-btn{width:100%;box-sizing:border-box;max-width:none;}
+.ws-sidebar-section .ws-dropdown{left:0;right:0;top:calc(100% + 4px);}
+.ws-sidebar-manage{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;color:#888;cursor:pointer;border-radius:6px;margin-top:3px;}
+.ws-sidebar-manage:hover{background:#e0dfd8;color:#555;}
 .ws-selector-btn:hover{background:#e8e7e0;}
 .ws-selector-icon{font-size:13px;line-height:1;flex-shrink:0;}
 .ws-selector-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;}
@@ -1299,7 +1306,23 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     </div>
   </div>
   <nav class="sidebar-nav">
-    <div class="sidebar-section-label">メニュー</div>
+    <!-- ワークスペースセクション(v2.3.2 Group 5-D) -->
+    <div class="ws-sidebar-section">
+      <div class="sidebar-section-label" style="padding-top:2px;padding-bottom:6px;">ワークスペース</div>
+      <div id="wsSelector" class="ws-selector">
+        <button class="ws-selector-btn" id="wsSelectorBtn" onclick="toggleWsDropdown()">
+          <span id="wsSelectorIcon" class="ws-selector-icon">🏢</span>
+          <span id="wsSelectorName" class="ws-selector-name">ワークスペース</span>
+          <span class="ws-selector-chevron">▼</span>
+        </button>
+        <div id="wsDropdown" class="ws-dropdown"></div>
+      </div>
+      <div class="ws-sidebar-manage" onclick="openWsManage()">
+        <svg width="12" height="12" viewBox="0 0 15 15" fill="none"><path d="M7.5 1a6.5 6.5 0 100 13A6.5 6.5 0 007.5 1zm0 3a1 1 0 110 2 1 1 0 010-2zm0 3.5c.55 0 1 .45 1 1v2.5a1 1 0 01-2 0V8.5c0-.55.45-1 1-1z" fill="currentColor"/></svg>
+        ワークスペースを管理
+      </div>
+    </div>
+    <div class="sidebar-section-label" style="margin-top:8px;">メニュー</div>
     <div class="sidebar-nav-item active" onclick="switchTab('siwake')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="11" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="8" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
       仕訳処理
@@ -1414,15 +1437,6 @@ window.incrementSupabaseCount = incrementMonthlyCount;
     <div class="step-item">
       <div class="step-circle pending" id="sc3">3</div>
       <span class="step-label" id="sl3">ファイルを出力</span>
-    </div>
-    <!-- ワークスペースセレクタ §4.1 / §4.5 -->
-    <div id="wsSelector" class="ws-selector" style="display:none;">
-      <button class="ws-selector-btn" id="wsSelectorBtn" onclick="toggleWsDropdown()">
-        <span id="wsSelectorIcon" class="ws-selector-icon">🏢</span>
-        <span id="wsSelectorName" class="ws-selector-name">ワークスペース</span>
-        <span class="ws-selector-chevron">▼</span>
-      </button>
-      <div id="wsDropdown" class="ws-dropdown"></div>
     </div>
   </div>
   <!-- v2.3.0: 取り込み予定トレイ -->
@@ -5106,7 +5120,7 @@ function renderWorkspaceSelector() {
   const wsSel = document.getElementById('wsSelector');
   if (!wsSel) return;
   const wss = window._workspaces || [];
-  if (wss.length < 2) { wsSel.style.display = 'none'; renderWorkspaceBadge(); return; }
+  // サイドバーに移動したため WS 1個でも常時表示
   wsSel.style.display = '';
   renderWorkspaceBadge();
   const cur = wss.find(w => w.id === window._currentWorkspaceId) || wss[0];
