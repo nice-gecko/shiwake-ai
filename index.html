@@ -56,8 +56,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-card-btn.restore{border-color:#6ee7b7;color:#1D9E75;}
 .ws-card-btn.restore:hover{background:#F0FBF6;}
 .ws-card-btn:disabled{opacity:0.4;cursor:not-allowed;pointer-events:none;}
+.ws-card-delete-hint{font-size:10px;color:#bbb;align-self:center;white-space:nowrap;}
 .ws-manage-add-btn{width:100%;padding:11px;border:2px dashed #d0cfc8;border-radius:10px;background:transparent;font-size:13px;color:#999;cursor:pointer;margin-top:4px;transition:all 0.15s;}
 .ws-manage-add-btn:hover{border-color:#185FA5;color:#185FA5;background:#EBF4FD;}
+.ws-icon-picker{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+.ws-icon-option{font-size:20px;padding:4px 6px;border:2px solid transparent;border-radius:7px;background:#f5f4f0;cursor:pointer;line-height:1;transition:all 0.1s;}
+.ws-icon-option:hover{background:#e8e7e0;}
+.ws-icon-option.selected{border-color:#185FA5;background:#EBF4FD;}
 /* 新規作成フォーム */
 .ws-create-form{border:1px solid #e0dfd8;border-radius:10px;padding:16px;margin-bottom:12px;background:#fafaf8;}
 .ws-create-form h4{font-size:13px;font-weight:600;margin-bottom:12px;color:#333;}
@@ -5199,6 +5204,7 @@ function buildWsCard(ws, isArchived) {
     btns += `<button class="ws-card-btn" onclick="openWsSettings('${ws.id}')">設定</button>`;
     if (!ws.is_default) {
       btns += `<button class="ws-card-btn" onclick="archiveWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">アーカイブ</button>`;
+      btns += `<span class="ws-card-delete-hint">削除はアーカイブ後に可能</span>`;
     }
   } else {
     btns += `<button class="ws-card-btn restore" onclick="restoreWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">復元</button>`;
@@ -5231,10 +5237,13 @@ function showWsCreateForm() {
       <div id="wsSlugStatus" class="ws-form-slug-status">設定しない場合は自動生成されます</div>
     </div>
     <div class="ws-form-row">
-      <label>アイコン（絵文字・任意）</label>
-      <div class="ws-icon-row">
-        <input type="text" id="wsNewIcon" class="ws-icon-input" placeholder="🏢" maxlength="4">
+      <label>アイコン</label>
+      <div class="ws-icon-picker" id="wsIconPicker">
+        ${['🏢','🏪','🏬','🏭','🏛','🚀','💼','📊','🎯','✨'].map(e =>
+          `<button type="button" class="ws-icon-option${e==='🏢'?' selected':''}" onclick="selectWsIcon('${e}')">${e}</button>`
+        ).join('')}
       </div>
+      <input type="hidden" id="wsNewIcon" value="🏢">
     </div>
     <div class="ws-form-btns">
       <button class="ws-form-btn-cancel" onclick="hideWsCreateForm()">キャンセル</button>
@@ -5251,6 +5260,13 @@ function hideWsCreateForm() {
   if (form) form.remove();
   const addBtn = document.getElementById('wsManageAddBtn');
   if (addBtn) addBtn.style.display = '';
+}
+
+function selectWsIcon(emoji) {
+  document.getElementById('wsNewIcon').value = emoji;
+  document.querySelectorAll('.ws-icon-option').forEach(btn => {
+    btn.classList.toggle('selected', btn.textContent === emoji);
+  });
 }
 
 let _wsSlugCheckTimer = null;
@@ -5303,10 +5319,10 @@ async function submitCreateWorkspace() {
       body: JSON.stringify({ uid, name, slug, icon })
     });
     const d = await r.json();
-    if (!d.ok) { alert(d.error || '作成に失敗しました'); return; }
+    if (!d.id) { alert(d.error || '作成に失敗しました'); return; }
     showToast('✓ ワークスペースを作成しました', 2000);
-    if (d.workspace?.id) {
-      await fetch('/api/workspaces/' + d.workspace.id + '/switch', {
+    if (d.id) {
+      await fetch('/api/workspaces/' + d.id + '/switch', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ uid })
       });
