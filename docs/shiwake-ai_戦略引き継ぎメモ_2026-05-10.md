@@ -364,3 +364,170 @@ shiwake-ai が運用フェーズに入ると、ユーザー全体の仕訳デー
 - v2.3.2(設計書 2〜3週間)→ 実績 約6時間で完了(2026-05-11、セッション2)
 - 倍速: 設計書比 30〜45倍速
 - 体制: Claude(指示出し) + Claude Code(実装)の並行作業
+
+---
+
+### セッション3 追加対応(2026-05-11 夜)
+
+本セッションで残課題1・2 がともに完了し、v2.3.2 は完全終了。
+
+#### 残課題2: プランアップグレード導線の本格実装 ✅完了
+- getNextPlan() ヘルパー追加(ai_saas_lite → unlimited → agent_lite → std → premium → elite)
+- 使用率に応じた段階的CTA:
+  - <70%: 「アップグレード」(従来通り)
+  - 70-89%: 「上限が近づいています → {次プラン名}へ」(オレンジ強調)
+  - 90%+: 「残り{N}件 → {次プラン名}へ」(赤強調 + upgrade-pulse 脈動)
+- saas 以外の agent エディションでも CTA 表示(最上位 agent_elite のみ非表示)
+- 既存の色分けしきい値・色コード・showSection は無変更
+- 実績: 約30分(設計書見積1時間)
+
+#### 残課題1: メール振り分けロジック §5.2 ✅完了
+**1本目(コア実装)**
+- classifyIncomingEmail() 実装(送信元完全一致 → ドメイン → 件名キーワード → null)
+- SendGrid Inbound Parse ハンドラに workspace_id 解決処理を組み込み
+- inbox_files テーブルに workspace_id 列追加(ALTER TABLE で対応)
+- workspaces テーブルの 3列(client_email_addresses/domains/subject_keywords)も IF NOT EXISTS で保証
+
+**2本目(ルール編集UI + PATCH拡張)**
+- PATCH /api/workspaces/:id に 3 フィールド受付追加
+- 配列バリデーション共通化(_validateArr): 配列型/最大50要素/メール・ドメイン形式/キーワード長
+- WS編集モーダルに「自動振り分けルール」セクション追加(3ブロック構成)
+- ローカル状態管理(_wsEditEmails/Domains/Keywords)+ 保存時に一括PATCH
+
+**3本目(バグ修正)**
+- GET /api/workspaces/:id と GET /api/workspaces 一覧で 3 列がレスポンスから抜けていた
+- DB には正しく保存されていたが、レスポンス構築の手動列挙で欠落
+- || [] フォールバック付きで明示的に含めるよう修正
+
+- 実績: 約1.5時間(設計書見積1〜1.5時間)
+- §4.4「未振り分けトレイUI」(手動振り分け + ルール学習) は次セッション以降
+
+### v2.3.2 セッション3 後の残課題
+
+#### v2.3.2 範囲の完全終了 ✅
+すべての必須機能は実装完了。以下はオプション拡張として次セッション以降:
+- §4.4 未振り分けトレイUI(手動振り分け + ルール学習)
+- §5.5 Dropbox/GDrive のワークスペース別フォルダ監視
+
+#### 次セッションの選択肢
+- A: v2.3.3(料金プラン28本 + Stripe本番モード移行)に進む
+- B: 未振り分けトレイUI(§4.4)を実装してから v2.3.3
+- C: リポジトリ整理(散らかった旧ファイル削除/移動)
+
+### 実績の記録(セッション3 追加)
+- 残課題2: 実績 約30分(設計書見積1時間)
+- 残課題1: 実績 約1.5時間(設計書見積1〜1.5時間)
+- セッション3 合計: 約2時間
+- v2.3.2 累計実績: 約8時間(設計書 2〜3週間 → 30〜40倍速)
+
+---
+
+## v2.3.3 完了記録 - 2026-05-11(セッション3 後半)
+
+ワークスペース機能の有料化 + Stripe 本番モード移行を完走。
+v2.3.2 の残課題消化(セッション3 前半)と合わせ、約 5 時間で完走。
+
+### 実装範囲
+
+#### Phase A: DB変更
+- users テーブルに has_workspace_option (BOOLEAN)、workspace_addon_count (INTEGER) 追加
+- workspace_addon_subscriptions テーブル新設(冪等性担保)
+
+#### Phase B: Stripe Dashboard 作業
+- 本番モードで新規4プロダクト作成(全28プラン体制完成):
+  - ワークスペース10枠オプション ¥20,000/月
+  - 追加ワークスペース10枠 ¥10,000/月
+  - 【代理店】ワークスペース10枠オプション ¥14,000/月
+  - 【代理店】追加ワークスペース10枠 ¥7,000/月
+- 本番モード Webhook 新設:https://shiwake-ai.onrender.com/api/stripe/webhook
+- 監視イベント5種:checkout.session.completed / customer.subscription.deleted/updated / invoice.paid/payment_failed
+- Render 環境変数 sk_live_ / whsec_ に切替済
+
+#### Phase C: server.js webhook + API 拡張
+- STRIPE_PLANS に4種追加
+- getWorkspaceLimit() 関数実装(elite=10、has_option=10、それ以外=1、+addon×10)
+- /api/user/plan に workspace_limit / has_workspace_option / workspace_addon_count / current_workspace_count 追加
+- POST /api/workspaces と /restore に動的上限チェック追加
+- /api/stripe/webhook 拡張(workspace_addon_subscriptions による冪等性)
+- /api/stripe/checkout にエリート防止チェック
+
+#### Phase D: 既存24プラン+新4プランの本番price_id反映
+- テストモード時代の price_id 全28本を本番モード版に差し替え
+
+#### Phase E: フロント実装
+- 料金ページに #workspace-option セクション追加(2カード)
+- ワークスペース管理画面に使用状況バー追加
+- 上限超過時のインライン赤バナー
+
+#### Phase F: 代理店規約 v1.1 改定
+- legal/shiwake-ai_代理店規約_v1_1.md 新規作成
+- 第5条第2項にオプション商品の卸売価格表を追記
+
+### 重要なバグ修正
+
+#### Stripe checkout 500 連発バグ
+- 原因: URLSearchParams がネストオブジェクトを [object Object] にシリアライズ
+- 本番モード移行で Stripe API 2026-04-22.dahlia がブラケット展開を厳密化し顕在化
+- 修正: flattenForStripe() ヘルパー関数で form-encoded のままネスト展開
+- 教訓: 一度 JSON 送信に切り替える誤判断をしたが、Stripe API は form-encoded のみ対応
+
+#### WS 編集モーダルで振り分けルールが再オープン時に消えるバグ(v2.3.2 範囲、本セッションで解消)
+- 原因: GET /api/workspaces/:id および一覧 API のレスポンス構築で 3 列が手動列挙から漏れていた
+- DB には正しく保存されていたが、API レスポンスに含まれていなかった
+- 修正: || [] フォールバック付きで明示的にレスポンスに含める
+
+### 実績の記録
+
+- セッション3 前半(v2.3.2 残課題消化): 約2時間
+- セッション3 後半(v2.3.3 完走): 約3時間
+- セッション3 合計: 約5時間
+- v2.3.3 累計実績: 約5時間(設計書見積 2〜3週間 → 30〜40倍速)
+
+### 残課題(次セッション以降)
+
+#### Stripe Coupon 作成(代理店ランク割引用)
+- silver_discount / gold_discount を本番モードで作成
+- 代理店契約者が現在 0 人のため、本格営業前に対応すれば十分
+
+#### Render Cron 有料化 + 月次取引高バッチ稼働
+- 同上のタイミング
+
+#### Stripe Webhook 署名シークレットのローテーション
+- 今夜の作業ログにシークレット文字列が映ったため、後始末として実施推奨
+- 手順: Stripe Dashboard で「即時」期限切れ → 新シークレット取得 → Render 環境変数更新
+
+#### Phase 4.4(未振り分けトレイ UI、手動振り分け + ルール学習)
+- A-3a §4.4 の機能
+- v2.4.0 着手前に実装するか、v2.4.0 と並行するか別途判断
+
+#### リポジトリ整理
+- 別 Claude Code で調査済み(削除候補・アーカイブ候補リスト保有)
+- 実行はまとめて 1 コミットで安全に
+
+### 次セッションの選択肢
+
+| 案 | 内容 | 見積 |
+|---|---|---|
+| A | v2.4.0(Phase 2: 自動エクスポート ジュニア対応) | 6〜10h |
+| B | 未振り分けトレイ UI (§4.4) | 2〜3h |
+| C | リポジトリ整理 + Coupon + Cron 有料化 | 1〜2h |
+| D | LP・営業資料・第1号事例計画 | 任意 |
+
+### v2.3.3 後のステータス
+
+```
+v2.0.0 - 戦略確定 ✅
+v2.1.0 - Elite新設 ✅
+v2.2.0 - プラン分離 ✅
+v2.2.1 - クエリ404バグ修正 ✅
+v2.3.0 - Phase 1: 自動取り込み ✅
+v2.3.1 - 仕訳記録の永続化 + UI改訂 + 信頼度メトリクス ✅
+v2.3.2 - ワークスペース機能(マルチテナント) ✅
+v2.3.3 - 料金プラン拡張 + Stripe本番モード移行 ✅ ← 今ここ
+
+v2.4.0 - Phase 2: 自動エクスポート(ジュニア対応)
+v2.5.0 - Phase 3: 自動ルール学習(シニア対応)
+v2.6.0 - Phase 4: 自動承認(エージェント対応)→ 兄(税理士)お披露目
+```
+
+本番リリース可能水準に到達。マーケティング・営業のフル稼働が可能。
