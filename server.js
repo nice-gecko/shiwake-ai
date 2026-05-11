@@ -229,12 +229,12 @@ const STRIPE_CANCEL_URL = 'https://shiwake-ai.onrender.com/?payment=cancel';
 async function stripeRequest(path, method='GET', body=null) {
   const opts = {
     method,
-    headers: {
-      'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    }
+    headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` }
   };
-  if (body) opts.body = new URLSearchParams(body).toString();
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
   const res = await fetch(`https://api.stripe.com/v1${path}`, opts);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || res.statusText);
@@ -1577,12 +1577,10 @@ const server = http.createServer(async (req, res) => {
         const session = await stripeRequest('/checkout/sessions', 'POST', {
           customer: customerId,
           mode: 'subscription',
-          'line_items[0][price]': plan.price_id,
-          'line_items[0][quantity]': '1',
+          line_items: [{ price: plan.price_id, quantity: 1 }],
           success_url: STRIPE_SUCCESS_URL,
           cancel_url: STRIPE_CANCEL_URL,
-          'metadata[firebase_uid]': uid,
-          'metadata[plan_key]': plan_key || 'light',
+          metadata: { firebase_uid: uid, plan_key: plan_key || 'light' },
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ url: session.url }));
