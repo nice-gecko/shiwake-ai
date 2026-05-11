@@ -55,6 +55,12 @@ const STRIPE_PLANS = {
   reseller_incentive_lite:    { price_id: 'price_1TUdhQ2ZetSuudnLX093vJvg', name: '【代理店】インセンティブ ライト',     edition: 'option', price_yen: 3500,  is_option: true, is_reseller: true, base_plan_key: 'incentive_lite' },
   reseller_incentive_std:     { price_id: 'price_1TUdht2ZetSuudnLTUQc9jZp', name: '【代理店】インセンティブ スタンダード', edition: 'option', price_yen: 7000,  is_option: true, is_reseller: true, base_plan_key: 'incentive_std' },
   reseller_incentive_prem:    { price_id: 'price_1TUdiM2ZetSuudnLBf32E4nl', name: '【代理店】インセンティブ プレミアム',   edition: 'option', price_yen: 14000, is_option: true, is_reseller: true, base_plan_key: 'incentive_prem' },
+  // ===== ワークスペース機能 =====
+  workspace_option_10:          { price_id: 'TODO_FILL_PROD_PRICE_ID', name: 'ワークスペース10枠オプション',         edition: 'option', price_yen: 20000, workspace_unlock: 10 },
+  workspace_addon_10:           { price_id: 'TODO_FILL_PROD_PRICE_ID', name: '追加ワークスペース10枠',               edition: 'option', price_yen: 10000, workspace_unlock: 10, is_cumulative: true },
+  // ===== 代理店プラン: ワークスペース機能 =====
+  reseller_workspace_option_10: { price_id: 'TODO_FILL_PROD_PRICE_ID', name: '【代理店】ワークスペース10枠オプション', edition: 'option', price_yen: 14000, is_reseller: true, base_plan_key: 'workspace_option_10' },
+  reseller_workspace_addon_10:  { price_id: 'TODO_FILL_PROD_PRICE_ID', name: '【代理店】追加ワークスペース10枠',       edition: 'option', price_yen: 7000,  is_reseller: true, base_plan_key: 'workspace_addon_10' },
 };
 
 // 代理店ランク別 Coupon ID(Stripe で作成済み)
@@ -158,6 +164,16 @@ async function canUse(uid, feature) {
   const edition = user.edition || 'saas';
   const features = EDITION_FEATURES[edition] || EDITION_FEATURES.saas;
   return features[feature] === true;
+}
+
+// ワークスペース上限計算関数(§6.2)
+async function getWorkspaceLimit(uid) {
+  const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,has_workspace_option,workspace_addon_count`);
+  if (!data || !data[0]) return 0;
+  const { plan_key, has_workspace_option, workspace_addon_count } = data[0];
+  const isElite = plan_key === 'agent_elite' || plan_key === 'reseller_agent_elite';
+  const baseLimit = (isElite || has_workspace_option) ? 10 : 1;
+  return baseLimit + (workspace_addon_count || 0) * 10;
 }
 
 // プラン情報取得関数
@@ -1311,7 +1327,7 @@ const server = http.createServer(async (req, res) => {
     const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
-      const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,edition,monthly_count,billing_period_end`);
+      const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,edition,monthly_count,billing_period_end,has_workspace_option,workspace_addon_count`);
       const user = data?.[0];
       if (!user || !user.plan_key) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1319,6 +1335,10 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const plan = STRIPE_PLANS[user.plan_key];
+      const [workspaceLimit, wsRows] = await Promise.all([
+        getWorkspaceLimit(uid),
+        supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=id`)
+      ]);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         plan: { key: user.plan_key, ...plan },
@@ -1328,7 +1348,11 @@ const server = http.createServer(async (req, res) => {
           monthly_count: user.monthly_count || 0,
           limit: plan?.limit || null,
           billing_period_end: user.billing_period_end,
-        }
+        },
+        workspace_limit: workspaceLimit,
+        has_workspace_option: user.has_workspace_option || false,
+        workspace_addon_count: user.workspace_addon_count || 0,
+        current_workspace_count: (wsRows || []).length,
       }));
     } catch(e) {
       res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
@@ -1523,6 +1547,17 @@ const server = http.createServer(async (req, res) => {
       try {
         const { uid, email, plan_key } = JSON.parse(body);
         const plan = STRIPE_PLANS[plan_key] || STRIPE_PLANS.light;
+        // エリートユーザーがworkspace_option_10を購入しようとした場合を防止(§10.2 重要3)
+        const isWorkspaceOptionKey = plan_key === 'workspace_option_10' || plan_key === 'reseller_workspace_option_10';
+        if (isWorkspaceOptionKey) {
+          const userData = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key`);
+          const currentPlanKey = userData?.[0]?.plan_key;
+          if (currentPlanKey === 'agent_elite' || currentPlanKey === 'reseller_agent_elite') {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'elite_already_includes_workspace', message: 'エリートプランには10枠が標準装備されています' }));
+            return;
+          }
+        }
         if (!STRIPE_SECRET_KEY) {
           // 無料期間中：課金スキップ
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1575,9 +1610,39 @@ const server = http.createServer(async (req, res) => {
           const planKey = session.metadata?.plan_key || null;
           const isIncentiveOption = planKey && STRIPE_PLANS[planKey]?.is_option === true;
           const isResellerPlan = planKey && STRIPE_PLANS[planKey]?.is_reseller === true;
+          const isWorkspaceOption = planKey === 'workspace_option_10' || planKey === 'reseller_workspace_option_10';
+          const isWorkspaceAddon = planKey === 'workspace_addon_10' || planKey === 'reseller_workspace_addon_10';
+          const isWorkspacePlan = isWorkspaceOption || isWorkspaceAddon;
 
           if (uid) {
-            if (isIncentiveOption) {
+            if (isWorkspacePlan) {
+              // ワークスペースオプション/追加枠購入(§10.2 重要2: 冪等性)
+              const existing = await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(subscriptionId)}&select=*`);
+              const existingRecord = existing?.[0];
+              if (existingRecord?.status === 'active') {
+                console.log(`ワークスペースサブスク購入スキップ(冪等): ${subscriptionId}`);
+              } else {
+                if (existingRecord) {
+                  await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(subscriptionId)}`, 'PATCH', {
+                    status: 'active', updated_at: new Date().toISOString()
+                  });
+                } else {
+                  await supabaseQuery('/workspace_addon_subscriptions', 'POST', {
+                    subscription_id: subscriptionId, uid, plan_key: planKey,
+                    status: 'active', created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+                  });
+                }
+                if (isWorkspaceOption) {
+                  await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { has_workspace_option: true });
+                  console.log(`ワークスペース10枠オプション購入: ${uid} plan=${planKey}`);
+                } else {
+                  const userData = await supabaseQuery(`/users?id=eq.${uid}&select=workspace_addon_count`);
+                  const current = userData?.[0]?.workspace_addon_count || 0;
+                  await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { workspace_addon_count: current + 1 });
+                  console.log(`追加ワークスペース10枠購入: ${uid} plan=${planKey} count=${current + 1}`);
+                }
+              }
+            } else if (isIncentiveOption) {
               // インセンティブオプション購入: incentive_planのみ更新
               await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
                 incentive_plan: planKey,
@@ -1647,14 +1712,42 @@ const server = http.createServer(async (req, res) => {
           }
         }
         if (event.type === 'customer.subscription.deleted') {
-          const customerId = event.data.object.customer;
-          await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
-            is_paid: false,
-            plan_key: null,
-            edition: null,
-            is_reseller: false,
-          });
-          console.log(`サブスク解約: ${customerId}`);
+          const deletedSub = event.data.object;
+          const deletedSubId = deletedSub.id;
+          const customerId = deletedSub.customer;
+          // ワークスペースサブスクかどうかを subscription_id で判定(§10.2 重要2: 冪等性)
+          const addonRows = await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(deletedSubId)}&select=*`);
+          const addonRecord = addonRows?.[0];
+          if (addonRecord) {
+            if (addonRecord.status === 'active') {
+              await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(deletedSubId)}`, 'PATCH', {
+                status: 'cancelled', updated_at: new Date().toISOString()
+              });
+              const { uid, plan_key: addonPlanKey } = addonRecord;
+              const isOpt10 = addonPlanKey === 'workspace_option_10' || addonPlanKey === 'reseller_workspace_option_10';
+              const isAdd10 = addonPlanKey === 'workspace_addon_10' || addonPlanKey === 'reseller_workspace_addon_10';
+              if (isOpt10) {
+                await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { has_workspace_option: false });
+                console.log(`ワークスペース10枠オプション解約: ${uid}`);
+              } else if (isAdd10) {
+                const userData = await supabaseQuery(`/users?id=eq.${uid}&select=workspace_addon_count`);
+                const current = userData?.[0]?.workspace_addon_count || 0;
+                await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { workspace_addon_count: Math.max(0, current - 1) });
+                console.log(`追加ワークスペース10枠解約: ${uid} count→${Math.max(0, current - 1)}`);
+              }
+            } else {
+              console.log(`ワークスペースサブスク解約スキップ(冪等): ${deletedSubId} already ${addonRecord.status}`);
+            }
+          } else {
+            // 既存プランの解約処理(ワークスペースサブスク以外)
+            await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
+              is_paid: false,
+              plan_key: null,
+              edition: null,
+              is_reseller: false,
+            });
+            console.log(`サブスク解約: ${customerId}`);
+          }
         }
         res.writeHead(200); res.end(JSON.stringify({ ok: true }));
       } catch(e) {
@@ -2696,10 +2789,19 @@ const server = http.createServer(async (req, res) => {
       try {
         const { uid, name, slug, color, icon } = JSON.parse(body);
         if (!uid || !name) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and name required' })); return; }
-        // 上限チェック(is_archived=false のみカウント、現状 limit=10 固定)
-        const existing = await supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=id`);
-        if ((existing || []).length >= 10) {
-          res.writeHead(402); res.end(JSON.stringify({ error: 'workspace limit reached (max 10)' })); return;
+        // 上限チェック(§8.3: getWorkspaceLimit による動的上限)
+        const [wsLimit, existing] = await Promise.all([
+          getWorkspaceLimit(uid),
+          supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=id`)
+        ]);
+        const currentCount = (existing || []).length;
+        if (currentCount >= wsLimit) {
+          res.writeHead(400); res.end(JSON.stringify({
+            error: 'workspace_limit_exceeded',
+            current_count: currentCount,
+            limit: wsLimit,
+            upgrade_url: '/pricing#workspace-option'
+          })); return;
         }
         // slug 重複チェック
         if (slug) {
@@ -2746,6 +2848,40 @@ const server = http.createServer(async (req, res) => {
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, current_workspace_id: newCurrentWsId }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/workspaces/:id/restore → アーカイブ解除(復元)
+  if (req.method === 'POST' && reqPath.startsWith('/api/workspaces/') && reqPath.endsWith('/restore')) {
+    const wsId = reqPath.slice('/api/workspaces/'.length, -'/restore'.length);
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
+        if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
+        if (!ws[0].is_archived) { res.writeHead(400); res.end(JSON.stringify({ error: 'workspace is not archived' })); return; }
+        // 上限チェック(§8.4: 復元で上限超過する場合は拒否)
+        const [wsLimit, activeWs] = await Promise.all([
+          getWorkspaceLimit(uid),
+          supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=id`)
+        ]);
+        const currentCount = (activeWs || []).length;
+        if (currentCount >= wsLimit) {
+          res.writeHead(400); res.end(JSON.stringify({
+            error: 'workspace_limit_exceeded',
+            current_count: currentCount,
+            limit: wsLimit,
+            upgrade_url: '/pricing#workspace-option'
+          })); return;
+        }
+        await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', { is_archived: false, updated_at: new Date().toISOString() });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
