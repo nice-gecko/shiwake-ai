@@ -365,6 +365,24 @@ async function recalculateTrustMetrics(workspaceId) {
   }
 }
 
+// 単一 WS の stats を取得（一覧・単一取得で共通利用）
+async function buildWorkspaceStats(wsId) {
+  try {
+    const metrics = await supabaseQuery(
+      `/workspace_trust_metrics?workspace_id=eq.${wsId}&select=workspace_id,trust_score_recent,total_approved`
+    );
+    const m = metrics?.[0];
+    return {
+      shiwake_count: m?.total_approved || 0,
+      last_activity_at: null,
+      master_count: 0,
+      trust_score: m?.trust_score_recent || null
+    };
+  } catch(e) {
+    return { shiwake_count: 0, last_activity_at: null, master_count: 0, trust_score: null };
+  }
+}
+
 // ===== v2.3.0: 自動取り込み機能 ヘルパー =====
 
 // OAuthステート管理（インメモリ・10分TTL）
@@ -2670,17 +2688,9 @@ const server = http.createServer(async (req, res) => {
       const wsList = workspaces || [];
       const current_workspace_id = userData?.[0]?.current_workspace_id || null;
 
-      // workspace_trust_metrics から trust_score / total_approved を一括取得
-      let trustMap = {};
-      if (wsList.length > 0) {
-        try {
-          const wsIds = wsList.map(w => w.id).join(',');
-          const metrics = await supabaseQuery(
-            `/workspace_trust_metrics?workspace_id=in.(${wsIds})&select=workspace_id,trust_score_recent,total_approved`
-          );
-          for (const m of metrics || []) trustMap[m.workspace_id] = m;
-        } catch(e) { /* workspace_trust_metrics 未存在でも続行 */ }
-      }
+      // 一括で stats 取得（workspace_trust_metrics から）
+      const statsArr = await Promise.all(wsList.map(w => buildWorkspaceStats(w.id)));
+      const statsMap = Object.fromEntries(wsList.map((w, i) => [w.id, statsArr[i]]));
 
       const result = wsList.map(w => ({
         id: w.id,
@@ -2690,12 +2700,7 @@ const server = http.createServer(async (req, res) => {
         color: w.color || null,
         icon: w.icon || null,
         created_at: w.created_at,
-        stats: {
-          shiwake_count: trustMap[w.id]?.total_approved || 0,
-          last_activity_at: null,
-          master_count: 0,
-          trust_score: trustMap[w.id]?.trust_score_recent || null
-        }
+        stats: statsMap[w.id]
       }));
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -2741,6 +2746,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return;
       }
       const w = ws[0];
+      const stats = await buildWorkspaceStats(wsId);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         id: w.id,
@@ -2750,7 +2756,8 @@ const server = http.createServer(async (req, res) => {
         is_archived: w.is_archived || false,
         color: w.color || null,
         icon: w.icon || null,
-        created_at: w.created_at
+        created_at: w.created_at,
+        stats
       }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
