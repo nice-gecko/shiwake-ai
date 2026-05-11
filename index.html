@@ -76,6 +76,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-icon-row{display:flex;gap:8px;align-items:center;}
 .ws-icon-input{width:58px!important;text-align:center;font-size:18px;}
 .ws-form-btns{display:flex;gap:8px;margin-top:14px;}
+/* 編集画面 */
+.ws-color-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.ws-color-option{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.1s;flex-shrink:0;}
+.ws-color-option:hover{transform:scale(1.15);}
+.ws-color-option.selected{box-shadow:0 0 0 2px #fff,0 0 0 4px #185FA5;}
+.ws-edit-hint{font-size:11px;color:#185FA5;background:#EBF4FD;border:1px solid #b8d4f0;border-radius:6px;padding:5px 10px;margin-bottom:12px;}
+.ws-edit-stats{background:#faf9f6;border:1px solid #e8e7e0;border-radius:8px;padding:12px 14px;margin-top:4px;margin-bottom:2px;}
+.ws-edit-stats-title{font-size:10px;color:#bbb;font-weight:600;letter-spacing:0.05em;margin-bottom:8px;}
+.ws-edit-stats-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;}
+.ws-edit-stats-grid span:nth-child(odd){color:#999;}
+.ws-edit-stats-grid span:nth-child(even){color:#444;font-weight:500;}
 .ws-form-btn-submit{flex:1;padding:8px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
 .ws-form-btn-submit:disabled{opacity:0.5;cursor:not-allowed;}
 .ws-form-btn-cancel{padding:8px 16px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#555;cursor:pointer;}
@@ -5201,7 +5212,7 @@ function buildWsCard(ws, isArchived) {
   if (isArchived) badges += '<span class="ws-badge-archived">アーカイブ済み</span>';
   let btns = '';
   if (!isArchived) {
-    btns += `<button class="ws-card-btn" onclick="openWsSettings('${ws.id}')">設定</button>`;
+    btns += `<button class="ws-card-btn" onclick="openWsEdit('${ws.id}')">編集</button>`;
     if (!ws.is_default) {
       btns += `<button class="ws-card-btn" onclick="archiveWorkspace('${ws.id}','${escapeHtml(ws.name).replace(/'/g,"\\'")}')">アーカイブ</button>`;
       btns += `<span class="ws-card-delete-hint">削除はアーカイブ後に可能</span>`;
@@ -5395,9 +5406,193 @@ async function deleteWorkspace(id, name) {
   } catch(e) { alert('削除に失敗しました'); }
 }
 
-function openWsSettings(wsId) {
-  // TODO: Group 5-C で実装予定
-  showToast('設定画面は近日公開予定です', 2000);
+// ===== ワークスペース編集画面(Group 5-C) =====
+let _wsEditId = null;
+let _wsEditSlugTimer = null;
+
+const WS_COLORS = [
+  { value: null,      label: 'なし',         bg: '#f5f4f0', border: '#ddd' },
+  { value: '#185FA5', label: '青',           bg: '#185FA5' },
+  { value: '#1D9E75', label: '緑',           bg: '#1D9E75' },
+  { value: '#e67e22', label: 'オレンジ',     bg: '#e67e22' },
+  { value: '#dc2626', label: '赤',           bg: '#dc2626' },
+  { value: '#7c3aed', label: '紫',           bg: '#7c3aed' },
+  { value: '#6b7280', label: 'グレー',       bg: '#6b7280' },
+  { value: '#0891b2', label: 'ティール',     bg: '#0891b2' },
+];
+
+async function openWsEdit(wsId) {
+  _wsEditId = wsId;
+  const overlay = document.getElementById('wsEditOverlay');
+  const body = document.getElementById('wsEditBody');
+  if (!overlay || !body) return;
+  body.innerHTML = '<div style="text-align:center;padding:24px;color:#bbb;font-size:13px;">読み込み中...</div>';
+  overlay.classList.add('show');
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/workspaces/' + wsId + '?uid=' + encodeURIComponent(uid));
+    const ws = await r.json();
+    if (!ws.id) { body.innerHTML = '<div style="color:#e55;padding:20px;">読み込みに失敗しました</div>'; return; }
+    const title = document.getElementById('wsEditTitle');
+    if (title) title.textContent = `「${ws.name}」を編集`;
+    renderWsEditBody(ws);
+  } catch(e) {
+    body.innerHTML = '<div style="color:#e55;padding:20px;">読み込みに失敗しました</div>';
+  }
+}
+
+function closeWsEdit() {
+  const overlay = document.getElementById('wsEditOverlay');
+  if (overlay) overlay.classList.remove('show');
+  _wsEditId = null;
+}
+
+function wsEditOverlayClick(e) {
+  if (e.target === document.getElementById('wsEditOverlay')) closeWsEdit();
+}
+
+function renderWsEditBody(ws) {
+  const body = document.getElementById('wsEditBody');
+  if (!body) return;
+  const curColor = ws.color || null;
+  const curIcon = ws.icon || '🏢';
+  const ICONS = ['🏢','🏪','🏬','🏭','🏛','🚀','💼','📊','🎯','✨'];
+
+  const colorBtns = WS_COLORS.map(c => {
+    const sel = c.value === curColor;
+    const style = c.value
+      ? `background:${c.bg};`
+      : `background:${c.bg};border-color:${c.border};`;
+    return `<button type="button" class="ws-color-option${sel?' selected':''}"
+      data-color="${c.value||''}" style="${style}" title="${c.label}"
+      onclick="selectWsEditColor(this)"></button>`;
+  }).join('');
+
+  const iconBtns = ICONS.map(e =>
+    `<button type="button" class="ws-icon-option${e===curIcon?' selected':''}"
+      onclick="selectWsEditIcon('${e}')">${e}</button>`
+  ).join('');
+
+  const stats = ws.stats || {};
+  const createdAt = ws.created_at ? new Date(ws.created_at).toLocaleDateString('ja-JP') : '—';
+  const lastAct = stats.last_activity_at ? new Date(stats.last_activity_at).toLocaleDateString('ja-JP') : '—';
+  const status = ws.is_archived ? 'アーカイブ済み' : (ws.is_default ? '既定' : 'アクティブ');
+
+  body.innerHTML = `
+    ${ws.is_default ? '<div class="ws-edit-hint">これは既定のワークスペースです</div>' : ''}
+    <div class="ws-form-row">
+      <label>名前 <span style="color:#dc2626">*</span></label>
+      <input type="text" id="wsEditName" value="${escapeHtml(ws.name)}" maxlength="64">
+    </div>
+    <div class="ws-form-row">
+      <label>スラグ（英小文字・数字・ハイフン）</label>
+      <input type="text" id="wsEditSlug" value="${escapeHtml(ws.slug||'')}"
+        placeholder="例: a-corp" maxlength="32" oninput="scheduleWsEditSlugCheck()">
+      <div id="wsEditSlugStatus" class="ws-form-slug-status">&nbsp;</div>
+    </div>
+    <div class="ws-form-row">
+      <label>カラー</label>
+      <div class="ws-color-picker" id="wsEditColorPicker">${colorBtns}</div>
+      <input type="hidden" id="wsEditColor" value="${escapeHtml(ws.color||'')}">
+    </div>
+    <div class="ws-form-row">
+      <label>アイコン</label>
+      <div class="ws-icon-picker" id="wsEditIconPicker">${iconBtns}</div>
+      <input type="hidden" id="wsEditIcon" value="${escapeHtml(curIcon)}">
+    </div>
+    <div class="ws-edit-stats">
+      <div class="ws-edit-stats-title">統計情報（読み取り専用）</div>
+      <div class="ws-edit-stats-grid">
+        <span>作成日</span><span>${createdAt}</span>
+        <span>仕訳件数</span><span>${stats.shiwake_count ?? '—'} 件</span>
+        <span>マスタ件数</span><span>${stats.master_count ?? '—'} 件</span>
+        <span>最終アクティビティ</span><span>${lastAct}</span>
+        <span>ステータス</span><span>${status}</span>
+      </div>
+    </div>
+    <div class="ws-form-btns">
+      <button class="ws-form-btn-cancel" onclick="closeWsEdit()">キャンセル</button>
+      <button class="ws-form-btn-submit" id="wsEditSubmitBtn" onclick="submitWsEdit()">保存</button>
+    </div>`;
+}
+
+function selectWsEditIcon(emoji) {
+  document.getElementById('wsEditIcon').value = emoji;
+  document.querySelectorAll('#wsEditIconPicker .ws-icon-option').forEach(btn => {
+    btn.classList.toggle('selected', btn.textContent === emoji);
+  });
+}
+
+function selectWsEditColor(btn) {
+  const color = btn.dataset.color || '';
+  document.getElementById('wsEditColor').value = color;
+  document.querySelectorAll('#wsEditColorPicker .ws-color-option').forEach(b => {
+    b.classList.toggle('selected', b === btn);
+  });
+}
+
+function scheduleWsEditSlugCheck() {
+  clearTimeout(_wsEditSlugTimer);
+  _wsEditSlugTimer = setTimeout(checkWsEditSlug, 500);
+}
+
+async function checkWsEditSlug() {
+  const uid = window._firebaseUser?.uid;
+  const slug = document.getElementById('wsEditSlug')?.value.trim();
+  const st = document.getElementById('wsEditSlugStatus');
+  if (!st) return;
+  if (!slug) { st.className = 'ws-form-slug-status'; st.innerHTML = '&nbsp;'; return; }
+  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug) && slug.length > 1) {
+    st.className = 'ws-form-slug-status err'; st.textContent = '英小文字・数字・ハイフンのみ使用可'; return;
+  }
+  st.className = 'ws-form-slug-status'; st.textContent = 'チェック中...';
+  try {
+    const r = await fetch('/api/workspaces/check-slug', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ uid, slug, exclude_id: _wsEditId })
+    });
+    const d = await r.json();
+    st.className = 'ws-form-slug-status ' + (d.available ? 'ok' : 'err');
+    st.textContent = d.available ? '✓ 使用可能' : '既に使用されています';
+  } catch(e) {
+    st.className = 'ws-form-slug-status'; st.textContent = 'チェックに失敗しました';
+  }
+}
+
+async function submitWsEdit() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid || !_wsEditId) return;
+  const name = document.getElementById('wsEditName')?.value.trim();
+  if (!name) { alert('名前は必須です'); return; }
+  const slugVal = document.getElementById('wsEditSlug')?.value.trim();
+  const slug = slugVal || null;
+  const slugSt = document.getElementById('wsEditSlugStatus');
+  if (slug && slugSt?.classList.contains('err')) {
+    alert('スラグが重複しています。別のスラグを入力してください。'); return;
+  }
+  const colorVal = document.getElementById('wsEditColor')?.value;
+  const color = colorVal || null;
+  const icon = document.getElementById('wsEditIcon')?.value || null;
+  const btn = document.getElementById('wsEditSubmitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+  try {
+    const r = await fetch('/api/workspaces/' + _wsEditId, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ uid, name, slug, color, icon })
+    });
+    const d = await r.json();
+    if (!d.id) { alert(d.error || '保存に失敗しました'); return; }
+    showToast('✓ 変更を保存しました', 2000);
+    closeWsEdit();
+    await loadWsManageList();
+    const u = window._firebaseUser?.uid;
+    if (u) window._workspacesReady = fetchWorkspaces(u);
+  } catch(e) {
+    alert('保存に失敗しました');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '保存'; }
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -5446,6 +5641,17 @@ window.addEventListener('DOMContentLoaded', () => {
     <div class="ws-manage-usage" id="wsManageUsage"></div>
     <div id="wsManageBody"></div>
     <button class="ws-manage-add-btn" id="wsManageAddBtn" onclick="showWsCreateForm()">＋ 新しいワークスペースを追加</button>
+  </div>
+</div>
+
+<!-- ===== ワークスペース編集モーダル(Group 5-C) ===== -->
+<div id="wsEditOverlay" class="ws-manage-overlay" onclick="wsEditOverlayClick(event)">
+  <div class="ws-manage-inner">
+    <div class="ws-manage-header">
+      <span class="ws-manage-title" id="wsEditTitle">ワークスペースを編集</span>
+      <button class="ws-manage-close" onclick="closeWsEdit()">×</button>
+    </div>
+    <div id="wsEditBody"></div>
   </div>
 </div>
 
