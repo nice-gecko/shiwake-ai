@@ -860,6 +860,7 @@ async function incrementMonthlyCount(uid, n) {
 window._supabaseUser = null;
 window._workspaces = [];
 window._currentWorkspaceId = null;
+window._workspacesReady = null;
 window.getSupabaseUser = getUser;
 window.upsertSupabaseUser = upsertUser;
 window.incrementSupabaseCount = incrementMonthlyCount;
@@ -1001,7 +1002,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       window._supabaseUser = await upsertUser(user);
       window._firebaseUser = user;
       // ワークスペース一覧取得・グローバル保持 §4.1
-      fetchWorkspaces(user.uid).catch(e => console.warn('workspace init:', e));
+      window._workspacesReady = fetchWorkspaces(user.uid);
       // role判定：オーナーならスタッフ管理メニューを表示
       const role = window._supabaseUser?.role || 'owner';
       window._userRole = role;
@@ -2584,6 +2585,7 @@ function updateStepBar(step){
 // マスタ管理
 async function clearAllMaster(){
   if(!confirm('仕訳ルール学習を全件削除しますか？\nこの操作は元に戻せません。'))return;
+  if(window._workspacesReady) await window._workspacesReady;
   const _muid=getMasterUid(); await fetch('/api/master/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:_muid,workspace_id:window._currentWorkspaceId||null})});
   await loadMasterFromServer();
 }
@@ -2813,7 +2815,7 @@ async function loadStaffList(){
   const listEl = document.getElementById('staffList');
   if(!listEl) return;
   try {
-    const r = await fetch(withWsId('/api/staff?owner_uid='+uid));
+    const r = await fetch(await withWsId('/api/staff?owner_uid='+uid));
     const d = await r.json();
     if(!d.staff || d.staff.length === 0){
       listEl.innerHTML = '<div class="staff-empty">まだスタッフがいません<br><span style="font-size:11px;color:#bbb;">上の招待フォームからスタッフを招待してください</span></div>';
@@ -2909,7 +2911,7 @@ function getMasterUid(){
 
 async function loadMasterFromServer(){
   const uid = getMasterUid();
-  const res=await fetch(getMasterUrl());
+  const res=await fetch(await getMasterUrl());
   masterData=await res.json();
   renderMaster();
   document.getElementById('masterCount').textContent=Object.keys(masterData).length;
@@ -2959,14 +2961,14 @@ async function saveMasterRule(){
   const title=editingTitle||document.getElementById('mTitle').value.trim();
   if(!title)return alert('取引先名を入力してください');
   const rule={debit:document.getElementById('mDebit').value,credit:document.getElementById('mCredit').value,tax:document.getElementById('mTax').value};
-  await fetch(getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[title]:rule})});
+  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[title]:rule})});
   await loadMasterFromServer();
   closeModal();
 }
 
 async function deleteMasterRule(title){
   if(!confirm(`「${title}」のルールを削除しますか？`))return;
-  await fetch(getMasterUrl(),{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+  await fetch(await getMasterUrl(),{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
   await loadMasterFromServer();
 }
 
@@ -2996,7 +2998,7 @@ async function autoLearn(item){
   const rule={debit:item.debit,credit:item.credit,tax:item.tax};
   const existingKey=findExistingKey(item.title, masterData);
   const key=existingKey||item.title;
-  await fetch(getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:rule})});
+  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:rule})});
   await loadMasterFromServer();
 }
 
@@ -3239,6 +3241,7 @@ function notifyResultFeedback(data){
 
 // 1ファイル分の処理（キューから呼ばれる）
 async function processOneFile(f){
+  if(window._workspacesReady) await window._workspacesReady;
   hideErr();
   if(!abortController)abortController=new AbortController();
   const signal=abortController.signal;
@@ -3823,6 +3826,7 @@ async function approve(i){
 // 内訳モード切り替えボタンから呼ばれる関数
 // 同じカードインデックス群（同じ_sourceB64）を再解析してモード切り替え
 async function reanalyzeWithMode(cardIndex) {
+  if(window._workspacesReady) await window._workspacesReady;
   const item = results[cardIndex];
   if (!item || !item._sourceB64) {
     showToast('再解析できません（元画像データなし）');
@@ -3951,7 +3955,7 @@ async function doLearnFromCard(cardIdx){
   if(!la)return;
   const {title,debit,credit,tax}=la.dataset;
   const existingKey=findExistingKey(title,masterData)||title;
-  await fetch(getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[existingKey]:{debit,credit,tax}})});
+  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[existingKey]:{debit,credit,tax}})});
   await loadMasterFromServer();
   const yesEl=document.getElementById('la-yes'+cardIdx);
   if(yesEl){yesEl.textContent='✓ 完了';yesEl.style.background='#5DCAA5';yesEl.style.color='#04342C';}
@@ -4663,7 +4667,7 @@ async function fetchInboxSettings() {
   const uid = window._firebaseUser?.uid;
   if (!uid) return { auto_intake_enabled: false };
   try {
-    const r = await fetch(withWsId('/api/inbox/settings?uid=' + uid));
+    const r = await fetch(await withWsId('/api/inbox/settings?uid=' + uid));
     return await r.json();
   } catch(e) { return { auto_intake_enabled: false }; }
 }
@@ -4685,7 +4689,7 @@ async function loadInboxTray() {
     }
     tray.hidden = false;
 
-    const r = await fetch(withWsId('/api/inbox?uid=' + uid + '&status=pending'));
+    const r = await fetch(await withWsId('/api/inbox?uid=' + uid + '&status=pending'));
     const data = await r.json();
     const badge = document.getElementById('inboxTrayBadge');
     const list  = document.getElementById('inboxTrayList');
@@ -4809,6 +4813,7 @@ async function loadAutoIntakeSettings() {
 }
 
 async function updateIntakeSetting(key, value) {
+  if(window._workspacesReady) await window._workspacesReady;
   const uid = window._firebaseUser?.uid;
   if (!uid) return;
   try {
@@ -4826,7 +4831,7 @@ async function loadInboxAddress() {
   if (!uid) return;
   const emailEl = document.getElementById('userInboxEmail');
   try {
-    const r = await fetch(withWsId('/api/inbox/address?uid=' + uid));
+    const r = await fetch(await withWsId('/api/inbox/address?uid=' + uid));
     const d = await r.json();
     if (emailEl) emailEl.textContent = d.address || '未発行（下のボタンで発行）';
   } catch(e) { if (emailEl) emailEl.textContent = '取得に失敗'; }
@@ -4981,14 +4986,15 @@ window.switchTab = function(tab) {
 
 // ログイン後に自動取り込み関連を初期化（Firebase onAuthStateChanged の後）
 // ===== ワークスペース ヘルパー =====
-function withWsId(url) {
+async function withWsId(url) {
+  if (window._workspacesReady) await window._workspacesReady;
   const wsId = window._currentWorkspaceId;
   if (!wsId) return url;
   return url + (url.includes('?') ? '&' : '?') + 'workspace_id=' + wsId;
 }
-function getMasterUrl() {
+async function getMasterUrl() {
   const uid = getMasterUid();
-  return withWsId('/api/master' + (uid ? `?uid=${uid}` : ''));
+  return await withWsId('/api/master' + (uid ? `?uid=${uid}` : ''));
 }
 
 // ===== ワークスペース §4.1 / §4.5 =====
