@@ -226,14 +226,38 @@ async function sendIncentiveNotification(ownerEmail, staffName, unredeemedCount)
 const STRIPE_SUCCESS_URL = 'https://shiwake-ai.onrender.com/?payment=success';
 const STRIPE_CANCEL_URL = 'https://shiwake-ai.onrender.com/?payment=cancel';
 
+function flattenForStripe(obj, prefix = '') {
+  const result = {};
+  for (const key in obj) {
+    const value = obj[key];
+    const newKey = prefix ? `${prefix}[${key}]` : key;
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value)) {
+      value.forEach((item, i) => {
+        if (typeof item === 'object' && item !== null) {
+          Object.assign(result, flattenForStripe(item, `${newKey}[${i}]`));
+        } else {
+          result[`${newKey}[${i}]`] = String(item);
+        }
+      });
+    } else if (typeof value === 'object') {
+      Object.assign(result, flattenForStripe(value, newKey));
+    } else {
+      result[newKey] = String(value);
+    }
+  }
+  return result;
+}
+
 async function stripeRequest(path, method='GET', body=null) {
   const opts = {
     method,
     headers: { 'Authorization': `Bearer ${STRIPE_SECRET_KEY}` }
   };
   if (body) {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(body);
+    const flat = flattenForStripe(body);
+    opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    opts.body = new URLSearchParams(flat).toString();
   }
   const res = await fetch(`https://api.stripe.com/v1${path}`, opts);
   const data = await res.json();
