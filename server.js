@@ -56,11 +56,11 @@ const STRIPE_PLANS = {
   reseller_incentive_std:     { price_id: 'price_1TUdht2ZetSuudnLTUQc9jZp', name: '【代理店】インセンティブ スタンダード', edition: 'option', price_yen: 7000,  is_option: true, is_reseller: true, base_plan_key: 'incentive_std' },
   reseller_incentive_prem:    { price_id: 'price_1TUdiM2ZetSuudnLBf32E4nl', name: '【代理店】インセンティブ プレミアム',   edition: 'option', price_yen: 14000, is_option: true, is_reseller: true, base_plan_key: 'incentive_prem' },
   // ===== ワークスペース機能 =====
-  workspace_option_10:          { price_id: 'TODO_FILL_PROD_PRICE_ID', name: 'ワークスペース10枠オプション',         edition: 'option', price_yen: 20000, workspace_unlock: 10 },
-  workspace_addon_10:           { price_id: 'TODO_FILL_PROD_PRICE_ID', name: '追加ワークスペース10枠',               edition: 'option', price_yen: 10000, workspace_unlock: 10, is_cumulative: true },
+  workspace_option_10:          { price_id: 'price_1TVt5LFHQeEbTFygLQ8W2d17', name: 'ワークスペース10枠オプション',         edition: 'option', price_yen: 20000, workspace_unlock: 10 },
+  workspace_addon_10:           { price_id: 'price_1TVt5rFHQeEbTFygdm6j6zTL', name: '追加ワークスペース10枠',               edition: 'option', price_yen: 10000, workspace_unlock: 10, is_cumulative: true },
   // ===== 代理店プラン: ワークスペース機能 =====
-  reseller_workspace_option_10: { price_id: 'TODO_FILL_PROD_PRICE_ID', name: '【代理店】ワークスペース10枠オプション', edition: 'option', price_yen: 14000, is_reseller: true, base_plan_key: 'workspace_option_10' },
-  reseller_workspace_addon_10:  { price_id: 'TODO_FILL_PROD_PRICE_ID', name: '【代理店】追加ワークスペース10枠',       edition: 'option', price_yen: 7000,  is_reseller: true, base_plan_key: 'workspace_addon_10' },
+  reseller_workspace_option_10: { price_id: 'price_1TVt6GFHQeEbTFygxirmsks4', name: '【代理店】ワークスペース10枠オプション', edition: 'option', price_yen: 14000, is_reseller: true, base_plan_key: 'workspace_option_10' },
+  reseller_workspace_addon_10:  { price_id: 'price_1TVt87FHQeEbTFygF4tk6fzH', name: '【代理店】追加ワークスペース10枠',       edition: 'option', price_yen: 7000,  is_reseller: true, base_plan_key: 'workspace_addon_10' },
 };
 
 // 代理店ランク別 Coupon ID(Stripe で作成済み)
