@@ -250,6 +250,69 @@ async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
   return text ? JSON.parse(text) : null;
 }
 
+// ===== v2.3.1: ワークスペース + 信頼度メトリクス ヘルパー =====
+
+// default ワークスペースを保証する（なければ作成し workspace_id を返す）
+async function ensureDefaultWorkspace(uid) {
+  const existing = await supabaseQuery(
+    `/workspaces?owner_uid=eq.${uid}&is_default=eq.true&select=id`
+  );
+  if (existing && existing.length > 0) return existing[0].id;
+
+  const wsId = crypto.randomUUID();
+  await supabaseQuery('/workspaces', 'POST', {
+    id: wsId,
+    owner_uid: uid,
+    name: 'マイワークスペース',
+    slug: 'default',
+    is_default: true
+  });
+  await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { current_workspace_id: wsId });
+  return wsId;
+}
+
+// 信頼度メトリクスを再計算して workspace_trust_metrics を upsert
+async function recalculateTrustMetrics(workspaceId) {
+  try {
+    const [recent, all] = await Promise.all([
+      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'recent' }),
+      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'all' })
+    ]);
+
+    const masterStat = await supabaseQuery(
+      `/shiwake_records?workspace_id=eq.${workspaceId}&select=master_hit_method`
+    );
+    const total = masterStat ? masterStat.length : 0;
+    const hit = masterStat ? masterStat.filter(r => r.master_hit_method !== null).length : 0;
+    const masterHitRate = total > 0 ? (hit * 100 / total) : 0;
+
+    const totalApproved = all?.total_approved || 0;
+    const recentTrust = recent?.trust_score || 0;
+    let maturityLevel = 'rookie';
+    if (totalApproved >= 200 && recentTrust >= 95) maturityLevel = 'mature';
+    else if (totalApproved >= 50) maturityLevel = 'stable';
+
+    await supabaseQuery('/workspace_trust_metrics', 'POST', {
+      workspace_id: workspaceId,
+      total_approved: all?.total_approved || 0,
+      total_modified: all?.total_modified || 0,
+      trust_score_all: all?.trust_score,
+      field_accuracy_all: all?.field_accuracy,
+      modification_trend_all: all?.modification_trend,
+      recent_approved: recent?.total_approved || 0,
+      recent_modified: recent?.total_modified || 0,
+      trust_score_recent: recent?.trust_score,
+      field_accuracy_recent: recent?.field_accuracy,
+      modification_trend_recent: recent?.modification_trend,
+      master_hit_rate: masterHitRate,
+      maturity_level: maturityLevel,
+      last_calculated_at: new Date().toISOString()
+    }, { 'Prefer': 'resolution=merge-duplicates' });
+  } catch(e) {
+    console.warn('recalculateTrustMetrics error:', e.message);
+  }
+}
+
 // ===== v2.3.0: 自動取り込み機能 ヘルパー =====
 
 // OAuthステート管理（インメモリ・10分TTL）
@@ -1085,6 +1148,8 @@ const server = http.createServer(async (req, res) => {
           id: uid, email, display_name: display_name || email
         });
         console.log(`ユーザー新規作成: ${email}`);
+        // default ワークスペース自動作成
+        ensureDefaultWorkspace(uid).catch(e => console.warn('ensureDefaultWorkspace error:', e.message));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, user: created?.[0] || null }));
       } catch(e) {
@@ -2294,6 +2359,161 @@ const server = http.createServer(async (req, res) => {
         await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.gdrive&is_active=eq.true`, 'PATCH', { is_active: false });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // ===== v2.3.1: 信頼度メトリクス =====
+
+  // POST /api/shiwake/approve → 仕訳の永続保存 + 信頼度再計算トリガー
+  if (req.method === 'POST' && reqPath === '/api/shiwake/approve') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, session_id, record } = JSON.parse(body);
+        if (!uid || !record) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'uid and record required' }));
+          return;
+        }
+
+        // workspace_id が未指定なら default を使用
+        const wsId = workspace_id || await ensureDefaultWorkspace(uid);
+
+        // ワークスペース所有者確認
+        const ws = await supabaseQuery(
+          `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id`
+        );
+        if (!ws || !ws[0]) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'forbidden' }));
+          return;
+        }
+
+        // 差分計算
+        const ai = record.ai_proposed || {};
+        const modifiedFields = [];
+        if (record.debit_account !== ai.debit_account) modifiedFields.push('debit_account');
+        if (record.credit_account !== ai.credit_account) modifiedFields.push('credit_account');
+        if (record.tax_category !== ai.tax_category) modifiedFields.push('tax_category');
+        if (record.memo !== ai.memo) modifiedFields.push('memo');
+        const wasModified = modifiedFields.length > 0;
+
+        const id = crypto.randomUUID();
+        await supabaseQuery('/shiwake_records', 'POST', {
+          id,
+          uid,
+          workspace_id: wsId,
+          shiwake_date: record.shiwake_date || null,
+          partner_name: record.partner_name || null,
+          debit_account: record.debit_account || null,
+          credit_account: record.credit_account || null,
+          tax_category: record.tax_category || null,
+          amount: record.amount || null,
+          memo: record.memo || null,
+          invoice_number: record.invoice_number || null,
+          ai_proposed_debit_account: ai.debit_account || null,
+          ai_proposed_credit_account: ai.credit_account || null,
+          ai_proposed_tax_category: ai.tax_category || null,
+          ai_proposed_memo: ai.memo || null,
+          was_modified: wasModified,
+          modified_fields: wasModified ? modifiedFields : null,
+          matched_master_key: record.matched_master_key || null,
+          master_hit_method: record.master_hit_method || null,
+          source_session_id: session_id || null,
+          source_file_name: record.source_file_name || null,
+          approved_at: new Date().toISOString()
+        });
+
+        // 信頼度メトリクス再計算（非同期）
+        recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error:', e.message));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          ok: true,
+          record_id: id,
+          was_modified: wasModified,
+          modified_fields: wasModified ? modifiedFields : null
+        }));
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/trust-metrics?uid=xxx&workspace_id=yyy
+  if (req.method === 'GET' && reqPath === '/api/trust-metrics') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    const workspaceId = params.get('workspace_id');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const wsId = workspaceId || await ensureDefaultWorkspace(uid);
+
+      const metrics = await supabaseQuery(
+        `/workspace_trust_metrics?workspace_id=eq.${wsId}&select=*`
+      );
+      const m = metrics?.[0];
+
+      if (!m) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          workspace_id: wsId,
+          total_approved: 0,
+          trust_score_status: 'insufficient_data',
+          remaining_to_threshold: 30,
+          message: '信頼度を表示するには、あと30件の承認が必要です。',
+          maturity_level: 'rookie'
+        }));
+        return;
+      }
+
+      if (m.total_approved < 30) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          workspace_id: wsId,
+          total_approved: m.total_approved,
+          trust_score_status: 'insufficient_data',
+          remaining_to_threshold: 30 - m.total_approved,
+          message: `信頼度を表示するには、あと${30 - m.total_approved}件の承認が必要です。`,
+          maturity_level: m.maturity_level
+        }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        workspace_id: wsId,
+        total_approved: m.total_approved,
+        total_modified: m.total_modified,
+        trust_score_all: m.trust_score_all,
+        trust_score_recent: m.trust_score_recent,
+        field_accuracy_recent: m.field_accuracy_recent,
+        modification_trend_recent: m.modification_trend_recent,
+        master_count: m.master_count,
+        master_hit_rate: m.master_hit_rate,
+        maturity_level: m.maturity_level,
+        last_calculated_at: m.last_calculated_at
+      }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // POST /api/workspaces/ensure-default → ログイン済みユーザーに default ワークスペースを付与
+  if (req.method === 'POST' && reqPath === '/api/workspaces/ensure-default') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const wsId = await ensureDefaultWorkspace(uid);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, workspace_id: wsId }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
