@@ -56,10 +56,10 @@ function saveMaster(uid, workspaceId, master) {
   fs.writeFileSync(filePath, JSON.stringify(master, null, 2), 'utf8');
 }
 
-function getMasterRoutes(req, res) {
+function getMasterRoutes(req, res, resolvedWsId) {
   const url = new URL(req.url, 'http://localhost');
   const uid = url.searchParams.get('uid');
-  const workspaceId = url.searchParams.get('workspace_id');
+  const workspaceId = resolvedWsId || url.searchParams.get('workspace_id');
   if (!workspaceId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'workspace_id is required' }));
@@ -70,10 +70,10 @@ function getMasterRoutes(req, res) {
   res.end(JSON.stringify(master));
 }
 
-function updateMasterRoute(req, res) {
+function updateMasterRoute(req, res, resolvedWsId) {
   const url = new URL(req.url, 'http://localhost');
   const uid = url.searchParams.get('uid');
-  const workspaceId = url.searchParams.get('workspace_id');
+  const workspaceId = resolvedWsId || url.searchParams.get('workspace_id');
   if (!workspaceId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'workspace_id is required' }));
@@ -96,10 +96,10 @@ function updateMasterRoute(req, res) {
   });
 }
 
-function deleteMasterRoute(req, res) {
+function deleteMasterRoute(req, res, resolvedWsId) {
   const url = new URL(req.url, 'http://localhost');
   const uid = url.searchParams.get('uid');
-  const workspaceId = url.searchParams.get('workspace_id');
+  const workspaceId = resolvedWsId || url.searchParams.get('workspace_id');
   if (!workspaceId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'workspace_id is required' }));
