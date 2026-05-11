@@ -3763,7 +3763,7 @@ async function approve(i){
           record:{
             shiwake_date:results[i].date,partner_name:results[i].title,
             debit_account:results[i].debit,credit_account:results[i].credit,
-            tax_category:results[i].tax,amount:results[i].amount,
+            tax_category:results[i].tax,amount:(parseInt((results[i].amount||'').replace(/[^\d]/g,''))||null),
             memo:results[i].memo,invoice_number:results[i].invoice_number,
             ai_proposed:results[i]._aiProposed||null,
             matched_master_key:results[i].masterKey||null,
