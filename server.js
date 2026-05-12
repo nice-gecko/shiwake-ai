@@ -3265,8 +3265,24 @@ const server = http.createServer(async (req, res) => {
         // c) attachments があれば Storage に保存 → attachments JSONB を UPDATE
         let attachmentsSavedCount = 0;
         if (Array.isArray(attachments) && attachments.length > 0) {
-          const sanitizeFilename = (name) =>
-            String(name || 'file').replace(/[\x00-\x1f\\\/:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 100);
+          const sanitizeFilename = (name) => {
+            const safe = String(name || 'file');
+            const dotIdx = safe.lastIndexOf('.');
+            let base = dotIdx > 0 ? safe.slice(0, dotIdx) : safe;
+            let ext  = dotIdx > 0 ? safe.slice(dotIdx + 1).toLowerCase() : '';
+            ext = ext.replace(/[^a-z0-9]/g, '');
+            if (!ext || ext.length > 5) ext = 'bin'; // 長すぎる拡張子(例: etcpasswd)は 'bin' にフォールバック
+            base = base
+              .replace(/[\x00-\x1f]/g, '_')
+              .replace(/[\\\/:*?"<>|]/g, '_')
+              .replace(/\.\./g, '_')
+              .replace(/[^a-zA-Z0-9_\-]/g, '_')
+              .replace(/_+/g, '_')
+              .replace(/^_+|_+$/g, '')
+              .slice(0, 60);
+            if (!base) base = 'file';
+            return base + '.' + ext;
+          };
           const savedMeta = [];
           for (let i = 0; i < attachments.length; i++) {
             const a = attachments[i];
