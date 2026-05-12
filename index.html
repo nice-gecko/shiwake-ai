@@ -1831,6 +1831,29 @@ function updateFabBadge() {
           </div>
           <div class="v-step-desc">AIが科目・税区分・摘要を自動判定（待つだけ）</div>
           <div class="v-step-auto-hint" id="vStepHint">アップロードすると自動で生成します</div>
+          <div class="status-panel" id="statusPanel">
+            <div class="sp-title" id="spTitle"></div>
+            <div class="sp-progress"><div class="sp-bar-wrap"><div class="sp-bar" id="spBar"></div></div><div class="sp-pct" id="spPct"></div></div>
+            <div class="sp-nums">
+              <div class="sp-num"><div class="sp-n" id="spDone">0</div><div class="sp-l">読み込み済み</div></div>
+              <div class="sp-num"><div class="sp-n" style="color:#BA7517" id="spRem">?</div><div class="sp-l">残り推定</div></div>
+              <div class="sp-num"><div class="sp-n" style="color:#888" id="spChunk">0/0</div><div class="sp-l">チャンク</div></div>
+            </div>
+            <div class="sp-incomplete" id="spIncomplete"></div>
+            <div class="sp-btns" id="spBtns"></div>
+          </div>
+          <div class="err" id="errBox" style="display:none;">
+            <div class="err-msg" id="errMsg"></div>
+          </div>
+          <button class="run-btn" id="runBtn" disabled onclick="onRunClick()" style="display:none;">仕訳を自動生成する</button>
+          <div class="prog" id="prog">
+            <div class="prog-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <div class="prog-title" style="margin-bottom:0;"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
+              <button class="btn-cancel-proc" id="cancelBtn" onclick="cancelProcess()" style="display:none;">処理をキャンセル</button>
+            </div>
+            <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"><div class="prog-bar-pulse" id="progPulse"></div></div></div>
+            <div class="prog-status" id="progStatus"></div>
+          </div>
         </div>
       </div>
       <!-- ③ 内容を確認・承認 -->
@@ -1842,6 +1865,7 @@ function updateFabBadge() {
         <div class="v-step-content">
           <div class="v-step-label">内容を確認・承認</div>
           <div class="v-step-desc">内容をチェック、必要なら修正して承認</div>
+          <div id="cards"></div>
         </div>
       </div>
       <!-- ④ CSV を出力 -->
@@ -1852,93 +1876,68 @@ function updateFabBadge() {
         <div class="v-step-content last">
           <div class="v-step-label">CSV を出力</div>
           <div class="v-step-desc">会計ソフトに合わせた CSV をダウンロード</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="status-panel" id="statusPanel">
-      <div class="sp-title" id="spTitle"></div>
-      <div class="sp-progress"><div class="sp-bar-wrap"><div class="sp-bar" id="spBar"></div></div><div class="sp-pct" id="spPct"></div></div>
-      <div class="sp-nums">
-        <div class="sp-num"><div class="sp-n" id="spDone">0</div><div class="sp-l">読み込み済み</div></div>
-        <div class="sp-num"><div class="sp-n" style="color:#BA7517" id="spRem">?</div><div class="sp-l">残り推定</div></div>
-        <div class="sp-num"><div class="sp-n" style="color:#888" id="spChunk">0/0</div><div class="sp-l">チャンク</div></div>
-      </div>
-      <div class="sp-incomplete" id="spIncomplete"></div>
-      <div class="sp-btns" id="spBtns"></div>
-    </div>
-    <div class="err" id="errBox" style="display:none;">
-      <div class="err-msg" id="errMsg"></div>
-    </div>
-    <button class="run-btn" id="runBtn" disabled onclick="onRunClick()" style="display:none;">仕訳を自動生成する</button>
-    <div class="prog" id="prog">
-      <div class="prog-title-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div class="prog-title" style="margin-bottom:0;"><div class="prog-spinner" id="progSpinner"></div><span id="progTitle">処理中...</span></div>
-        <button class="btn-cancel-proc" id="cancelBtn" onclick="cancelProcess()" style="display:none;">処理をキャンセル</button>
-      </div>
-      <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"><div class="prog-bar-pulse" id="progPulse"></div></div></div>
-      <div class="prog-status" id="progStatus"></div>
-    </div>
-    <div id="cards"></div>
-    <div class="bottom-panel" id="bottomPanel">
-      <button class="btn-continue-scan" id="btnContinueScan" onclick="continueUpload()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="this.classList.remove('dragover');onDrop(event)">📎 続けてアップロード（またはドロップ）</button>
-      <div class="bp-counts">
-        <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
-        <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
-        <div><div class="bp-n" style="color:#BA7517" id="bpPend">0</div><div class="bp-l">未処理</div></div>
-        <div><div class="bp-n" style="color:#888" id="bpDel">0</div><div class="bp-l">削除済み</div></div>
-      </div>
-      <hr class="bp-divider">
-      <div class="bp-guide-title">次のステップ</div>
-      <div class="guide-step">
-        <div class="guide-num" id="g1num">1</div>
-        <div>
-          <div class="guide-step-title">仕訳を確認・承認する</div>
-          <div class="guide-step-desc" id="g1desc">各カードの「承認」を押してください。承認すると仕訳ルール学習に自動登録されます。</div>
-        </div>
-      </div>
-      <div class="guide-step">
-        <div class="guide-num" id="g2num">2</div>
-        <div>
-          <div class="guide-step-title">ファイルを出力する</div>
-          <div class="guide-step-desc" id="g2desc">承認済みのみ、または全件を選んで出力できます。</div>
-          <div class="csv-btns">
-            <div class="csv-format-wrap">
-              <select id="csvFormat" onchange="onCsvFormatChange()">
-                <option value="yayoi_txt">弥生会計（テキスト/CSV）</option>
-                <option value="freee">freee</option>
-                <option value="mf">マネーフォワード</option>
-                <option value="bugyo">勘定奉行</option>
-                <option value="generic">汎用CSV</option>
-              </select>
-              <span class="csv-format-arrow">∨</span>
+          <div class="bottom-panel" id="bottomPanel">
+            <button class="btn-continue-scan" id="btnContinueScan" onclick="continueUpload()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="this.classList.remove('dragover');onDrop(event)">📎 続けてアップロード（またはドロップ）</button>
+            <div class="bp-counts">
+              <div><div class="bp-n" id="bpTotal">0</div><div class="bp-l">合計</div></div>
+              <div><div class="bp-n" style="color:#1D9E75" id="bpOk">0</div><div class="bp-l">承認済み</div></div>
+              <div><div class="bp-n" style="color:#BA7517" id="bpPend">0</div><div class="bp-l">未処理</div></div>
+              <div><div class="bp-n" style="color:#888" id="bpDel">0</div><div class="bp-l">削除済み</div></div>
             </div>
-            <button class="btn-csv-approved" onclick="exportCSV('approved')">承認済みのみ（<span id="csvOkCount">0</span>件）</button>
-            <button class="btn-csv-all" onclick="exportCSV('all')">全件出力（<span id="csvAllCount">0</span>件）</button>
-          </div>
-          <div id="creditFilterWrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:11px;color:#888;white-space:nowrap;">貸方科目：</span>
-            <div class="csv-format-wrap" style="flex:1;">
-              <select id="creditFilter" style="min-width:120px;">
-                <option value="all">すべて（複数ファイル）</option>
-                <option value="現金">現金のみ</option>
-                <option value="未払金">未払金のみ</option>
-                <option value="預金">預金のみ</option>
-              </select>
-              <span class="csv-format-arrow">∨</span>
+            <hr class="bp-divider">
+            <div class="bp-guide-title">次のステップ</div>
+            <div class="guide-step">
+              <div class="guide-num" id="g1num">1</div>
+              <div>
+                <div class="guide-step-title">仕訳を確認・承認する</div>
+                <div class="guide-step-desc" id="g1desc">各カードの「承認」を押してください。承認すると仕訳ルール学習に自動登録されます。</div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num" id="g2num">2</div>
+              <div>
+                <div class="guide-step-title">ファイルを出力する</div>
+                <div class="guide-step-desc" id="g2desc">承認済みのみ、または全件を選んで出力できます。</div>
+                <div class="csv-btns">
+                  <div class="csv-format-wrap">
+                    <select id="csvFormat" onchange="onCsvFormatChange()">
+                      <option value="yayoi_txt">弥生会計（テキスト/CSV）</option>
+                      <option value="freee">freee</option>
+                      <option value="mf">マネーフォワード</option>
+                      <option value="bugyo">勘定奉行</option>
+                      <option value="generic">汎用CSV</option>
+                    </select>
+                    <span class="csv-format-arrow">∨</span>
+                  </div>
+                  <button class="btn-csv-approved" onclick="exportCSV('approved')">承認済みのみ（<span id="csvOkCount">0</span>件）</button>
+                  <button class="btn-csv-all" onclick="exportCSV('all')">全件出力（<span id="csvAllCount">0</span>件）</button>
+                </div>
+                <div id="creditFilterWrap" style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:11px;color:#888;white-space:nowrap;">貸方科目：</span>
+                  <div class="csv-format-wrap" style="flex:1;">
+                    <select id="creditFilter" style="min-width:120px;">
+                      <option value="all">すべて（複数ファイル）</option>
+                      <option value="現金">現金のみ</option>
+                      <option value="未払金">未払金のみ</option>
+                      <option value="預金">預金のみ</option>
+                    </select>
+                    <span class="csv-format-arrow">∨</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="guide-step">
+              <div class="guide-num">3</div>
+              <div>
+                <div class="guide-step-title">会計ソフトにインポートする</div>
+                <div class="guide-step-desc" id="g3desc">弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でテキストファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。</div>
+                <button class="guide-float-btn" onclick="openGuideFloat()" style="margin-top:8px;">
+                  <svg width="13" height="13" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="10" r="0.7" fill="currentColor"/></svg>
+                  ソフト別インポート手順を見る
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="guide-step">
-        <div class="guide-num">3</div>
-        <div>
-          <div class="guide-step-title">会計ソフトにインポートする</div>
-          <div class="guide-step-desc" id="g3desc">弥生会計 →「仕訳日記帳」→「ファイル」→「インポート」でテキストファイルを読み込みます。<br>貸方科目ごとにファイルが分かれてダウンロードされます。</div>
-          <button class="guide-float-btn" onclick="openGuideFloat()" style="margin-top:8px;">
-            <svg width="13" height="13" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="10" r="0.7" fill="currentColor"/></svg>
-            ソフト別インポート手順を見る
-          </button>
         </div>
       </div>
     </div>
