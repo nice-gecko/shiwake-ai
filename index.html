@@ -4950,6 +4950,8 @@ function escapeHtml(str) {
 
 // ===== 取り込みトレイ =====
 let _inboxTrayInterval = null;
+let _inboxTrayEligibilityCache = null;  // { eligible: boolean, fetchedAt: number } | null
+let _inboxTrayListSignature = '';        // 直近に描画した files の署名
 
 async function fetchGraduationStatus() {
   const uid = window._firebaseUser?.uid;
@@ -4976,35 +4978,55 @@ async function loadInboxTray() {
   if (!tray) return;
 
   try {
-    const grad = await fetchGraduationStatus();
-    const settings = await fetchInboxSettings();
-    const eligible = grad && (grad.is_agent || grad.graduated) && grad.is_paid;
+    // (A) eligibility キャッシュ: 未取得 or 10 分以上経過なら再取得
+    const TEN_MIN = 10 * 60 * 1000;
+    if (!_inboxTrayEligibilityCache || Date.now() - _inboxTrayEligibilityCache.fetchedAt > TEN_MIN) {
+      const grad = await fetchGraduationStatus();
+      const settings = await fetchInboxSettings();
+      const eligible = !!(grad && (grad.is_agent || grad.graduated) && grad.is_paid && settings.auto_intake_enabled);
+      _inboxTrayEligibilityCache = { eligible, fetchedAt: Date.now() };
+    }
 
-    if (!eligible || !settings.auto_intake_enabled) {
+    if (!_inboxTrayEligibilityCache.eligible) {
       tray.hidden = true;
       return;
     }
-    tray.hidden = false;
 
+    // (B) 新着ファイル取得(ここだけポーリングする)
     const r = await fetch(await withWsId('/api/inbox?uid=' + uid + '&status=pending'));
     const data = await r.json();
+
     const badge = document.getElementById('inboxTrayBadge');
     const list  = document.getElementById('inboxTrayList');
     const empty = document.getElementById('inboxTrayEmpty');
 
     const count = data.pending_count || 0;
+    const files = data.files || [];
+
+    // (C) 内容シグネチャを計算して、変わっていなければ DOM 再構築をスキップ
+    const signature = JSON.stringify({
+      count,
+      ids: files.map(f => f.id),
+    });
+    if (signature === _inboxTrayListSignature) {
+      tray.hidden = count === 0;
+      return;
+    }
+    _inboxTrayListSignature = signature;
+
+    // (D) 内容が変わったときだけ再描画
     badge.textContent = count;
     badge.className = 'inbox-tray-badge' + (count === 0 ? ' zero' : '');
     tray.hidden = count === 0;
     list.innerHTML = '';
 
-    if (!data.files || data.files.length === 0) {
+    if (files.length === 0) {
       empty.hidden = false;
       return;
     }
     empty.hidden = true;
 
-    data.files.forEach(f => {
+    files.forEach(f => {
       const li = document.createElement('li');
       li.className = 'inbox-tray-item';
       const icon  = f.source === 'email' ? '✉' : f.source === 'dropbox' ? '📦' : '🗂';
@@ -5065,10 +5087,10 @@ async function archiveInbox(inboxId) {
   loadInboxTray();
 }
 
-// 30秒ごとに自動更新
+// 120秒ごとに自動更新(inbox のみポーリング、eligibility は内部でキャッシュ)
 function startInboxPolling() {
   if (_inboxTrayInterval) return;
-  _inboxTrayInterval = setInterval(loadInboxTray, 30000);
+  _inboxTrayInterval = setInterval(loadInboxTray, 120000);
 }
 
 // ===== 自動取り込み設定パネル =====
@@ -5119,6 +5141,8 @@ async function updateIntakeSetting(key, value) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid, [key]: value, workspace_id: window._currentWorkspaceId || null })
     });
+    _inboxTrayEligibilityCache = null;
+    _inboxTrayListSignature = '';
     await loadAutoIntakeSettings();
     await loadInboxTray();
   } catch(e) { showToast('設定の保存に失敗しました'); console.error(e); }
