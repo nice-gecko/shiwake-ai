@@ -872,6 +872,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .bug-report-submit:disabled{opacity:0.55;cursor:not-allowed;}
 .bug-report-cancel{background:#f0f0f0;color:#444;border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;}
 .bug-report-error{color:#b91c1c;font-size:12px;margin-top:8px;display:none;}
+#bug-report-fab-badge{position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:999px;min-width:18px;height:18px;font-size:11px;display:none;align-items:center;justify-content:center;padding:0 5px;pointer-events:none;line-height:1;box-sizing:border-box;}
+.bug-report-alert-banner{background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.5;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -1013,8 +1015,32 @@ window.getSupabaseUser = getUser;
 window.upsertSupabaseUser = upsertUser;
 window.incrementSupabaseCount = incrementMonthlyCount;
 
-// ===== v2.3.4: コンソールログキャプチャ =====
+// ===== v2.3.4: コンソールログキャプチャ + 異常検出 =====
 window.__bugReportConsoleBuffer = [];
+window.__bugReportState = {
+  unseenConsoleErrorCount: 0,
+  last5xxTimestamps: [],
+  autoModalCooldownUntil: 0,
+  lastError: null
+};
+var BUG_REPORT_AUTO_COOLDOWN_MS = 60000;
+var BUG_REPORT_5XX_THRESHOLD = 3;
+var BUG_REPORT_5XX_WINDOW_MS = 60000;
+
+function updateFabBadge() {
+  var fab = document.getElementById('bug-report-fab');
+  if (!fab) return;
+  var badge = document.getElementById('bug-report-fab-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'bug-report-fab-badge';
+    fab.appendChild(badge);
+  }
+  var count = window.__bugReportState.unseenConsoleErrorCount;
+  badge.textContent = count >= 100 ? '99+' : String(count);
+  badge.style.display = count > 0 ? 'flex' : 'none';
+}
+
 (function() {
   var MAX = 50;
   ['log', 'warn', 'error', 'info'].forEach(function(level) {
@@ -1029,9 +1055,43 @@ window.__bugReportConsoleBuffer = [];
         });
         window.__bugReportConsoleBuffer.push({ level: level, message: parts.join(' '), timestamp: new Date().toISOString() });
         if (window.__bugReportConsoleBuffer.length > MAX) window.__bugReportConsoleBuffer.shift();
+        if (level === 'error' && window.__bugReportState) {
+          window.__bugReportState.unseenConsoleErrorCount++;
+          updateFabBadge();
+        }
       } catch(_) {}
     };
   });
+})();
+
+// ===== v2.3.4: fetch wrapper for 5xx detection =====
+(function() {
+  var origFetch = window.fetch;
+  window.fetch = async function() {
+    var args = arguments;
+    var requestUrl = '';
+    try { requestUrl = (args[0] instanceof Request) ? args[0].url : String(args[0] || ''); } catch(_) {}
+    try {
+      var resp = await origFetch.apply(window, args);
+      if (resp.status >= 500 && resp.status < 600 && requestUrl.indexOf('/api/bug-report') === -1) {
+        var state = window.__bugReportState;
+        if (state) {
+          var now = Date.now();
+          state.last5xxTimestamps.push(now);
+          state.last5xxTimestamps = state.last5xxTimestamps.filter(function(t) { return now - t < BUG_REPORT_5XX_WINDOW_MS; });
+          if (state.last5xxTimestamps.length >= BUG_REPORT_5XX_THRESHOLD) {
+            var errInfo = { type: 'api_error', recent_5xx_count: state.last5xxTimestamps.length, last_url: resp.url, last_status: resp.status };
+            state.last5xxTimestamps = [];
+            if (typeof maybeAutoOpenBugReportModal === 'function') maybeAutoOpenBugReportModal('api_error', errInfo);
+          }
+        }
+      }
+      return resp;
+    } catch(e) {
+      console.warn('[bug-report] fetch error:', e.message);
+      throw e;
+    }
+  };
 })();
 </script>
 
@@ -5958,12 +6018,13 @@ window.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <!-- ===== v2.3.4: バグ報告 FAB ===== -->
-<button id="bug-report-fab" title="不具合を報告" onclick="openBugReportModal()">🐛</button>
+<button id="bug-report-fab" title="不具合を報告" onclick="openBugReportModal(true)">🐛</button>
 
 <!-- ===== v2.3.4: バグ報告モーダル ===== -->
 <div class="bug-report-overlay" id="bugReportOverlay" onclick="bugReportOverlayClick(event)">
   <div class="bug-report-modal" id="bug-report-modal">
     <div class="bug-report-title">不具合を報告</div>
+    <div class="bug-report-alert-banner" id="bug-report-alert-banner" style="display:none;"></div>
     <textarea id="bugReportComment" class="bug-report-textarea" placeholder="どんな状況で何が起きたか書いてください(任意)"></textarea>
     <label style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13px;color:#444;cursor:pointer;">
       <input type="checkbox" id="bug-report-screenshot-toggle" checked style="width:15px;height:15px;cursor:pointer;">
@@ -5979,8 +6040,64 @@ window.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <script>
-// ===== v2.3.4: バグ報告モーダル =====
-function openBugReportModal() {
+// ===== v2.3.4: バグ報告モーダル + 異常検出 =====
+
+function maybeAutoOpenBugReportModal(severity, errorInfo) {
+  var uid = window._firebaseUser && window._firebaseUser.uid;
+  if (!uid) return;
+  var state = window.__bugReportState;
+  if (!state) return;
+  if (Date.now() < state.autoModalCooldownUntil) return;
+  state.lastError = { severity: severity, errorInfo: errorInfo };
+  state.autoModalCooldownUntil = Date.now() + BUG_REPORT_AUTO_COOLDOWN_MS;
+  openBugReportModal(); // manual=false: lastError を保持してバナーを表示
+}
+
+// js_error / unhandledrejection イベントリスナー
+window.addEventListener('error', function(event) {
+  var errorInfo = {
+    type: 'js_error',
+    message: event.message,
+    source: event.filename,
+    line: event.lineno,
+    col: event.colno,
+    stack: event.error ? (event.error.stack || null) : null
+  };
+  maybeAutoOpenBugReportModal('js_error', errorInfo);
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+  var errorInfo = {
+    type: 'unhandled_rejection',
+    reason: String(event.reason),
+    stack: event.reason ? (event.reason.stack || null) : null
+  };
+  maybeAutoOpenBugReportModal('unhandled_rejection', errorInfo);
+});
+
+function openBugReportModal(manual) {
+  var state = window.__bugReportState;
+  // 手動オープン: lastError をクリア
+  if (manual && state) state.lastError = null;
+  // FAB バッジリセット
+  if (state) state.unseenConsoleErrorCount = 0;
+  if (typeof updateFabBadge === 'function') updateFabBadge();
+  // 警告バナー制御
+  var banner = document.getElementById('bug-report-alert-banner');
+  if (banner) {
+    var lastError = state && state.lastError;
+    if (lastError) {
+      var msgs = {
+        js_error: '不具合を検出しました(JavaScript エラー)。詳細を送信できます。',
+        unhandled_rejection: '不具合を検出しました(Promise 拒否)。詳細を送信できます。',
+        api_error: 'サーバー通信エラーが連続発生しました。詳細を送信できます。'
+      };
+      banner.textContent = msgs[lastError.severity] || '不具合を検出しました。詳細を送信できます。';
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
   document.getElementById('bugReportOverlay').classList.add('open');
   document.getElementById('bugReportComment').value = '';
   document.getElementById('bugReportError').style.display = 'none';
@@ -5990,6 +6107,7 @@ function openBugReportModal() {
 }
 
 function closeBugReportModal() {
+  if (window.__bugReportState) window.__bugReportState.lastError = null;
   document.getElementById('bugReportOverlay').classList.remove('open');
 }
 
@@ -6040,6 +6158,8 @@ async function submitBugReport() {
 
   btn.textContent = '送信中...';
 
+  var state = window.__bugReportState;
+  var lastErr = state && state.lastError;
   var payload = {
     uid: uid,
     workspace_id: window._currentWorkspaceId || null,
@@ -6049,8 +6169,8 @@ async function submitBugReport() {
     comment: (document.getElementById('bugReportComment').value || '').trim() || null,
     console_logs: (window.__bugReportConsoleBuffer || []).slice(),
     screenshot_base64: screenshotBase64,
-    severity: 'manual',
-    error_info: null
+    severity: lastErr ? lastErr.severity : 'manual',
+    error_info: lastErr ? lastErr.errorInfo : null
   };
 
   try {
@@ -6061,6 +6181,7 @@ async function submitBugReport() {
     });
     var d = await r.json();
     if (d.ok) {
+      if (state) state.lastError = null;
       closeBugReportModal();
       showToast('報告ありがとうございます。確認しました。', 2200);
     } else {
