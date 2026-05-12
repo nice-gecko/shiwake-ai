@@ -6297,78 +6297,86 @@ async function _doSendBugReport(payload) {
   if (!d.ok) throw new Error(d.error || '送信失敗');
 }
 
+function fileToAttachment(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      resolve({ filename: file.name, mime_type: file.type, data_base64: reader.result });
+    };
+    reader.onerror = function() { reject(reader.error); };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function retryBugReport() {
   if (!_bugReportLastPayload) return;
   showBugReportToast('報告を受け付けました(送信中…)', 'sending', 0);
-  _doSendBugReport(_bugReportLastPayload).then(function() {
+  try {
+    await _doSendBugReport(_bugReportLastPayload);
     showBugReportToast('✓ 送信完了。ご報告ありがとうございます', 'success', 3000);
-  }).catch(function() {
+  } catch(e) {
     showBugReportToast('✕ 送信に失敗しました。もう一度お試しください', 'error', 5000);
-  });
+  }
 }
 
 async function submitBugReport() {
   var uid = window._firebaseUser && window._firebaseUser.uid;
   if (!uid) return;
 
-  // a) 入力値をローカル変数にコピー
-  var comment = (document.getElementById('bugReportComment').value || '').trim() || null;
-  var withScreenshot = !!(document.getElementById('bug-report-screenshot-toggle') || {}).checked;
-  var attachments = (window.__bugReportAttachments || []).slice();
-  var state = window.__bugReportState;
-  var lastErr = state && state.lastError;
-  var consoleLogs = (window.__bugReportConsoleBuffer || []).slice();
+  // 1) 入力値を全てローカル変数にスナップショット(モーダルを閉じる前に取得)
+  var localComment = (document.getElementById('bugReportComment').value || '').trim() || null;
+  var localWithScreenshot = !!(document.getElementById('bug-report-screenshot-toggle') || {}).checked;
+  var localFiles = (window.__bugReportAttachments || []).slice(); // File オブジェクトのスナップショット
+  var localState = window.__bugReportState;
+  var localLastErr = localState && localState.lastError;
+  var localConsoleLogs = (window.__bugReportConsoleBuffer || []).slice();
 
-  // b) モーダルを即座に閉じる
+  // 2) モーダルを即座に閉じる(__bugReportAttachments がクリアされても localFiles は安全)
   _closeBugReportModalInternal();
 
-  // c) トースト表示
+  // 3) トースト表示
   showBugReportToast('報告を受け付けました(送信中…)', 'sending', 0);
 
-  // d) 非同期送信
+  // 4) 非同期送信(localXxx 変数のみ使用)
   (async function() {
-    // 1) スクショ
-    var screenshotBase64 = null;
-    if (withScreenshot) {
-      try { screenshotBase64 = await captureScreenshot(); } catch(e) {}
-    }
+    try {
+      // スクショ
+      var screenshotBase64 = null;
+      if (localWithScreenshot) {
+        try { screenshotBase64 = await captureScreenshot(); } catch(e) {}
+      }
 
-    // 2) 添付ファイル base64 化
-    var attachmentData = await Promise.all(attachments.map(function(file) {
-      return new Promise(function(resolve) {
-        var reader = new FileReader();
-        reader.onload = function() {
-          var b64 = reader.result.split(',')[1];
-          resolve({ filename: file.name, mime_type: file.type, data_base64: b64 });
-        };
-        reader.onerror = function() { resolve(null); };
-        reader.readAsDataURL(file);
-      });
-    }));
+      // 添付ファイルを base64 化(fileToAttachment を await で順次処理)
+      var attachmentData = [];
+      for (var i = 0; i < localFiles.length; i++) {
+        try {
+          attachmentData.push(await fileToAttachment(localFiles[i]));
+        } catch(e) {
+          console.warn('[bug-report] fileToAttachment failed:', localFiles[i].name, e);
+        }
+      }
 
-    // 3) ペイロード組み立て
-    var payload = {
-      uid: uid,
-      workspace_id: window._currentWorkspaceId || null,
-      url: location.href,
-      user_agent: navigator.userAgent,
-      viewport: window.innerWidth + 'x' + window.innerHeight,
-      comment: comment,
-      console_logs: consoleLogs,
-      screenshot_base64: screenshotBase64,
-      severity: lastErr ? lastErr.severity : 'manual',
-      error_info: lastErr ? lastErr.errorInfo : null,
-      attachments: attachmentData.filter(Boolean)
-    };
-    _bugReportLastPayload = payload;
+      var payload = {
+        uid: uid,
+        workspace_id: window._currentWorkspaceId || null,
+        url: location.href,
+        user_agent: navigator.userAgent,
+        viewport: window.innerWidth + 'x' + window.innerHeight,
+        comment: localComment,
+        console_logs: localConsoleLogs,
+        screenshot_base64: screenshotBase64,
+        severity: localLastErr ? localLastErr.severity : 'manual',
+        error_info: localLastErr ? localLastErr.errorInfo : null,
+        attachments: attachmentData
+      };
+      _bugReportLastPayload = payload;
 
-    // 4) fetch → e) 成功 / f) 失敗
-    _doSendBugReport(payload).then(function() {
-      if (state) state.lastError = null;
+      await _doSendBugReport(payload);
+      if (localState) localState.lastError = null;
       showBugReportToast('✓ 送信完了。ご報告ありがとうございます', 'success', 3000);
-    }).catch(function() {
+    } catch(e) {
       showBugReportToast('✕ 送信に失敗しました。もう一度お試しください', 'error', 5000);
-    });
+    }
   })();
 }
 </script>
