@@ -857,6 +857,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .cloud-status-connected{color:#1D9E75;font-weight:600;}
 .folder-input-row{display:flex;gap:8px;align-items:center;margin-top:6px;}
 .folder-input-row input{flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;}
+/* ===== v2.3.4: バグ報告 FAB ===== */
+#bug-report-fab{position:fixed;bottom:20px;right:20px;z-index:300;width:48px;height:48px;border-radius:50%;background:#185FA5;color:#fff;border:none;cursor:pointer;font-size:22px;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.25);transition:transform 0.15s;}
+#bug-report-fab:hover{transform:scale(1.12);}
+.bug-report-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:600;align-items:center;justify-content:center;}
+.bug-report-overlay.open{display:flex;}
+.bug-report-modal{background:#fff;border-radius:14px;padding:28px 24px 24px;width:min(480px,90vw);max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
+.bug-report-title{font-size:17px;font-weight:700;color:#1a1a1a;margin-bottom:16px;}
+.bug-report-textarea{width:100%;box-sizing:border-box;height:120px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;outline:none;}
+.bug-report-textarea:focus{border-color:#185FA5;}
+.bug-report-hint{font-size:11px;color:#aaa;margin:10px 0 18px;line-height:1.6;}
+.bug-report-actions{display:flex;gap:10px;justify-content:flex-end;}
+.bug-report-submit{background:#185FA5;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+.bug-report-submit:disabled{opacity:0.55;cursor:not-allowed;}
+.bug-report-cancel{background:#f0f0f0;color:#444;border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;}
+.bug-report-error{color:#b91c1c;font-size:12px;margin-top:8px;display:none;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -997,6 +1012,27 @@ window._workspacesReady = null;
 window.getSupabaseUser = getUser;
 window.upsertSupabaseUser = upsertUser;
 window.incrementSupabaseCount = incrementMonthlyCount;
+
+// ===== v2.3.4: コンソールログキャプチャ =====
+window.__bugReportConsoleBuffer = [];
+(function() {
+  var MAX = 50;
+  ['log', 'warn', 'error', 'info'].forEach(function(level) {
+    var orig = console[level].bind(console);
+    console[level] = function() {
+      orig.apply(console, arguments);
+      try {
+        var parts = Array.from(arguments).map(function(a) {
+          if (a instanceof Error) return a.stack || String(a);
+          if (a !== null && typeof a === 'object') { try { return JSON.stringify(a); } catch(_) { return String(a); } }
+          return String(a);
+        });
+        window.__bugReportConsoleBuffer.push({ level: level, message: parts.join(' '), timestamp: new Date().toISOString() });
+        if (window.__bugReportConsoleBuffer.length > MAX) window.__bugReportConsoleBuffer.shift();
+      } catch(_) {}
+    };
+  });
+})();
 </script>
 
 <!-- Firebase SDK -->
@@ -1348,10 +1384,14 @@ window.incrementSupabaseCount = incrementMonthlyCount;
           }, 800);
         }
       } catch(e) { console.warn('tutorial init error:', e); }
+      const fab = document.getElementById('bug-report-fab');
+      if (fab) fab.style.display = 'flex';
     } else {
       // 未ログイン → ログイン画面
       if (loginScreen) loginScreen.style.display = '';
       if (appContent)  appContent.style.display  = 'none';
+      const fab = document.getElementById('bug-report-fab');
+      if (fab) fab.style.display = 'none';
     }
   });
 </script>
@@ -1412,7 +1452,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       ・
       <a href="mailto:support@shiwake-ai.com" style="color:#999;text-decoration:none;">お問い合わせ</a>
     </div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.3.1</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.3.4</div>
   </div>
 </div>
 
@@ -1539,7 +1579,7 @@ window.incrementSupabaseCount = incrementMonthlyCount;
       📊 キャッシュ統計
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.1 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.4 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -5066,7 +5106,7 @@ async function loadCloudConnections() {
   try {
     // 接続状態確認: cloud_connections は直接クライアントから見えないので
     // 専用エンドポイントが無い場合はデフォルト表示のままとする
-    //（v2.3.1で接続状態取得APIを追加予定）
+    //（v2.3.4で接続状態取得APIを追加予定）
     const serviceEmail = document.getElementById('serviceAccountEmail');
     if (serviceEmail) {
       const infoRes = await fetch('/api/gdrive/info');
@@ -5916,6 +5956,86 @@ window.addEventListener('DOMContentLoaded', () => {
     <div id="wsEditBody"></div>
   </div>
 </div>
+
+<!-- ===== v2.3.4: バグ報告 FAB ===== -->
+<button id="bug-report-fab" title="不具合を報告" onclick="openBugReportModal()">🐛</button>
+
+<!-- ===== v2.3.4: バグ報告モーダル ===== -->
+<div class="bug-report-overlay" id="bugReportOverlay" onclick="bugReportOverlayClick(event)">
+  <div class="bug-report-modal">
+    <div class="bug-report-title">不具合を報告</div>
+    <textarea id="bugReportComment" class="bug-report-textarea" placeholder="どんな状況で何が起きたか書いてください(任意)"></textarea>
+    <div class="bug-report-hint">以下が自動で送られます: 現在のURL / ブラウザ情報 / 画面サイズ / 直近のコンソールログ50件 / ユーザーID / ワークスペースID</div>
+    <div class="bug-report-actions">
+      <button class="bug-report-cancel" onclick="closeBugReportModal()">キャンセル</button>
+      <button class="bug-report-submit" id="bugReportSubmit" onclick="submitBugReport()">送信</button>
+    </div>
+    <div class="bug-report-error" id="bugReportError"></div>
+  </div>
+</div>
+
+<script>
+// ===== v2.3.4: バグ報告モーダル =====
+function openBugReportModal() {
+  document.getElementById('bugReportOverlay').classList.add('open');
+  document.getElementById('bugReportComment').value = '';
+  document.getElementById('bugReportError').style.display = 'none';
+  var btn = document.getElementById('bugReportSubmit');
+  btn.disabled = false;
+  btn.textContent = '送信';
+}
+
+function closeBugReportModal() {
+  document.getElementById('bugReportOverlay').classList.remove('open');
+}
+
+function bugReportOverlayClick(e) {
+  if (e.target === document.getElementById('bugReportOverlay')) closeBugReportModal();
+}
+
+async function submitBugReport() {
+  var uid = window._firebaseUser && window._firebaseUser.uid;
+  if (!uid) return;
+  var btn = document.getElementById('bugReportSubmit');
+  var errEl = document.getElementById('bugReportError');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  errEl.style.display = 'none';
+
+  var payload = {
+    uid: uid,
+    workspace_id: window._currentWorkspaceId || null,
+    url: location.href,
+    user_agent: navigator.userAgent,
+    viewport: window.innerWidth + 'x' + window.innerHeight,
+    comment: (document.getElementById('bugReportComment').value || '').trim() || null,
+    console_logs: (window.__bugReportConsoleBuffer || []).slice(),
+    screenshot_base64: null,
+    severity: 'manual',
+    error_info: null
+  };
+
+  try {
+    var r = await fetch('/api/bug-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    var d = await r.json();
+    if (d.ok) {
+      closeBugReportModal();
+      showToast('報告ありがとうございます。確認しました。', 2200);
+    } else {
+      throw new Error(d.error || '送信失敗');
+    }
+  } catch(e) {
+    errEl.textContent = '送信に失敗しました。しばらくしてから再度お試しください。';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '送信';
+  }
+}
+</script>
 
 </body>
 </html>
