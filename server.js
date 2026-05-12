@@ -3132,6 +3132,98 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.3.4: バグ報告 =====
+
+  // POST /api/bug-report → バグ報告を受け取り Supabase に保存 + 管理通知
+  if (req.method === 'POST' && reqPath === '/api/bug-report') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const {
+          uid, workspace_id, url, user_agent, viewport,
+          comment, console_logs, screenshot_base64, severity, error_info
+        } = JSON.parse(body || '{}');
+
+        if (!uid) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'uid required' }));
+          return;
+        }
+
+        const VALID_SEVERITIES = ['manual', 'console_error', 'js_error', 'unhandled_rejection', 'api_error'];
+        if (!VALID_SEVERITIES.includes(severity)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: `invalid severity: ${severity}` }));
+          return;
+        }
+
+        const userCheck = await supabaseQuery(`/users?id=eq.${uid}&select=id`);
+        if (!userCheck || userCheck.length === 0) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'unauthorized' }));
+          return;
+        }
+
+        // a) まず screenshot_path=null で INSERT → ID を取得
+        const inserted = await supabaseQuery('/bug_reports', 'POST', {
+          uid,
+          workspace_id: workspace_id || null,
+          url: url || null,
+          user_agent: user_agent || null,
+          viewport: viewport || null,
+          comment: comment || null,
+          console_logs: (console_logs || []).slice(0, 50),
+          screenshot_path: null,
+          severity,
+          error_info: error_info || null,
+        });
+        const bugReport = inserted?.[0];
+        if (!bugReport) throw new Error('bug_reports INSERT failed');
+
+        // b) screenshot があれば Storage に保存 → screenshot_path を UPDATE
+        let screenshotSaved = false;
+        if (screenshot_base64) {
+          try {
+            const base64Data = screenshot_base64.replace(/^data:image\/[a-z]+;base64,/, '');
+            const imageBuffer = Buffer.from(base64Data, 'base64');
+            const storagePath = `${uid}/${bugReport.id}.png`;
+            await supabaseStorageUpload('bug-screenshots', storagePath, imageBuffer, 'image/png');
+            await supabaseQuery(`/bug_reports?id=eq.${bugReport.id}`, 'PATCH', { screenshot_path: storagePath });
+            bugReport.screenshot_path = storagePath;
+            screenshotSaved = true;
+          } catch(e) {
+            console.warn('[bug-report] screenshot upload failed:', e.message);
+          }
+        }
+
+        // c) 管理通知(非同期、レスポンスを待たせない)
+        sendAdminNotification(`バグ報告 [${severity}] uid=${uid.slice(0, 8)}`, {
+          id: bugReport.id,
+          severity,
+          uid,
+          workspace_id: workspace_id || null,
+          url: url || null,
+          user_agent: user_agent || null,
+          viewport: viewport || null,
+          comment: comment || null,
+          error_info: error_info || null,
+          console_logs_recent5: (console_logs || []).slice(-5),
+          screenshot_saved: screenshotSaved,
+          supabase_dashboard_hint: 'Supabase Dashboard > bug_reports テーブルで詳細確認',
+        }).catch(e => console.error('[bug-report] notification error:', e.message));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, id: bugReport.id }));
+      } catch(e) {
+        console.error('[bug-report] error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(404); res.end();
 });
 
