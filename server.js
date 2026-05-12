@@ -454,6 +454,7 @@ async function buildWorkspaceStats(wsId) {
 
 // OAuthステート管理（インメモリ・10分TTL）
 const oauthStateStore = new Map();
+const bugReportRateStore = new Map(); // uid -> [timestamp, ...]
 function saveOAuthState(state, uid, provider, ttlSeconds = 600, workspaceId = null) {
   oauthStateStore.set(state, { uid, provider, workspaceId, expiresAt: Date.now() + ttlSeconds * 1000 });
   for (const [k, v] of oauthStateStore.entries()) { if (v.expiresAt < Date.now()) oauthStateStore.delete(k); }
@@ -674,7 +675,8 @@ async function syncGDriveFolder(conn) {
       await supabaseQuery('/inbox_files', 'POST', {
         id: inboxFileId, uid: conn.uid, source: 'gdrive', source_id: f.id,
         sender: conn.watched_path_label, filename: f.name, mime_type: f.mimeType,
-        byte_size: parseInt(f.size) || fileBuffer.length, storage_path: storagePath, status: 'pending'
+        byte_size: parseInt(f.size) || fileBuffer.length, storage_path: storagePath, status: 'pending',
+        workspace_id: conn.workspace_id || null
       });
     }
   } catch(e) { console.error('syncGDriveFolder error:', e.message); }
@@ -707,7 +709,8 @@ async function syncDropboxFolder(conn) {
         id: inboxFileId, uid: conn.uid, source: 'dropbox', source_id: entry.id,
         sender: conn.watched_path_label || conn.watched_path,
         filename: entry.name, mime_type: mimeType,
-        byte_size: entry.size || fileBuffer.length, storage_path: storagePath, status: 'pending'
+        byte_size: entry.size || fileBuffer.length, storage_path: storagePath, status: 'pending',
+        workspace_id: conn.workspace_id || null
       });
     }
     if (result.result.cursor) {
@@ -1856,6 +1859,8 @@ const server = http.createServer(async (req, res) => {
   // ===== 既存API =====
   // ===== admin: キャッシュ統計 =====
   if (req.method === 'GET' && req.url.startsWith('/api/admin/cache-stats')) {
+    const adminToken = new URL(req.url, 'http://localhost').searchParams.get('token') || req.headers['x-admin-token'] || '';
+    if (!verifyAdminToken(adminToken)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'unauthorized' })); return; }
     const totalIn = cumCacheStats.input + cumCacheStats.write + cumCacheStats.read;
     const cacheRate = totalIn > 0 ? Math.round((cumCacheStats.read / totalIn) * 100) : 0;
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -2171,6 +2176,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const data = await supabaseQuery(`/users?id=eq.${uid}&select=cumulative_shiwake_count,graduated_rookie_at,plan_key,is_paid`);
       const user = data?.[0];
+      if (!user) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'user not found' })); return; }
       const isAgent = user?.plan_key?.startsWith('agent_');
       const cumulativeCount = user?.cumulative_shiwake_count || 0;
       const threshold = 50;
@@ -2493,7 +2499,7 @@ const server = http.createServer(async (req, res) => {
       await supabaseQuery('/cloud_connections', 'POST', {
         uid, provider: 'dropbox', access_token: tokens.access_token, refresh_token: tokens.refresh_token,
         expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
-        is_active: true, updated_at: new Date().toISOString()
+        is_active: true, updated_at: new Date().toISOString(), workspace_id: stateData.workspaceId || null
       }, { 'Prefer': 'resolution=merge-duplicates,return=representation' });
       res.writeHead(302, { Location: '/?dropbox=connected' });
       res.end();
@@ -3137,8 +3143,20 @@ const server = http.createServer(async (req, res) => {
   // POST /api/bug-report → バグ報告を受け取り Supabase に保存 + 管理通知
   if (req.method === 'POST' && reqPath === '/api/bug-report') {
     let body = '';
-    req.on('data', chunk => body += chunk);
+    let bodySize = 0;
+    const MAX_BODY_SIZE = 5 * 1024 * 1024;
+    req.on('data', chunk => {
+      bodySize += chunk.length;
+      if (bodySize > MAX_BODY_SIZE) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'payload too large' }));
+        req.destroy();
+        return;
+      }
+      body += chunk;
+    });
     req.on('end', async () => {
+      if (bodySize > MAX_BODY_SIZE) return;
       try {
         const {
           uid, workspace_id, url, user_agent, viewport,
@@ -3164,6 +3182,17 @@ const server = http.createServer(async (req, res) => {
           res.end(JSON.stringify({ ok: false, error: 'unauthorized' }));
           return;
         }
+
+        const now = Date.now();
+        const rateWindow = 60 * 1000;
+        const rateLimit = 5;
+        const timestamps = (bugReportRateStore.get(uid) || []).filter(t => now - t < rateWindow);
+        if (timestamps.length >= rateLimit) {
+          res.writeHead(429, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'rate limit exceeded' }));
+          return;
+        }
+        bugReportRateStore.set(uid, [...timestamps, now]);
 
         // a) まず screenshot_path=null で INSERT → ID を取得
         const inserted = await supabaseQuery('/bug_reports', 'POST', {
