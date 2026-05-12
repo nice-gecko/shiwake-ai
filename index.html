@@ -866,14 +866,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .bug-report-title{font-size:17px;font-weight:700;color:#1a1a1a;margin-bottom:16px;}
 .bug-report-textarea{width:100%;box-sizing:border-box;height:120px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;outline:none;}
 .bug-report-textarea:focus{border-color:#185FA5;}
-.bug-report-hint{font-size:11px;color:#aaa;margin:10px 0 18px;line-height:1.6;}
-.bug-report-actions{display:flex;gap:10px;justify-content:flex-end;}
+.bug-report-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
 .bug-report-submit{background:#185FA5;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:600;cursor:pointer;}
 .bug-report-submit:disabled{opacity:0.55;cursor:not-allowed;}
 .bug-report-cancel{background:#f0f0f0;color:#444;border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;}
-.bug-report-error{color:#b91c1c;font-size:12px;margin-top:8px;display:none;}
 #bug-report-fab-badge{position:absolute;top:-5px;right:-5px;background:#f59e0b;color:#fff;border-radius:999px;min-width:15px;height:15px;font-size:9px;display:none;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;line-height:1;box-sizing:border-box;}
 .bug-report-alert-banner{background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.5;}
+.bug-report-divider{border:none;border-top:1px solid #eee;margin:16px 0;}
+.bug-report-section-label{font-size:12px;font-weight:600;color:#555;margin-bottom:8px;}
+.bug-report-check-label{display:flex;align-items:center;gap:7px;font-size:13px;color:#444;cursor:pointer;}
+.bug-report-attach-btn{background:#f4f6f8;color:#333;border:1px solid #ddd;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;margin-top:8px;}
+.bug-report-attach-btn:hover{background:#e8ecf0;}
+.bug-report-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.bug-report-chip{display:flex;align-items:center;gap:4px;background:#e8f0fe;color:#1a56db;border-radius:20px;padding:3px 10px;font-size:11px;}
+.bug-report-chip button{background:none;border:none;color:#888;cursor:pointer;font-size:13px;padding:0;line-height:1;}
+.bug-report-info-toggle{font-size:11px;color:#888;cursor:pointer;user-select:none;margin-top:4px;display:flex;align-items:center;gap:5px;}
+.bug-report-info-toggle:hover{color:#555;}
+.bug-report-info-detail{font-size:11px;color:#aaa;line-height:1.7;margin-top:6px;padding-left:4px;}
+.bug-report-info-detail ul{margin:0;padding-left:16px;}
+#bug-report-toast{position:fixed;bottom:62px;right:20px;z-index:700;max-width:300px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.18);display:none;line-height:1.4;}
+#bug-report-toast.show{display:block;}
+#bug-report-toast.type-sending{background:#64748b;color:#fff;}
+#bug-report-toast.type-success{background:#16a34a;color:#fff;}
+#bug-report-toast.type-error{background:#dc2626;color:#fff;}
+#bug-report-toast-retry{display:inline-block;margin-top:6px;padding:4px 10px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;font-size:12px;cursor:pointer;color:#fff;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -6052,17 +6068,44 @@ window.addEventListener('DOMContentLoaded', () => {
     <div class="bug-report-title">不具合を報告</div>
     <div class="bug-report-alert-banner" id="bug-report-alert-banner" style="display:none;"></div>
     <textarea id="bugReportComment" class="bug-report-textarea" placeholder="どんな状況で何が起きたか書いてください(任意)"></textarea>
-    <label style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13px;color:#444;cursor:pointer;">
+
+    <hr class="bug-report-divider">
+
+    <div class="bug-report-section-label">📎 画面・ファイル添付(任意)</div>
+    <label class="bug-report-check-label">
       <input type="checkbox" id="bug-report-screenshot-toggle" checked style="width:15px;height:15px;cursor:pointer;">
-      スクリーンショットも一緒に送る(推奨)
+      不具合が起きている画面を一緒に送る(自動撮影)
     </label>
-    <div class="bug-report-hint">以下が自動で送られます: 現在のURL / ブラウザ情報 / 画面サイズ / 直近のコンソールログ50件 / ユーザーID / ワークスペースID / スクリーンショット(任意)</div>
+    <div>
+      <button type="button" class="bug-report-attach-btn" onclick="bugReportAttachClick()">📁 ファイルを添付</button>
+      <input type="file" id="bug-report-file-input" accept="image/*" multiple style="display:none;" onchange="bugReportFileSelected(event)">
+    </div>
+    <div id="bug-report-chips" class="bug-report-chips"></div>
+
+    <hr class="bug-report-divider">
+
+    <div class="bug-report-info-toggle" onclick="toggleBugReportInfo()">
+      <span id="bug-report-info-arrow">▶</span> 自動で送られる情報
+    </div>
+    <div id="bug-report-info-detail" class="bug-report-info-detail" style="display:none;">
+      <ul>
+        <li>現在のURL / ブラウザ情報 / 画面サイズ</li>
+        <li>技術ログ(コンソールの最新50件)</li>
+        <li>ユーザーID / ワークスペースID</li>
+      </ul>
+    </div>
+
     <div class="bug-report-actions">
       <button class="bug-report-cancel" onclick="closeBugReportModal()">キャンセル</button>
       <button class="bug-report-submit" id="bugReportSubmit" onclick="submitBugReport()">送信</button>
     </div>
-    <div class="bug-report-error" id="bugReportError"></div>
   </div>
+</div>
+
+<!-- バグ報告専用トースト(右下固定) -->
+<div id="bug-report-toast">
+  <div id="bug-report-toast-msg"></div>
+  <button id="bug-report-toast-retry" style="display:none;" onclick="retryBugReport()">再送信</button>
 </div>
 
 <script>
@@ -6101,14 +6144,15 @@ window.addEventListener('unhandledrejection', function(event) {
   maybeAutoOpenBugReportModal('unhandled_rejection', errorInfo);
 });
 
+window.__bugReportAttachments = [];
+var _bugReportToastTimer = null;
+var _bugReportLastPayload = null;
+
 function openBugReportModal(manual) {
   var state = window.__bugReportState;
-  // 手動オープン: lastError をクリア
   if (manual && state) state.lastError = null;
-  // FAB バッジリセット
   if (state) state.unseenConsoleErrorCount = 0;
   if (typeof updateFabBadge === 'function') updateFabBadge();
-  // 警告バナー制御
   var banner = document.getElementById('bug-report-alert-banner');
   if (banner) {
     var lastError = state && state.lastError;
@@ -6124,21 +6168,98 @@ function openBugReportModal(manual) {
       banner.style.display = 'none';
     }
   }
-  document.getElementById('bugReportOverlay').classList.add('open');
   document.getElementById('bugReportComment').value = '';
-  document.getElementById('bugReportError').style.display = 'none';
+  window.__bugReportAttachments = [];
+  var fi = document.getElementById('bug-report-file-input');
+  if (fi) fi.value = '';
+  renderBugReportChips();
+  var detail = document.getElementById('bug-report-info-detail');
+  var arrow = document.getElementById('bug-report-info-arrow');
+  if (detail) detail.style.display = 'none';
+  if (arrow) arrow.textContent = '▶';
   var btn = document.getElementById('bugReportSubmit');
   btn.disabled = false;
   btn.textContent = '送信';
+  document.getElementById('bugReportOverlay').classList.add('open');
+}
+
+function _closeBugReportModalInternal() {
+  window.__bugReportAttachments = [];
+  renderBugReportChips();
+  document.getElementById('bugReportOverlay').classList.remove('open');
 }
 
 function closeBugReportModal() {
   if (window.__bugReportState) window.__bugReportState.lastError = null;
-  document.getElementById('bugReportOverlay').classList.remove('open');
+  _closeBugReportModalInternal();
 }
 
 function bugReportOverlayClick(e) {
   if (e.target === document.getElementById('bugReportOverlay')) closeBugReportModal();
+}
+
+function toggleBugReportInfo() {
+  var detail = document.getElementById('bug-report-info-detail');
+  var arrow = document.getElementById('bug-report-info-arrow');
+  if (!detail) return;
+  var open = detail.style.display !== 'none';
+  detail.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.textContent = open ? '▶' : '▼';
+}
+
+function bugReportAttachClick() {
+  var fi = document.getElementById('bug-report-file-input');
+  if (fi) fi.click();
+}
+
+function bugReportFileSelected(event) {
+  var files = Array.from(event.target.files || []);
+  var MAX_FILES = 3;
+  var MAX_SIZE = 5 * 1024 * 1024;
+  for (var i = 0; i < files.length; i++) {
+    if (files[i].size > MAX_SIZE) {
+      alert(files[i].name + ' は5MBを超えているため添付できません');
+      continue;
+    }
+    if (window.__bugReportAttachments.length >= MAX_FILES) {
+      alert('添付ファイルは最大3件までです');
+      break;
+    }
+    window.__bugReportAttachments.push(files[i]);
+  }
+  event.target.value = '';
+  renderBugReportChips();
+}
+
+function renderBugReportChips() {
+  var chips = document.getElementById('bug-report-chips');
+  if (!chips) return;
+  chips.innerHTML = '';
+  (window.__bugReportAttachments || []).forEach(function(file, i) {
+    var chip = document.createElement('div');
+    chip.className = 'bug-report-chip';
+    chip.innerHTML = '<span>' + file.name + ' (' + Math.round(file.size / 1024) + 'KB)</span><button type="button" onclick="bugReportRemoveAttachment(' + i + ')">×</button>';
+    chips.appendChild(chip);
+  });
+}
+
+function bugReportRemoveAttachment(i) {
+  window.__bugReportAttachments.splice(i, 1);
+  renderBugReportChips();
+}
+
+function showBugReportToast(msg, type, autoDismissMs) {
+  var el = document.getElementById('bug-report-toast');
+  var msgEl = document.getElementById('bug-report-toast-msg');
+  var retryEl = document.getElementById('bug-report-toast-retry');
+  if (!el || !msgEl) return;
+  clearTimeout(_bugReportToastTimer);
+  msgEl.textContent = msg;
+  el.className = 'show type-' + type;
+  retryEl.style.display = type === 'error' ? 'inline-block' : 'none';
+  if (autoDismissMs) {
+    _bugReportToastTimer = setTimeout(function() { el.className = ''; }, autoDismissMs);
+  }
 }
 
 async function captureScreenshot() {
@@ -6166,59 +6287,89 @@ async function captureScreenshot() {
   return dataURL;
 }
 
+async function _doSendBugReport(payload) {
+  var r = await fetch('/api/bug-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  var d = await r.json();
+  if (!d.ok) throw new Error(d.error || '送信失敗');
+}
+
+async function retryBugReport() {
+  if (!_bugReportLastPayload) return;
+  showBugReportToast('報告を受け付けました(送信中…)', 'sending', 0);
+  _doSendBugReport(_bugReportLastPayload).then(function() {
+    showBugReportToast('✓ 送信完了。ご報告ありがとうございます', 'success', 3000);
+  }).catch(function() {
+    showBugReportToast('✕ 送信に失敗しました。もう一度お試しください', 'error', 5000);
+  });
+}
+
 async function submitBugReport() {
   var uid = window._firebaseUser && window._firebaseUser.uid;
   if (!uid) return;
-  var btn = document.getElementById('bugReportSubmit');
-  var errEl = document.getElementById('bugReportError');
-  btn.disabled = true;
-  errEl.style.display = 'none';
 
-  // スクリーンショット取得(チェック ON の場合)
-  var screenshotBase64 = null;
-  var toggle = document.getElementById('bug-report-screenshot-toggle');
-  if (toggle && toggle.checked) {
-    btn.textContent = 'スクリーンショット取得中...';
-    screenshotBase64 = await captureScreenshot();
-  }
-
-  btn.textContent = '送信中...';
-
+  // a) 入力値をローカル変数にコピー
+  var comment = (document.getElementById('bugReportComment').value || '').trim() || null;
+  var withScreenshot = !!(document.getElementById('bug-report-screenshot-toggle') || {}).checked;
+  var attachments = (window.__bugReportAttachments || []).slice();
   var state = window.__bugReportState;
   var lastErr = state && state.lastError;
-  var payload = {
-    uid: uid,
-    workspace_id: window._currentWorkspaceId || null,
-    url: location.href,
-    user_agent: navigator.userAgent,
-    viewport: window.innerWidth + 'x' + window.innerHeight,
-    comment: (document.getElementById('bugReportComment').value || '').trim() || null,
-    console_logs: (window.__bugReportConsoleBuffer || []).slice(),
-    screenshot_base64: screenshotBase64,
-    severity: lastErr ? lastErr.severity : 'manual',
-    error_info: lastErr ? lastErr.errorInfo : null
-  };
+  var consoleLogs = (window.__bugReportConsoleBuffer || []).slice();
 
-  try {
-    var r = await fetch('/api/bug-report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    var d = await r.json();
-    if (d.ok) {
-      if (state) state.lastError = null;
-      closeBugReportModal();
-      showToast('報告ありがとうございます。確認しました。', 2200);
-    } else {
-      throw new Error(d.error || '送信失敗');
+  // b) モーダルを即座に閉じる
+  _closeBugReportModalInternal();
+
+  // c) トースト表示
+  showBugReportToast('報告を受け付けました(送信中…)', 'sending', 0);
+
+  // d) 非同期送信
+  (async function() {
+    // 1) スクショ
+    var screenshotBase64 = null;
+    if (withScreenshot) {
+      try { screenshotBase64 = await captureScreenshot(); } catch(e) {}
     }
-  } catch(e) {
-    errEl.textContent = '送信に失敗しました。しばらくしてから再度お試しください。';
-    errEl.style.display = 'block';
-    btn.disabled = false;
-    btn.textContent = '送信';
-  }
+
+    // 2) 添付ファイル base64 化
+    var attachmentData = await Promise.all(attachments.map(function(file) {
+      return new Promise(function(resolve) {
+        var reader = new FileReader();
+        reader.onload = function() {
+          var b64 = reader.result.split(',')[1];
+          resolve({ filename: file.name, mime_type: file.type, data_base64: b64 });
+        };
+        reader.onerror = function() { resolve(null); };
+        reader.readAsDataURL(file);
+      });
+    }));
+
+    // 3) ペイロード組み立て
+    var payload = {
+      uid: uid,
+      workspace_id: window._currentWorkspaceId || null,
+      url: location.href,
+      user_agent: navigator.userAgent,
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      comment: comment,
+      console_logs: consoleLogs,
+      screenshot_base64: screenshotBase64,
+      severity: lastErr ? lastErr.severity : 'manual',
+      error_info: lastErr ? lastErr.errorInfo : null,
+      attachments: attachmentData.filter(Boolean)
+    };
+    _bugReportLastPayload = payload;
+
+    // 4) fetch → e) 成功 / f) 失敗
+    _doSendBugReport(payload).then(function() {
+      if (state) state.lastError = null;
+      showBugReportToast('✓ 送信完了。ご報告ありがとうございます', 'success', 3000);
+    }).catch(function() {
+      showBugReportToast('✕ 送信に失敗しました。もう一度お試しください', 'error', 5000);
+    });
+  })();
 }
 </script>
 
