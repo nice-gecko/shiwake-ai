@@ -877,7 +877,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <!-- Stripe -->
 <script src="https://js.stripe.com/v3/"></script>
@@ -5962,10 +5962,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <!-- ===== v2.3.4: バグ報告モーダル ===== -->
 <div class="bug-report-overlay" id="bugReportOverlay" onclick="bugReportOverlayClick(event)">
-  <div class="bug-report-modal">
+  <div class="bug-report-modal" id="bug-report-modal">
     <div class="bug-report-title">不具合を報告</div>
     <textarea id="bugReportComment" class="bug-report-textarea" placeholder="どんな状況で何が起きたか書いてください(任意)"></textarea>
-    <div class="bug-report-hint">以下が自動で送られます: 現在のURL / ブラウザ情報 / 画面サイズ / 直近のコンソールログ50件 / ユーザーID / ワークスペースID</div>
+    <label style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:13px;color:#444;cursor:pointer;">
+      <input type="checkbox" id="bug-report-screenshot-toggle" checked style="width:15px;height:15px;cursor:pointer;">
+      スクリーンショットも一緒に送る(推奨)
+    </label>
+    <div class="bug-report-hint">以下が自動で送られます: 現在のURL / ブラウザ情報 / 画面サイズ / 直近のコンソールログ50件 / ユーザーID / ワークスペースID / スクリーンショット(任意)</div>
     <div class="bug-report-actions">
       <button class="bug-report-cancel" onclick="closeBugReportModal()">キャンセル</button>
       <button class="bug-report-submit" id="bugReportSubmit" onclick="submitBugReport()">送信</button>
@@ -5993,14 +5997,48 @@ function bugReportOverlayClick(e) {
   if (e.target === document.getElementById('bugReportOverlay')) closeBugReportModal();
 }
 
+async function captureScreenshot() {
+  if (typeof html2canvas === 'undefined') return null;
+  var modal = document.getElementById('bug-report-modal');
+  var prevVisibility = modal ? modal.style.visibility : null;
+  if (modal) modal.style.visibility = 'hidden';
+  await new Promise(function(resolve) { setTimeout(resolve, 50); });
+  var dataURL = null;
+  try {
+    var canvas = await html2canvas(document.body, {
+      scale: 1, useCORS: true, backgroundColor: '#ffffff', logging: false
+    });
+    dataURL = canvas.toDataURL('image/png');
+    if (dataURL.length > 4500000) {
+      console.log('[bug-report] PNG too large (' + dataURL.length + ' bytes), falling back to JPEG');
+      dataURL = canvas.toDataURL('image/jpeg', 0.7);
+    }
+  } catch(e) {
+    console.warn('[bug-report] captureScreenshot failed:', e.message);
+    dataURL = null;
+  } finally {
+    if (modal) modal.style.visibility = prevVisibility !== null ? prevVisibility : '';
+  }
+  return dataURL;
+}
+
 async function submitBugReport() {
   var uid = window._firebaseUser && window._firebaseUser.uid;
   if (!uid) return;
   var btn = document.getElementById('bugReportSubmit');
   var errEl = document.getElementById('bugReportError');
   btn.disabled = true;
-  btn.textContent = '送信中...';
   errEl.style.display = 'none';
+
+  // スクリーンショット取得(チェック ON の場合)
+  var screenshotBase64 = null;
+  var toggle = document.getElementById('bug-report-screenshot-toggle');
+  if (toggle && toggle.checked) {
+    btn.textContent = 'スクリーンショット取得中...';
+    screenshotBase64 = await captureScreenshot();
+  }
+
+  btn.textContent = '送信中...';
 
   var payload = {
     uid: uid,
@@ -6010,7 +6048,7 @@ async function submitBugReport() {
     viewport: window.innerWidth + 'x' + window.innerHeight,
     comment: (document.getElementById('bugReportComment').value || '').trim() || null,
     console_logs: (window.__bugReportConsoleBuffer || []).slice(),
-    screenshot_base64: null,
+    screenshot_base64: screenshotBase64,
     severity: 'manual',
     error_info: null
   };
