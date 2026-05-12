@@ -20,10 +20,6 @@ __pycache__/
 # その他
 *.log
 
-# === pr-agent (別プロジェクト)を除外 ===
-pr-agent/
-CLAUDE_pr-agent.md
-
 # === バックアップファイル ===
 *.backup
 *.bak
