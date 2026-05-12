@@ -3144,7 +3144,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && reqPath === '/api/bug-report') {
     let body = '';
     let bodySize = 0;
-    const MAX_BODY_SIZE = 5 * 1024 * 1024;
+    const MAX_BODY_SIZE = 25 * 1024 * 1024;
     req.on('data', chunk => {
       bodySize += chunk.length;
       if (bodySize > MAX_BODY_SIZE) {
@@ -3160,8 +3160,44 @@ const server = http.createServer(async (req, res) => {
       try {
         const {
           uid, workspace_id, url, user_agent, viewport,
-          comment, console_logs, screenshot_base64, severity, error_info
+          comment, console_logs, screenshot_base64, severity, error_info,
+          attachments
         } = JSON.parse(body || '{}');
+
+        // attachments バリデーション
+        if (attachments !== undefined && attachments !== null) {
+          if (!Array.isArray(attachments)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'attachments must be array' }));
+            return;
+          }
+          if (attachments.length > 3) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'attachments exceeds 3' }));
+            return;
+          }
+          const MAX_ATTACH_BYTES = 5 * 1024 * 1024;
+          for (let i = 0; i < attachments.length; i++) {
+            const a = attachments[i];
+            if (typeof a.filename !== 'string' || typeof a.mime_type !== 'string' || typeof a.data_base64 !== 'string') {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `attachments[${i}]: invalid fields` }));
+              return;
+            }
+            if (!a.mime_type.startsWith('image/')) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `attachments[${i}]: mime_type must be image/*` }));
+              return;
+            }
+            const rawB64 = a.data_base64.replace(/^data:[^;]+;base64,/, '');
+            const byteSize = Math.floor(rawB64.length * 0.75);
+            if (byteSize > MAX_ATTACH_BYTES) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: `attachments[${i}]: exceeds 5MB` }));
+              return;
+            }
+          }
+        }
 
         if (!uid) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3226,7 +3262,34 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        // c) 管理通知(非同期、レスポンスを待たせない)
+        // c) attachments があれば Storage に保存 → attachments JSONB を UPDATE
+        let attachmentsSavedCount = 0;
+        if (Array.isArray(attachments) && attachments.length > 0) {
+          const sanitizeFilename = (name) =>
+            String(name || 'file').replace(/[\x00-\x1f\\\/:*?"<>|]/g, '_').replace(/\.\./g, '_').slice(0, 100);
+          const savedMeta = [];
+          for (let i = 0; i < attachments.length; i++) {
+            const a = attachments[i];
+            try {
+              const rawB64 = a.data_base64.replace(/^data:[^;]+;base64,/, '');
+              const buf = Buffer.from(rawB64, 'base64');
+              const safeFilename = sanitizeFilename(a.filename);
+              const storagePath = `${uid}/${bugReport.id}/${i}_${safeFilename}`;
+              await supabaseStorageUpload('bug-screenshots', storagePath, buf, a.mime_type);
+              savedMeta.push({ path: storagePath, filename: a.filename, mime_type: a.mime_type, byte_size: buf.length });
+              attachmentsSavedCount++;
+            } catch(e) {
+              console.warn(`[bug-report] attachment[${i}] upload failed:`, e.message);
+            }
+          }
+          if (savedMeta.length > 0) {
+            await supabaseQuery(`/bug_reports?id=eq.${bugReport.id}`, 'PATCH', { attachments: savedMeta }).catch(e =>
+              console.warn('[bug-report] attachments PATCH failed:', e.message)
+            );
+          }
+        }
+
+        // d) 管理通知(非同期、レスポンスを待たせない)
         sendAdminNotification(`バグ報告 [${severity}] uid=${uid.slice(0, 8)}`, {
           id: bugReport.id,
           severity,
@@ -3239,11 +3302,12 @@ const server = http.createServer(async (req, res) => {
           error_info: error_info || null,
           console_logs_recent5: (console_logs || []).slice(-5),
           screenshot_saved: screenshotSaved,
+          attachments_count: attachmentsSavedCount,
           supabase_dashboard_hint: 'Supabase Dashboard > bug_reports テーブルで詳細確認',
         }).catch(e => console.error('[bug-report] notification error:', e.message));
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, id: bugReport.id }));
+        res.end(JSON.stringify({ ok: true, id: bugReport.id, screenshot_saved: screenshotSaved, attachments_saved_count: attachmentsSavedCount }));
       } catch(e) {
         console.error('[bug-report] error:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
