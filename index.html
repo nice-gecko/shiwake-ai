@@ -858,8 +858,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .folder-input-row{display:flex;gap:8px;align-items:center;margin-top:6px;}
 .folder-input-row input{flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;}
 /* ===== v2.3.4: バグ報告 FAB ===== */
-#bug-report-fab{position:fixed;bottom:20px;right:20px;z-index:300;width:48px;height:48px;border-radius:50%;background:#185FA5;color:#fff;border:none;cursor:pointer;font-size:22px;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.25);transition:transform 0.15s;}
-#bug-report-fab:hover{transform:scale(1.12);}
+#bug-report-fab{position:fixed;bottom:20px;right:20px;z-index:300;width:32px;height:32px;border-radius:50%;background:#ef4444;color:#fff;border:none;cursor:pointer;font-size:16px;display:none;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,0.25);transition:background 0.15s,transform 0.15s;}
+#bug-report-fab:hover{background:#dc2626;transform:scale(1.1);}
 .bug-report-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:600;align-items:center;justify-content:center;}
 .bug-report-overlay.open{display:flex;}
 .bug-report-modal{background:#fff;border-radius:14px;padding:28px 24px 24px;width:min(480px,90vw);max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);}
@@ -872,11 +872,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .bug-report-submit:disabled{opacity:0.55;cursor:not-allowed;}
 .bug-report-cancel{background:#f0f0f0;color:#444;border:none;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;}
 .bug-report-error{color:#b91c1c;font-size:12px;margin-top:8px;display:none;}
-#bug-report-fab-badge{position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:999px;min-width:18px;height:18px;font-size:11px;display:none;align-items:center;justify-content:center;padding:0 5px;pointer-events:none;line-height:1;box-sizing:border-box;}
+#bug-report-fab-badge{position:absolute;top:-5px;right:-5px;background:#f59e0b;color:#fff;border-radius:999px;min-width:15px;height:15px;font-size:9px;display:none;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;line-height:1;box-sizing:border-box;}
 .bug-report-alert-banner{background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:13px;line-height:1.5;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.4.0/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -6042,7 +6043,7 @@ window.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <!-- ===== v2.3.4: バグ報告 FAB ===== -->
-<button id="bug-report-fab" title="不具合を報告" onclick="openBugReportModal(true)">🐛</button>
+<button id="bug-report-fab" title="不具合を報告" onclick="openBugReportModal(true)"><i class="ti ti-bug"></i></button>
 
 <!-- ===== v2.3.4: バグ報告モーダル ===== -->
 <div class="bug-report-overlay" id="bugReportOverlay" onclick="bugReportOverlayClick(event)">
