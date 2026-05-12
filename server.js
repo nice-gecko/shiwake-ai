@@ -1902,7 +1902,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { imageDataList, fileNames, chunkIndex, totalChunks, docType, line_item_mode: requestedMode, uid, masterUid, catRules } = JSON.parse(body);
+        const { imageDataList, fileNames, chunkIndex, totalChunks, docType, line_item_mode: requestedMode, uid, masterUid, catRules, workspace_id } = JSON.parse(body);
         const apiKey = process.env.ANTHROPIC_API_KEY || '';
         if (!apiKey) throw new Error('APIキーが設定されていません');
 
@@ -1913,7 +1913,7 @@ const server = http.createServer(async (req, res) => {
         if (imageDataList.length === 1 && cacheUid) {
           imageHash = computeHash(imageDataList[0].data);
           console.log(`  🔑 hash: ${imageHash.slice(0,12)}... uid=${cacheUid.slice(0,8)}...`);
-          const cachedItems = getHashedResult(cacheUid, imageHash);
+          const cachedItems = getHashedResult(cacheUid, workspace_id, imageHash);
           if (cachedItems && cachedItems.length > 0) {
             console.log(`  ⚡ ハッシュキャッシュヒット: ${cachedItems.length}件（API呼び出しなし）`);
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1930,7 +1930,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         // マスタを先に読み込む（cacheUid基準）
-        const master = loadMaster(cacheUid);
+        const master = loadMaster(cacheUid, workspace_id);
         const masterKeys = Object.keys(master);
 
         // ===== ステップ1: フォーマット判定（Haiku・高速） =====
@@ -2033,7 +2033,7 @@ const server = http.createServer(async (req, res) => {
 
         // ===== ステップ5: ハッシュキャッシュに保存（次回同じ画像なら即返却） =====
         if (imageHash && cacheUid && items.length > 0) {
-          setHashedResult(cacheUid, imageHash, items);
+          setHashedResult(cacheUid, workspace_id, imageHash, items);
         }
 
         // マスタヒット件数を集計（フロントのヒット率表示用）
