@@ -5425,6 +5425,7 @@ let _unassignedTrayInterval = null;
 let _unassignedData = [];
 let _assignedData = [];
 let _selectedUnassignedIds = new Set();
+window._selectedFileIds = _selectedUnassignedIds;
 let _unassignedSig = '';
 let _activeUnassignedSubTab = 'unassigned';
 let _pendingRuleCandidates = [];
@@ -5665,8 +5666,9 @@ function showWsPicker(title, callback) {
 }
 
 function wsPickerSelect(wsId) {
+  const cb = _wsPickerCallback;
   closeWsPicker();
-  if (_wsPickerCallback) { _wsPickerCallback(wsId); _wsPickerCallback = null; }
+  if (cb) cb(wsId);
 }
 
 function closeWsPicker() {
