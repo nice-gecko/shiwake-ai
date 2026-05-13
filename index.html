@@ -125,6 +125,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ae-radio-group,.ae-check-group{display:flex;flex-direction:column;gap:6px;margin-top:4px;}
 .ae-radio-label,.ae-check-label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:#444;cursor:pointer;line-height:1.4;}
 .ae-radio-label input,.ae-check-label input{margin-top:2px;accent-color:#185FA5;flex-shrink:0;}
+.ae-step{border:0.5px solid #d0cdc8;border-radius:8px;padding:16px 18px;margin-bottom:10px;}
+.ae-step-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.ae-step-badge{background:#185FA5;color:#fff;font-size:11px;font-weight:500;padding:3px 8px;border-radius:4px;letter-spacing:0.5px;white-space:nowrap;}
+.ae-step-title{font-size:14px;font-weight:500;color:#1a1a1a;}
 /* WS使用状況バー */
 .ws-usage-bar-wrap{margin-bottom:16px;padding:12px 14px;background:#faf9f6;border:1px solid #e8e7e0;border-radius:10px;}
 .ws-usage-bar-label{font-size:12px;color:#555;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;}
@@ -6589,49 +6593,67 @@ function renderWsEditBody(ws, ae = {}) {
         </label>
       </div>
       <div id="wsAeSubWrap" class="${ae.auto_export_enabled ? '' : 'ae-disabled'}">
-        <div class="ws-form-row">
-          <label>何件溜まったら実行する?</label>
-          <input type="number" id="wsAeThreshold" min="1" max="10000" step="1" value="${ae.auto_export_threshold ?? 30}">
-          <div style="font-size:10px;color:#aaa;margin-top:2px;">未エクスポートの承認済み仕訳がこの件数に達したら実行されます</div>
-        </div>
-        <div class="ws-form-row">
-          <label>出力単位</label>
-          <div class="ae-radio-group">
-            <label class="ae-radio-label"><input type="radio" name="wsAeOutputUnit" value="per_workspace" ${(ae.auto_export_output_unit || 'per_workspace') === 'per_workspace' ? 'checked' : ''}> ワークスペースごとに別ファイル</label>
-            <label class="ae-radio-label"><input type="radio" name="wsAeOutputUnit" value="merged" ${ae.auto_export_output_unit === 'merged' ? 'checked' : ''}> 全ワークスペースを1ファイルにまとめる（WSラベル列付き）</label>
+        <div class="ae-step">
+          <div class="ae-step-header">
+            <span class="ae-step-badge">STEP 01</span>
+            <span class="ae-step-title">いつ実行する?</span>
+          </div>
+          <div class="ws-form-row" style="margin-bottom:0;">
+            <label>何件溜まったら実行する?</label>
+            <input type="number" id="wsAeThreshold" min="1" max="10000" step="1" value="${ae.auto_export_threshold ?? 30}">
+            <div style="font-size:10px;color:#aaa;margin-top:2px;">未エクスポートの承認済み仕訳がこの件数に達したら実行されます</div>
           </div>
         </div>
-        <div class="ws-form-row">
-          <label>どこに送る?（複数選択可、最低1つ）</label>
-          <div class="ae-check-group">
-            <label class="ae-check-label"><input type="checkbox" id="wsAeDestEmail" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || ['email']).includes('email') ? 'checked' : ''}> メール（ログインメールアドレスへ添付送信）</label>
-            <label class="ae-check-label"><input type="checkbox" id="wsAeDestCloud" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || []).includes('cloud') ? 'checked' : ''}> クラウド（Dropbox/GDriveのフォルダへ）</label>
-            <label class="ae-check-label"><input type="checkbox" id="wsAeDestLocal" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || []).includes('local') ? 'checked' : ''}> ローカル（アプリ内通知でダウンロードリンク表示）</label>
+        <div class="ae-step">
+          <div class="ae-step-header">
+            <span class="ae-step-badge">STEP 02</span>
+            <span class="ae-step-title">何を出力する?</span>
+          </div>
+          <div class="ws-form-row">
+            <label>出力単位</label>
+            <div class="ae-radio-group">
+              <label class="ae-radio-label"><input type="radio" name="wsAeOutputUnit" value="per_workspace" ${(ae.auto_export_output_unit || 'per_workspace') === 'per_workspace' ? 'checked' : ''}> ワークスペースごとに別ファイル</label>
+              <label class="ae-radio-label"><input type="radio" name="wsAeOutputUnit" value="merged" ${ae.auto_export_output_unit === 'merged' ? 'checked' : ''}> 全ワークスペースを1ファイルにまとめる（WSラベル列付き）</label>
+            </div>
+          </div>
+          <div class="ws-form-row" style="margin-bottom:0;">
+            <label>会計ソフト形式</label>
+            <select id="wsAeFormat" onchange="wsAeFormatChange(this.value)">
+              <option value="yayoi" ${(ae.auto_export_format || 'yayoi') === 'yayoi' ? 'selected' : ''}>弥生会計</option>
+              <option value="freee" ${ae.auto_export_format === 'freee' ? 'selected' : ''}>freee</option>
+              <option value="mf" ${ae.auto_export_format === 'mf' ? 'selected' : ''}>マネーフォワード</option>
+              <option value="obc" ${ae.auto_export_format === 'obc' ? 'selected' : ''}>勘定奉行</option>
+              <option value="generic" ${ae.auto_export_format === 'generic' ? 'selected' : ''}>汎用CSV</option>
+            </select>
+          </div>
+          <div id="wsAeYayoiSplitRow" style="margin-top:12px;background:#EBF4FD;border:1px solid #b8d4f0;border-radius:8px;padding:12px 14px;${(ae.auto_export_format || 'yayoi') === 'yayoi' ? '' : 'display:none;'}">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="font-size:15px;line-height:1;">⚙️</span>
+              <span style="font-size:13px;font-weight:500;color:#185FA5;">弥生会計の追加設定</span>
+            </div>
+            <div style="font-size:12px;color:#185FA5;margin-bottom:10px;">弥生は .txt 形式で出力します。貸方科目が複数ある場合の扱いを選んでください。</div>
+            <div class="ae-radio-group">
+              <label class="ae-radio-label" style="color:#185FA5;"><input type="radio" name="wsAeYayoiSplitMode" value="single" ${(ae.auto_export_yayoi_split_mode || 'single') === 'single' ? 'checked' : ''}> 単一ファイル(すべての仕訳を1ファイルに)</label>
+              <label class="ae-radio-label" style="color:#185FA5;"><input type="radio" name="wsAeYayoiSplitMode" value="by_credit_account" ${ae.auto_export_yayoi_split_mode === 'by_credit_account' ? 'checked' : ''}> 貸方科目別に分割(現金/未払金/預金... ごとに別ファイル)</label>
+            </div>
           </div>
         </div>
-        <div class="ws-form-row" id="wsAeCloudFolderRow" style="${(ae.auto_export_destinations || []).includes('cloud') ? '' : 'display:none;'}">
-          <label>クラウドの保存先フォルダ（空欄=自動取り込みフォルダの /exports/）</label>
-          <input type="text" id="wsAeCloudFolderPath" value="${escapeHtml(ae.auto_export_cloud_folder_path || '')}" placeholder="例: /経理/エクスポート/">
-        </div>
-        <div class="ws-form-row">
-          <label>会計ソフト形式</label>
-          <select id="wsAeFormat" onchange="wsAeFormatChange(this.value)">
-            <option value="yayoi" ${(ae.auto_export_format || 'yayoi') === 'yayoi' ? 'selected' : ''}>弥生会計</option>
-            <option value="freee" ${ae.auto_export_format === 'freee' ? 'selected' : ''}>freee</option>
-            <option value="mf" ${ae.auto_export_format === 'mf' ? 'selected' : ''}>マネーフォワード</option>
-            <option value="obc" ${ae.auto_export_format === 'obc' ? 'selected' : ''}>勘定奉行</option>
-            <option value="generic" ${ae.auto_export_format === 'generic' ? 'selected' : ''}>汎用CSV</option>
-          </select>
-        </div>
-        <div id="wsAeYayoiSplitRow" style="margin-top:12px;background:#EBF4FD;border:1px solid #b8d4f0;border-radius:8px;padding:12px 14px;${(ae.auto_export_format || 'yayoi') === 'yayoi' ? '' : 'display:none;'}">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-            <span style="font-size:15px;line-height:1;">⚙️</span>
-            <span style="font-size:13px;font-weight:500;color:#185FA5;">弥生会計の追加設定</span>
+        <div class="ae-step" style="margin-bottom:0;">
+          <div class="ae-step-header">
+            <span class="ae-step-badge">STEP 03</span>
+            <span class="ae-step-title">どこに送る?</span>
           </div>
-          <div style="font-size:12px;color:#185FA5;margin-bottom:10px;">弥生は .txt 形式で出力します。貸方科目が複数ある場合の扱いを選んでください。</div>
-          <div class="ae-radio-group">
-            <label class="ae-radio-label" style="color:#185FA5;"><input type="radio" name="wsAeYayoiSplitMode" value="single" ${(ae.auto_export_yayoi_split_mode || 'single') === 'single' ? 'checked' : ''}> 単一ファイル(すべての仕訳を1ファイルに)</label>
-            <label class="ae-radio-label" style="color:#185FA5;"><input type="radio" name="wsAeYayoiSplitMode" value="by_credit_account" ${ae.auto_export_yayoi_split_mode === 'by_credit_account' ? 'checked' : ''}> 貸方科目別に分割(現金/未払金/預金... ごとに別ファイル)</label>
+          <div class="ws-form-row">
+            <label>出力先（複数選択可、最低1つ）</label>
+            <div class="ae-check-group">
+              <label class="ae-check-label"><input type="checkbox" id="wsAeDestEmail" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || ['email']).includes('email') ? 'checked' : ''}> メール（ログインメールアドレスへ添付送信）</label>
+              <label class="ae-check-label"><input type="checkbox" id="wsAeDestCloud" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || []).includes('cloud') ? 'checked' : ''}> クラウド（Dropbox/GDriveのフォルダへ）</label>
+              <label class="ae-check-label"><input type="checkbox" id="wsAeDestLocal" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || []).includes('local') ? 'checked' : ''}> ローカル（アプリ内通知でダウンロードリンク表示）</label>
+            </div>
+          </div>
+          <div class="ws-form-row" id="wsAeCloudFolderRow" style="margin-bottom:0;${(ae.auto_export_destinations || []).includes('cloud') ? '' : 'display:none;'}">
+            <label>クラウドの保存先フォルダ（空欄=自動取り込みフォルダの /exports/）</label>
+            <input type="text" id="wsAeCloudFolderPath" value="${escapeHtml(ae.auto_export_cloud_folder_path || '')}" placeholder="例: /経理/エクスポート/">
           </div>
         </div>
       </div>
