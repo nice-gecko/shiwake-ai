@@ -993,6 +993,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-picker-item{padding:9px 12px;border:1px solid #e0dfd8;border-radius:8px;cursor:pointer;font-size:13px;color:#333;text-align:left;background:#fff;font-family:inherit;width:100%;}
 .ws-picker-item:hover{background:#f5f4f0;border-color:#185FA5;}
 .ws-picker-cancel{padding:6px 14px;font-size:13px;border-radius:7px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-family:inherit;width:100%;}
+/* v2.4.x: アップグレードモーダル */
+.upgrade-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:800;align-items:center;justify-content:center;padding:16px;}
+.upgrade-modal-overlay.show{display:flex;}
+.upgrade-modal-inner{position:relative;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.15);width:100%;max-width:880px;max-height:90vh;overflow-y:auto;padding:32px 28px 24px;}
+@media(max-width:767px){.upgrade-modal-inner{padding:24px 16px 20px;}}
+.upgrade-modal-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:24px;color:#aaa;cursor:pointer;line-height:1;}
+.upgrade-modal-close:hover{color:#444;}
+.upgrade-modal-title{font-size:18px;font-weight:700;color:#1a1a1a;margin-bottom:4px;}
+.upgrade-modal-sub{font-size:13px;color:#888;margin-bottom:24px;}
+.upgrade-modal-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+@media(max-width:767px){.upgrade-modal-cards{grid-template-columns:1fr;}}
+.upgrade-modal-card{border:0.5px solid var(--color-border-secondary,#e0dfd8);border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:4px;}
+.upgrade-modal-card-name{font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:6px;}
+.upgrade-modal-card-price{font-size:22px;font-weight:700;color:#185FA5;margin-bottom:10px;}
+.upgrade-modal-card-price span{font-size:12px;font-weight:400;color:#888;}
+.upgrade-modal-card-features{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px;font-size:12px;color:#555;flex:1;}
+.upgrade-modal-card-features li{display:flex;align-items:flex-start;gap:4px;}
+.upgrade-modal-card-features li::before{content:"✓";color:#185FA5;font-weight:700;flex-shrink:0;}
+.upgrade-modal-card-btn{margin-top:16px;padding:9px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;width:100%;}
+.upgrade-modal-card-btn:hover{background:#0C447C;}
+.upgrade-modal-footer{margin-top:20px;text-align:center;}
+.upgrade-modal-all-plans{font-size:12px;color:var(--color-text-secondary,#888);cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -1337,7 +1359,7 @@ function updateFabBadge() {
         ctaText  = 'アップグレード';
         ctaClass = 'plan-status-upgrade';
       }
-      upgradeHtml = `<span class="${ctaClass}" onclick="showSection('pricing')">${ctaText}</span>`;
+      upgradeHtml = `<span class="${ctaClass}" onclick="openUpgradeModal()">${ctaText}</span>`;
     }
 
     el.className = `plan-status-banner${edition === 'elite' ? ' elite' : edition === 'agent' ? ' agent' : ''}`;
@@ -7047,7 +7069,74 @@ window.addEventListener('DOMContentLoaded', () => {
   <button id="bug-report-toast-retry" style="display:none;" onclick="retryBugReport()">再送信</button>
 </div>
 
+<!-- v2.4.x: アップグレードモーダル -->
+<div id="upgradeModalOverlay" class="upgrade-modal-overlay" onclick="upgradeModalOverlayClick(event)" role="dialog" aria-modal="true" aria-labelledby="upgradeModalTitle">
+  <div class="upgrade-modal-inner">
+    <button class="upgrade-modal-close" onclick="closeUpgradeModal()" aria-label="閉じる">&times;</button>
+    <div class="upgrade-modal-title" id="upgradeModalTitle">プランをアップグレード</div>
+    <div class="upgrade-modal-sub">次のステップを選んでください</div>
+    <div class="upgrade-modal-cards">
+      <div class="upgrade-modal-card">
+        <div class="upgrade-modal-card-name">AI SaaS アンリミテッド</div>
+        <div class="upgrade-modal-card-price">¥5,800<span>/月</span></div>
+        <ul class="upgrade-modal-card-features">
+          <li>月間処理枚数 <strong>無制限</strong></li>
+          <li>取引先マスタ学習を継続</li>
+          <li>個人・小規模法人向け</li>
+        </ul>
+        <button class="upgrade-modal-card-btn" onclick="closeUpgradeModal();startCheckout('ai_saas_unlimited')">このプランへ</button>
+      </div>
+      <div class="upgrade-modal-card">
+        <div class="upgrade-modal-card-name">AI SaaS チームライト</div>
+        <div class="upgrade-modal-card-price">¥20,000<span>/月</span></div>
+        <ul class="upgrade-modal-card-features">
+          <li>スタッフ管理（複数アカウント）</li>
+          <li>インセンティブ計算機能</li>
+          <li>中規模法人向け</li>
+        </ul>
+        <button class="upgrade-modal-card-btn" onclick="closeUpgradeModal();startCheckout('ai_saas_team_lite')">このプランへ</button>
+      </div>
+      <div class="upgrade-modal-card">
+        <div class="upgrade-modal-card-name">AI SaaS チームスタンダード</div>
+        <div class="upgrade-modal-card-price">¥50,000<span>/月</span></div>
+        <ul class="upgrade-modal-card-features">
+          <li>チームライトの全機能</li>
+          <li>大量処理・拡張機能対応</li>
+          <li>成長企業向け</li>
+        </ul>
+        <button class="upgrade-modal-card-btn" onclick="closeUpgradeModal();startCheckout('ai_saas_team_std')">このプランへ</button>
+      </div>
+    </div>
+    <div class="upgrade-modal-footer">
+      <button class="upgrade-modal-all-plans" onclick="closeUpgradeModal();showSection('pricing')">他のプランも見る</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ===== v2.4.x: アップグレードモーダル =====
+
+window.openUpgradeModal = function() {
+  var overlay = document.getElementById('upgradeModalOverlay');
+  if (!overlay) return;
+  overlay.classList.add('show');
+  document.addEventListener('keydown', upgradeModalEscHandler);
+  var firstBtn = overlay.querySelector('button');
+  if (firstBtn) firstBtn.focus();
+};
+window.closeUpgradeModal = function() {
+  var overlay = document.getElementById('upgradeModalOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  document.removeEventListener('keydown', upgradeModalEscHandler);
+};
+function upgradeModalEscHandler(e) {
+  if (e.key === 'Escape') closeUpgradeModal();
+}
+window.upgradeModalOverlayClick = function(e) {
+  if (e.target === document.getElementById('upgradeModalOverlay')) closeUpgradeModal();
+};
+
 // ===== v2.3.4: バグ報告モーダル + 異常検出 =====
 
 function maybeAutoOpenBugReportModal(severity, errorInfo) {
