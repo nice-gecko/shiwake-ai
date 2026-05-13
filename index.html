@@ -1035,6 +1035,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .upgrade-modal-card-btn:hover{background:#0C447C;}
 .upgrade-modal-footer{margin-top:20px;text-align:center;}
 .upgrade-modal-all-plans{font-size:12px;color:var(--color-text-secondary,#888);cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;}
+/* v2.4.x: アンロック機能カード */
+.unlock-section-header{padding:2px 0 14px;}
+.unlock-section-title{font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:3px;}
+.unlock-section-sub{font-size:12px;color:var(--color-text-secondary,#888);}
+.unlock-card{background:#fff;border:0.5px solid var(--color-border-tertiary,#e8e8e4);border-radius:var(--border-radius-md,10px);padding:16px 18px;margin-bottom:10px;position:relative;}
+.unlock-card.unlocked{border-left:4px solid #22c55e;}
+.unlock-card.future{opacity:0.7;background:#f7f7f5;}
+.unlock-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.unlock-card-icon{width:22px;height:22px;flex-shrink:0;color:#185FA5;margin-top:1px;}
+.unlock-card-title-wrap{flex:1;}
+.unlock-card-title{font-size:15px;font-weight:500;color:#1a1a1a;display:flex;align-items:center;gap:6px;}
+.unlock-card-desc{font-size:13px;color:var(--color-text-secondary,#888);line-height:1.55;margin-top:4px;}
+.unlock-status-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:500;white-space:nowrap;flex-shrink:0;}
+.unlock-status-badge.unlocked{background:#dcfce7;color:#15803d;}
+.unlock-status-badge.locked{background:#f1f1ee;color:#666;}
+.unlock-status-badge.future{background:#fef3c7;color:#92400e;}
+.unlock-status-badge.available{background:#EBF4FD;color:#185FA5;}
+.unlock-card-action{margin-top:12px;display:flex;justify-content:flex-end;}
+.unlock-action-btn{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:#185FA5;color:#fff;transition:background 0.15s;}
+.unlock-action-btn:hover{background:#0C447C;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -1790,6 +1810,11 @@ function updateFabBadge() {
       未振り分け
       <span class="unassigned-sidebar-badge" id="unassignedSidebarBadge" style="display:none;"></span>
     </div>
+    <!-- v2.4.x: アンロック機能一覧 -->
+    <div class="sidebar-nav-item" id="navUnlockFeatures" onclick="switchTab('unlock-features')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="3.5" y="7" width="8" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 7V5a2 2 0 014 0v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="10" r="1" fill="currentColor"/></svg>
+      アンロック機能
+    </div>
     <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
       👁 インセンティブ表示に切替
     </div>
@@ -2482,6 +2507,15 @@ function updateFabBadge() {
     </div>
     <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;">スタッフ一覧</div>
     <div class="staff-list" id="staffList"><div class="staff-empty">まだスタッフがいません</div></div>
+  </div>
+
+  <!-- v2.4.x: アンロック機能一覧パネル -->
+  <div class="panel" id="panel-unlock-features">
+    <div class="unlock-section-header">
+      <div class="unlock-section-title">アンロック機能</div>
+      <div class="unlock-section-sub">使うほど、自分専用のツールに育っていきます</div>
+    </div>
+    <div id="unlockCardsWrap"></div>
   </div>
 
   <!-- スキャンパネル -->
@@ -7558,6 +7592,106 @@ async function submitBugReport() {
     }
   })();
 }
+
+// v2.4.x: アンロック機能一覧 ===========================
+async function loadUnlockFeatures() {
+  const uid = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  const wrap = document.getElementById('unlockCardsWrap');
+  if (!wrap) return;
+  if (!uid || !wsId) {
+    wrap.innerHTML = '<div style="color:#aaa;font-size:13px;padding:12px 0;">読み込み中...</div>';
+    return;
+  }
+  let autoExportEnabled = false;
+  try {
+    const r = await fetch('/api/auto-export/settings?uid=' + encodeURIComponent(uid) + '&workspace_id=' + encodeURIComponent(wsId));
+    const d = await r.json();
+    autoExportEnabled = !!d.auto_export_enabled;
+  } catch(e) {}
+  const ws = (window._workspaces || []).find(w => w.id === wsId);
+  const autoIntakeActive = !!(ws && (
+    (ws.client_email_addresses?.length > 0) ||
+    (ws.client_email_domains?.length > 0) ||
+    (ws.subject_keywords?.length > 0)
+  ));
+  renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId });
+}
+
+function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) {
+  const cards = [
+    {
+      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M2 10V8a2 2 0 012-2h7a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 6V4.5a2 2 0 014 0V6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="9" r="1" fill="currentColor"/></svg>',
+      title: '自動エクスポート',
+      desc: '承認済み仕訳が一定件数溜まったら、メール / クラウド / ローカルへ自動でCSVを送ります',
+      status: autoExportEnabled ? 'unlocked' : 'locked',
+      statusLabel: autoExportEnabled ? '✓ 開放済み' : '未開放',
+      action: autoExportEnabled ? '設定を変更' : '設定を開く',
+      onclick: "openWsEditAndScroll('" + wsId + "','auto-export-section')"
+    },
+    {
+      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      title: '自動取り込み',
+      desc: 'メール / Dropbox / Google Drive から証憑を自動で取り込みます',
+      status: autoIntakeActive ? 'unlocked' : 'locked',
+      statusLabel: autoIntakeActive ? '✓ 開放済み' : '未開放',
+      action: '設定を開く',
+      onclick: "switchTab('auto-intake')"
+    },
+    {
+      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>',
+      title: 'スマホ撮影モード',
+      desc: 'スマホで撮影 → Dropbox 蓄積、PCで後からまとめて処理。出先・隙間時間に活用できます',
+      status: 'available',
+      statusLabel: '利用可能',
+      action: 'スマホで開く',
+      onclick: 'showQR()'
+    },
+    {
+      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M7.5 1.5l1.4 2.9 3.1.45-2.25 2.2.53 3.1L7.5 8.55 4.72 10.15l.53-3.1L3 4.85l3.1-.45z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+      title: 'Agent モード',
+      desc: 'AIが自動仕訳・自動承認を実行する次世代モード（将来実装予定）',
+      status: 'future',
+      statusLabel: '将来実装',
+      sub: 'アップグレードで利用可能',
+      action: 'プランを比較',
+      onclick: 'openUpgradeModal()'
+    }
+  ];
+  wrap.innerHTML = cards.map(c => `
+    <div class="unlock-card${c.status === 'unlocked' ? ' unlocked' : ''}${c.status === 'future' ? ' future' : ''}">
+      <div class="unlock-card-top">
+        <div class="unlock-card-title-wrap">
+          <div class="unlock-card-title">${c.icon}${c.title}</div>
+          ${c.sub ? `<div style="font-size:11px;color:#92400e;margin-top:2px;">${c.sub}</div>` : ''}
+        </div>
+        <span class="unlock-status-badge ${c.status}">${c.statusLabel}</span>
+      </div>
+      <div class="unlock-card-desc">${c.desc}</div>
+      <div class="unlock-card-action">
+        <button class="unlock-action-btn" onclick="${c.onclick}">${c.action}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openWsEditAndScroll(wsId, anchorId) {
+  if (!wsId) return;
+  openWsEdit(wsId);
+  setTimeout(() => {
+    const el = document.getElementById(anchorId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 600);
+}
+
+const _origSwitchTab_v24x = window.switchTab;
+window.switchTab = function(tab) {
+  if (typeof _origSwitchTab_v24x === 'function') _origSwitchTab_v24x(tab);
+  if (tab === 'unlock-features') {
+    document.getElementById('navUnlockFeatures')?.classList.add('active');
+    loadUnlockFeatures();
+  }
+};
 </script>
 
 <!-- v2.4.x: フローティングカウントピル -->
