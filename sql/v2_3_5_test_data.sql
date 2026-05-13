@@ -4,7 +4,7 @@
 
 DO $$
 DECLARE
-  raw_uid TEXT := 'YOUR_UID_HERE';  -- ← 自分の Firebase UID に変更してから実行
+  raw_uid TEXT := '6eZXyCx56ccpL2K4dYlUiYhrmbc2';  -- ← 自分の Firebase UID に変更してから実行
   test_uid TEXT;
   ws_id UUID;
 BEGIN
@@ -25,10 +25,10 @@ BEGIN
 
   -- 1件目: メール由来 / no_matching_rule
   INSERT INTO inbox_files
-    (uid, source, source_id, filename, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
+    (uid, source, source_id, filename, byte_size, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
   VALUES (
     test_uid, 'email', 'test-email-001',
-    'invoice_2026_01.pdf',
+    'invoice_2026_01.pdf', 102400,
     'uploads/' || test_uid || '/invoice_2026_01.pdf',
     'application/pdf', 'pending',
     NOW() - INTERVAL '3 hours',
@@ -40,10 +40,10 @@ BEGIN
 
   -- 2件目: Dropbox由来 / no_matching_rule
   INSERT INTO inbox_files
-    (uid, source, source_id, filename, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
+    (uid, source, source_id, filename, byte_size, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
   VALUES (
     test_uid, 'dropbox', 'test-dropbox-abc123',
-    'receipt_konbini.jpg',
+    'receipt_konbini.jpg', 204800,
     'uploads/' || test_uid || '/receipt_konbini.jpg',
     'image/jpeg', 'pending',
     NOW() - INTERVAL '1 day',
@@ -55,10 +55,10 @@ BEGIN
 
   -- 3件目: Google Drive由来 / no_workspace_setup
   INSERT INTO inbox_files
-    (uid, source, source_id, filename, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
+    (uid, source, source_id, filename, byte_size, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
   VALUES (
     test_uid, 'gdrive', 'test-gdrive-xyz789',
-    'estimate_2026.pdf',
+    'estimate_2026.pdf', 153600,
     'uploads/' || test_uid || '/estimate_2026.pdf',
     'application/pdf', 'pending',
     NOW() - INTERVAL '5 days',
@@ -72,10 +72,10 @@ BEGIN
 
   -- 4件目: メール由来・振り分け済み
   INSERT INTO inbox_files
-    (uid, source, source_id, filename, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
+    (uid, source, source_id, filename, byte_size, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
   VALUES (
     test_uid, 'email', 'test-email-assigned-001',
-    'receipt_taxi.pdf',
+    'receipt_taxi.pdf', 98304,
     'uploads/' || test_uid || '/receipt_taxi.pdf',
     'application/pdf', 'pending',
     NOW() - INTERVAL '2 days',
@@ -87,10 +87,10 @@ BEGIN
 
   -- 5件目: Dropbox由来・振り分け済み
   INSERT INTO inbox_files
-    (uid, source, source_id, filename, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
+    (uid, source, source_id, filename, byte_size, storage_path, mime_type, status, created_at, subject, sender, unassigned_reason, workspace_id)
   VALUES (
     test_uid, 'dropbox', 'test-dropbox-assigned-002',
-    'invoice_office.png',
+    'invoice_office.png', 307200,
     'uploads/' || test_uid || '/invoice_office.png',
     'image/png', 'pending',
     NOW() - INTERVAL '7 days',
