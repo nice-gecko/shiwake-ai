@@ -208,6 +208,36 @@ async function sendEmail(to, subject, html) {
   }
 }
 
+async function sendEmailWithAttachment(to, subject, html, attachmentContent, attachmentFilename) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = process.env.SENDGRID_FROM_EMAIL || 'noreply@shiwake-ai.com';
+  if (!apiKey) { console.warn('SENDGRID_API_KEY未設定'); return; }
+  try {
+    const body = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: from, name: '証憑仕訳AI' },
+      subject,
+      content: [{ type: 'text/html', value: html }],
+      attachments: [{
+        content: Buffer.from(attachmentContent, 'utf8').toString('base64'),
+        filename: attachmentFilename,
+        type: 'text/csv',
+        disposition: 'attachment'
+      }]
+    };
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) console.error('SendGrid attachment error:', res.status, await res.text());
+    else console.log(`添付メール送信完了: ${to} / ${subject}`);
+  } catch(e) {
+    console.error('SendGrid添付例外:', e.message);
+    throw e;
+  }
+}
+
 async function sendIncentiveNotification(ownerEmail, staffName, unredeemedCount) {
   const adminEmail = process.env.ADMIN_EMAIL || 'easy.you.me@gmail.com';
   const subject = `【証憑仕訳AI】インセンティブ付与対象: ${staffName}さんが${unredeemedCount}件到達`;
@@ -292,10 +322,206 @@ async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
 
 // ===== v2.3.1: ワークスペース + 信頼度メトリクス ヘルパー =====
 
+// ===== v2.4.0 Group 2: 自動エクスポート実行エンジン =====
+
+function generateCsvContent(records, format, includeWsName, wsNameMap) {
+  const cleanAmt = (v) => String(v || '').replace(/[¥,￥]/g, '');
+  const invCol = (r) => r.invoice_number || '';
+  const dedCol = (r) => r.invoice_number ? '適格' : '不適格(80%控除)';
+  const wsCol = (r) => (wsNameMap && r.workspace_id) ? (wsNameMap[r.workspace_id] || '') : '';
+
+  let headers, rows;
+  if (format === 'freee') {
+    headers = ['取引日','借方勘定科目','借方税区分','借方金額','貸方勘定科目','貸方税区分','貸方金額','摘要','インボイス登録番号','適格区分'];
+    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',r.tax_category||'',cleanAmt(r.amount),r.credit_account||'',r.tax_category||'',cleanAmt(r.amount),r.memo||'',invCol(r),dedCol(r)]);
+  } else if (format === 'mf') {
+    headers = ['決済日','借方勘定科目','借方補助科目','借方税区分','借方金額','貸方勘定科目','貸方補助科目','貸方税区分','貸方金額','摘要','仕訳メモ','インボイス登録番号','適格区分'];
+    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'','',r.tax_category||'',cleanAmt(r.amount),r.credit_account||'','',r.tax_category||'',cleanAmt(r.amount),r.memo||'','',invCol(r),dedCol(r)]);
+  } else if (format === 'obc') {
+    headers = ['伝票日付','借方科目','借方金額','貸方科目','貸方金額','摘要','消費税区分','インボイス登録番号','適格区分'];
+    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',cleanAmt(r.amount),r.credit_account||'',cleanAmt(r.amount),r.memo||'',r.tax_category||'',invCol(r),dedCol(r)]);
+  } else if (format === 'generic') {
+    headers = ['日付','借方','貸方','金額','税区分','摘要','インボイス登録番号','適格区分'];
+    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',r.credit_account||'',cleanAmt(r.amount),r.tax_category||'',r.memo||'',invCol(r),dedCol(r)]);
+  } else {
+    // yayoi (default)
+    headers = ['日付','借方科目','貸方科目','金額','税区分','摘要','インボイス登録番号','適格区分'];
+    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',r.credit_account||'',cleanAmt(r.amount),r.tax_category||'',r.memo||'',invCol(r),dedCol(r)]);
+  }
+
+  if (includeWsName) {
+    headers = ['ワークスペース', ...headers];
+    rows = rows.map((row, i) => [wsCol(records[i]), ...row]);
+  }
+
+  const escape = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const csvBody = [headers, ...rows].map(row => row.map(escape).join(',')).join('\n');
+  return '﻿' + csvBody; // UTF-8 BOM付き
+}
+
+async function executeAutoExport(uid, workspaceId) {
+  const exportId = crypto.randomUUID();
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+  try {
+    // WS設定取得
+    const wsList = await supabaseQuery(
+      `/workspaces?id=eq.${workspaceId}&owner_uid=eq.${uid}&select=id,name,slug,auto_export_enabled,auto_export_threshold,auto_export_output_unit,auto_export_destinations,auto_export_cloud_folder_path,auto_export_format`
+    );
+    const ws = wsList?.[0];
+    if (!ws || !ws.auto_export_enabled) return;
+
+    const outputUnit = ws.auto_export_output_unit || 'per_workspace';
+    const format = ws.auto_export_format || 'yayoi';
+    const destinations = ws.auto_export_destinations || ['email'];
+    const wsSlug = ws.slug || workspaceId.slice(0, 8);
+    const wsName = ws.name || wsSlug;
+
+    // 対象レコード取得
+    let records;
+    let wsNameMap = {};
+    if (outputUnit === 'merged') {
+      records = await supabaseQuery(
+        `/shiwake_records?uid=eq.${uid}&exported_at=is.null&select=*&order=shiwake_date.asc`
+      );
+      // WS名マップ構築
+      const allWs = await supabaseQuery(`/workspaces?owner_uid=eq.${uid}&select=id,name`);
+      for (const w of allWs || []) wsNameMap[w.id] = w.name;
+    } else {
+      records = await supabaseQuery(
+        `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${workspaceId}&exported_at=is.null&select=*&order=shiwake_date.asc`
+      );
+    }
+    records = Array.isArray(records) ? records : [];
+    if (records.length === 0) return;
+
+    const recordCount = records.length;
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const timePart = now.toISOString().slice(11, 19).replace(/:/g, '');
+    const filename = `${wsSlug}_${format}_${datePart}-${timePart}.csv`;
+
+    // shiwake_exports に pending で INSERT
+    await supabaseQuery('/shiwake_exports', 'POST', {
+      id: exportId,
+      uid,
+      workspace_id: workspaceId,
+      record_count: recordCount,
+      output_format: format,
+      output_unit: outputUnit,
+      output_destinations: {},
+      status: 'pending',
+      created_at: now.toISOString()
+    });
+
+    // CSV生成
+    const includeWsName = outputUnit === 'merged';
+    const csvContent = generateCsvContent(records, format, includeWsName, wsNameMap);
+
+    // 配送先ごとに処理
+    const outputDestinations = {};
+    let csvStoragePath = null;
+
+    for (const dest of destinations) {
+      try {
+        if (dest === 'email') {
+          const userRows = await supabaseQuery(`/users?id=eq.${uid}&select=email`);
+          const toEmail = userRows?.[0]?.email;
+          if (!toEmail) throw new Error('user email not found');
+          const subject = `【shiwake-ai】自動エクスポート完了 [${wsName}] ${recordCount}件`;
+          const html = `
+<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+  <h2 style="color:#185FA5;">自動エクスポート完了</h2>
+  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr><td style="padding:6px 0;color:#666;">ワークスペース</td><td><strong>${wsName}</strong></td></tr>
+    <tr><td style="padding:6px 0;color:#666;">件数</td><td><strong>${recordCount}件</strong></td></tr>
+    <tr><td style="padding:6px 0;color:#666;">出力形式</td><td>${format}</td></tr>
+    <tr><td style="padding:6px 0;color:#666;">実行日時</td><td>${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}</td></tr>
+  </table>
+  <hr style="margin:16px 0;">
+  <p style="font-size:12px;color:#888;">証憑仕訳AI / shiwake-ai.com</p>
+</div>`;
+          await sendEmailWithAttachment(toEmail, subject, html, csvContent, filename);
+          outputDestinations[dest] = 'success';
+        } else if (dest === 'cloud') {
+          const connRows = await supabaseQuery(
+            `/cloud_connections?uid=eq.${uid}&is_active=eq.true&select=id,provider,access_token,watched_path`
+          );
+          const conn = connRows?.[0];
+          if (!conn) throw new Error('no_connection');
+          const folderPath = ws.auto_export_cloud_folder_path || '/exports';
+          const csvBuffer = Buffer.from(csvContent, 'utf8');
+          if (conn.provider === 'dropbox') {
+            const uploadedPath = await uploadToDropbox(conn.access_token, folderPath, csvBuffer, filename);
+            csvStoragePath = csvStoragePath || uploadedPath;
+          } else if (conn.provider === 'gdrive') {
+            const folderId = folderPath.replace(/^\//, '');
+            const fileId = await uploadToGDrive(folderId || null, csvBuffer, filename);
+            csvStoragePath = csvStoragePath || `gdrive:${fileId}`;
+          } else {
+            throw new Error(`unsupported_provider:${conn.provider}`);
+          }
+          outputDestinations[dest] = 'success';
+        } else if (dest === 'local') {
+          await ensureAutoExportsBucket();
+          const storagePath = `${uid}/${exportId}/${filename}`;
+          const csvBuffer = Buffer.from(csvContent, 'utf8');
+          await supabaseStorageUpload('auto-exports', storagePath, csvBuffer, 'text/csv');
+          csvStoragePath = csvStoragePath || storagePath;
+          outputDestinations[dest] = 'success';
+        }
+      } catch(e) {
+        console.warn(`auto-export dest=${dest} error:`, e.message);
+        outputDestinations[dest] = `failed:${e.message}`;
+      }
+    }
+
+    const anySuccess = Object.values(outputDestinations).some(v => v === 'success');
+    const finalStatus = anySuccess ? 'success' : 'failed';
+
+    // 成功した場合のみ exported_at を更新
+    if (anySuccess) {
+      const exportedAt = new Date().toISOString();
+      if (outputUnit === 'merged') {
+        await supabaseQuery(
+          `/shiwake_records?uid=eq.${uid}&exported_at=is.null`,
+          'PATCH',
+          { exported_at: exportedAt }
+        );
+      } else {
+        await supabaseQuery(
+          `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${workspaceId}&exported_at=is.null`,
+          'PATCH',
+          { exported_at: exportedAt }
+        );
+      }
+    }
+
+    await supabaseQuery(`/shiwake_exports?id=eq.${exportId}`, 'PATCH', {
+      status: finalStatus,
+      completed_at: new Date().toISOString(),
+      output_destinations: outputDestinations,
+      csv_storage_path: csvStoragePath || null,
+      error_message: anySuccess ? null : JSON.stringify(outputDestinations)
+    });
+
+    console.log(`auto-export completed: uid=${uid} ws=${workspaceId} status=${finalStatus} records=${recordCount}`);
+  } catch(e) {
+    console.error('executeAutoExport error:', e.message);
+    try {
+      await supabaseQuery(`/shiwake_exports?id=eq.${exportId}`, 'PATCH', {
+        status: 'failed',
+        completed_at: new Date().toISOString(),
+        error_message: e.message
+      });
+    } catch(_) {}
+  }
+}
+
 // workspace_id を解決する（Group 3-B 共通ヘルパー）
 // - queryWsId 指定あり: owner_uid=uid で所有確認 → 他人のWSなら 403 エラー
 // - queryWsId 未指定: users.current_workspace_id を採用 → null なら null を返す(呼び出し側で 400)
-// 自動エクスポートトリガー判定(Group 2 で実行ロジックを追加する)
+// 自動エクスポートトリガー判定
 async function checkAutoExportTrigger(uid, wsId) {
   const wsList = await supabaseQuery(
     `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=auto_export_enabled,auto_export_threshold`
@@ -309,8 +535,11 @@ async function checkAutoExportTrigger(uid, wsId) {
   );
   const unexported_count = Array.isArray(unexported) ? unexported.length : 0;
   const threshold = ws.auto_export_threshold ?? 30;
-  // TODO(Group 2): should_trigger === true のときエクスポート実行ロジックをここで呼び出す
-  return { unexported_count, threshold, should_trigger: unexported_count >= threshold };
+  const should_trigger = unexported_count >= threshold;
+  if (should_trigger) {
+    executeAutoExport(uid, wsId).catch(e => console.warn('executeAutoExport background error:', e.message));
+  }
+  return { unexported_count, threshold, should_trigger };
 }
 
 // ※ ensureDefaultWorkspace が /api/user/upsert(新規作成時)と /api/user(ログイン時フォールバック)で
@@ -528,6 +757,24 @@ async function supabaseStorageSignedUrl(bucket, filePath, expiresIn = 300) {
   return `${SUPABASE_URL}/storage/v1${json.signedURL}`;
 }
 
+async function ensureAutoExportsBucket() {
+  try {
+    const check = await fetch(`${SUPABASE_URL}/storage/v1/bucket/auto-exports`, {
+      headers: { 'apikey': SUPABASE_SECRET_KEY, 'Authorization': `Bearer ${SUPABASE_SECRET_KEY}` }
+    });
+    if (check.ok) return;
+    await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_SECRET_KEY,
+        'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id: 'auto-exports', name: 'auto-exports', public: false })
+    });
+  } catch(e) { console.warn('ensureAutoExportsBucket error:', e.message); }
+}
+
 // 自動取り込み機能利用判定
 async function canUseAutoIntake(uid) {
   const data = await supabaseQuery(`/users?id=eq.${uid}&select=is_paid,plan_key,graduated_rookie_at,cumulative_shiwake_count`);
@@ -647,6 +894,50 @@ function getDriveClient() {
     scopes: ['https://www.googleapis.com/auth/drive.readonly']
   });
   return googleApis.drive({ version: 'v3', auth: jwtClient });
+}
+
+function getDriveClientForUpload() {
+  if (!googleApis) throw new Error('googleapis package not installed');
+  const credRaw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!credRaw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not set');
+  const credentials = JSON.parse(credRaw);
+  const jwtClient = new googleApis.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: ['https://www.googleapis.com/auth/drive.file']
+  });
+  return googleApis.drive({ version: 'v3', auth: jwtClient });
+}
+
+async function uploadToDropbox(accessToken, folderPath, csvBuffer, filename) {
+  if (!DropboxClass) throw new Error('Dropbox SDK not installed');
+  const dbx = new DropboxClass({ accessToken });
+  const uploadPath = folderPath ? `${folderPath.replace(/\/$/, '')}/${filename}` : `/${filename}`;
+  const result = await dbx.filesUpload({
+    path: uploadPath,
+    contents: csvBuffer,
+    mode: { '.tag': 'add' },
+    autorename: true
+  });
+  return result.result.path_display || uploadPath;
+}
+
+async function uploadToGDrive(folderId, csvBuffer, filename) {
+  const drive = getDriveClientForUpload();
+  const { Readable } = require('stream');
+  const stream = Readable.from(csvBuffer);
+  const result = await drive.files.create({
+    requestBody: {
+      name: filename,
+      parents: folderId ? [folderId] : []
+    },
+    media: {
+      mimeType: 'text/csv',
+      body: stream
+    },
+    fields: 'id,name'
+  });
+  return result.data.id;
 }
 
 // GDrive Watchチャンネル設定
@@ -3181,7 +3472,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/auto-export/trigger-check (内部用、Group 2で本格利用)
+  // POST /api/auto-export/trigger-check
   if (req.method === 'POST' && reqPath === '/api/auto-export/trigger-check') {
     let body = '';
     req.on('data', c => body += c);
@@ -3191,8 +3482,9 @@ const server = http.createServer(async (req, res) => {
         if (!uid || !workspace_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id required' })); return; }
         try { await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
         const result = await checkAutoExportTrigger(uid, workspace_id);
+        // checkAutoExportTrigger内でshould_trigger=trueなら非同期でexecuteAutoExportが起動済み
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ...result, triggered: false }));
+        res.end(JSON.stringify({ ...result, triggered: result.should_trigger }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
