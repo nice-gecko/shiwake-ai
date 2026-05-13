@@ -612,17 +612,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 
 .scan-persp-hint{padding:8px 16px;background:#111;font-size:11px;color:#888;text-align:center;flex-shrink:0;}
 .scan-modal-footer{display:flex;gap:10px;padding:12px 16px;background:#1a1a1a;flex-shrink:0;}
-.scan-footer-btn{flex:1;padding:12px;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;}
+.scan-footer-btn{flex:1;padding:9px 12px;border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;}
 .scan-footer-btn.cancel{background:#333;color:#aaa;}
-.scan-footer-btn.skip{background:#555;color:#fff;}
+.scan-footer-btn.skip{background:#555;color:#fff;white-space:nowrap;}
 .scan-footer-btn.apply{background:#185FA5;color:#fff;}
-.scan-footer-btn.sendall{background:#252525;color:#888;}
-.scan-footer-btn.continue-act{background:#2d4f7c;color:#fff;}
+.scan-footer-btn.sendall{background:#EBF4FD;color:#185FA5;border:0.5px solid #b8d4f0;}
+.scan-footer-btn.continue-act{background:#185FA5;color:#fff;}
 
 /* スマホ撮影モード: 行き先トグル */
 .scan-dest-area{display:none;padding:7px 16px 5px;background:#111;text-align:center;flex-shrink:0;}
-.scan-dest-toggle{display:inline-flex;border-radius:99px;border:0.5px solid rgba(255,255,255,0.25);overflow:hidden;}
-.scan-dest-btn{padding:5px 15px;font-size:12px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,0.45);font-weight:500;transition:background 0.15s,color 0.15s;font-family:inherit;line-height:1.4;}
+.scan-dest-toggle{display:inline-flex;border-radius:99px;border:0.5px solid rgba(255,255,255,0.40);overflow:hidden;}
+.scan-dest-btn{padding:8px 18px;font-size:14px;border:none;cursor:pointer;background:rgba(255,255,255,0.10);color:rgba(255,255,255,0.80);font-weight:500;transition:background 0.15s,color 0.15s;font-family:inherit;line-height:1.4;}
 .scan-dest-btn.active{background:#185FA5;color:#fff;}
 /* スタックサムネ */
 .scan-stack-thumbs-wrap{background:#111;overflow:hidden;flex-shrink:0;}
@@ -2549,7 +2549,7 @@ function updateFabBadge() {
   <!-- 補正フッター -->
   <div class="scan-modal-footer" id="scanModalFooterCorrect">
     <button class="scan-footer-btn cancel" onclick="retakeScan()">撮り直し</button>
-    <button class="scan-footer-btn skip" onclick="applyScanEditSkip()">補正なしで進める</button>
+    <button class="scan-footer-btn skip" onclick="applyScanEditSkip()">補正なし</button>
     <button class="scan-footer-btn apply" onclick="applyScanEdit()">OK</button>
   </div>
   <!-- スタックフッター: 「ためる」OK後に表示 -->
