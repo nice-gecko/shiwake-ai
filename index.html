@@ -890,6 +890,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 #bug-report-toast.type-success{background:#16a34a;color:#fff;}
 #bug-report-toast.type-error{background:#dc2626;color:#fff;}
 #bug-report-toast-retry{display:inline-block;margin-top:6px;padding:4px 10px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;font-size:12px;cursor:pointer;color:#fff;}
+/* ===== v2.3.5: 未振り分けトレイ ===== */
+.unassigned-sidebar-badge{margin-left:auto;font-size:10px;padding:1px 6px;border-radius:8px;background:#FEE2E2;color:#dc2626;font-weight:600;}
+.sidebar-nav-item.active .unassigned-sidebar-badge{background:#fca5a5;color:#7f1d1d;}
+.unassigned-tray-header{margin-bottom:18px;}
+.unassigned-tray-title{font-size:17px;font-weight:700;color:#1a1a1a;margin-bottom:6px;}
+.unassigned-tray-desc{font-size:12px;color:#888;line-height:1.6;}
+.unassigned-tab-bar{display:flex;gap:0;border-bottom:2px solid #e8e7e0;margin-bottom:18px;}
+.unassigned-tab{padding:9px 18px;font-size:13px;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color 0.15s,border-color 0.15s;}
+.unassigned-tab:hover{color:#555;}
+.unassigned-tab.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:600;}
+.unassigned-action-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:12px;color:#666;flex-wrap:wrap;}
+.unassigned-action-link{color:#185FA5;cursor:pointer;text-decoration:none;background:none;border:none;font-size:12px;padding:0;font-family:inherit;}
+.unassigned-action-link:hover{text-decoration:underline;}
+.unassigned-card{border:1px solid #e0dfd8;border-radius:10px;padding:13px 15px;margin-bottom:9px;background:#fff;display:flex;align-items:flex-start;gap:12px;}
+.unassigned-card-check{flex-shrink:0;margin-top:2px;}
+.unassigned-card-check input[type=checkbox]{width:15px;height:15px;cursor:pointer;}
+.unassigned-card-thumb{width:44px;height:44px;border-radius:6px;background:#f5f4f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+.unassigned-card-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.unassigned-card-thumb .thumb-icon{font-size:22px;line-height:1;}
+.unassigned-card-body{flex:1;min-width:0;}
+.unassigned-card-name{font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;}
+.unassigned-card-meta{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:11px;color:#888;margin-bottom:4px;}
+.unassigned-card-subject{font-size:11px;color:#555;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.unassigned-card-reason{font-size:11px;color:#aaa;}
+.unassigned-card-ws-name{font-size:11px;color:#1D9E75;font-weight:600;}
+.source-badge{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;white-space:nowrap;}
+.source-badge.email{background:#EBF4FD;color:#185FA5;}
+.source-badge.dropbox{background:#E8F5E9;color:#2E7D32;}
+.source-badge.gdrive{background:#FFF3E0;color:#E65100;}
+.unassigned-card-right{flex-shrink:0;min-width:130px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
+.unassigned-card-right select{width:130px;padding:6px 8px;border:1px solid #ddd;border-radius:7px;font-size:12px;color:#333;background:#fff;cursor:pointer;font-family:inherit;}
+.unassigned-card-right select:disabled{opacity:0.5;cursor:not-allowed;}
+.unassigned-empty{text-align:center;padding:60px 16px 40px;}
+.unassigned-empty-icon{margin-bottom:14px;color:#ccc;}
+.unassigned-empty-text{font-size:13px;color:#bbb;}
+.bulk-assign-btn{padding:6px 14px;font-size:12px;border-radius:7px;border:1px solid #ddd;background:#fff;color:#555;cursor:pointer;font-family:inherit;}
+.bulk-assign-btn:hover:not(:disabled){background:#f5f4f0;}
+.bulk-assign-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.reassign-btn{padding:4px 10px;font-size:11px;border-radius:6px;border:1px solid #ddd;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
+.reassign-btn:disabled{opacity:0.4;cursor:not-allowed;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -1529,7 +1569,7 @@ function updateFabBadge() {
       ・
       <a href="mailto:support@shiwake-ai.com" style="color:#999;text-decoration:none;">お問い合わせ</a>
     </div>
-    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.3.4</div>
+    <div style="margin-top:16px;font-size:9px;color:#ccc;letter-spacing:0.06em;text-align:center;">v2.3.5</div>
   </div>
 </div>
 
@@ -1649,6 +1689,12 @@ function updateFabBadge() {
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       自動取り込み
     </div>
+    <!-- v2.3.5: 未振り分けトレイ -->
+    <div class="sidebar-nav-item" id="navUnassignedTray" style="display:none;" onclick="switchTab('unassigned-tray')">
+      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 9h3.5l1 1.5h3l1-1.5h3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+      未振り分け
+      <span class="unassigned-sidebar-badge" id="unassignedSidebarBadge" style="display:none;"></span>
+    </div>
     <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
       👁 インセンティブ表示に切替
     </div>
@@ -1656,7 +1702,7 @@ function updateFabBadge() {
       📊 キャッシュ統計
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.4 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.5 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2277,6 +2323,47 @@ function updateFabBadge() {
           <span>取り込み後、自動でAI仕訳まで実行する</span>
         </label>
         <p class="setting-hint warn">⚠ AI仕訳が誤判定する可能性があります。最初のうちは OFF（保存のみ）を推奨します。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- v2.3.5: 未振り分けトレイ -->
+  <div class="panel" id="panel-unassigned-tray">
+    <div class="unassigned-tray-header">
+      <h2 class="unassigned-tray-title">未振り分けトレイ</h2>
+      <p class="unassigned-tray-desc">自動取り込みで届いたファイルのうち、どのワークスペースに振り分けるかが決まらなかったものです</p>
+    </div>
+    <!-- タブ -->
+    <div class="unassigned-tab-bar">
+      <div class="unassigned-tab active" id="utabUnassigned" onclick="switchUnassignedTab('unassigned')">未振り分け (<span id="utabUnassignedCount">-</span>)</div>
+      <div class="unassigned-tab" id="utabAssigned" onclick="switchUnassignedTab('assigned')">振り分け済み (過去14日)</div>
+    </div>
+    <!-- 未振り分けタブ -->
+    <div id="unassigned-tray-pane">
+      <!-- アクションバー -->
+      <div class="unassigned-action-bar" id="unassignedActionBar" style="display:none;">
+        <span id="unassignedSelCount">0件選択中</span>
+        <button class="unassigned-action-link" onclick="unassignedSelectAll()">すべて選択</button>
+        <button class="unassigned-action-link" onclick="unassignedSelectNone()">選択解除</button>
+        <div style="margin-left:auto;">
+          <button class="bulk-assign-btn" id="bulkAssignBtn" disabled>まとめて振り分け</button>
+        </div>
+      </div>
+      <!-- 一覧 -->
+      <div id="unassignedFileList"></div>
+      <!-- 空状態 -->
+      <div class="unassigned-empty" id="unassignedEmptyState" style="display:none;">
+        <div class="unassigned-empty-icon">
+          <svg width="40" height="40" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="#ccc" stroke-width="1.2"/><path d="M1.5 9h3.5l1 1.5h3l1-1.5h3.5" stroke="#ccc" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="unassigned-empty-text">未振り分けのファイルはありません</div>
+      </div>
+    </div>
+    <!-- 振り分け済みタブ -->
+    <div id="assigned-tray-pane" style="display:none;">
+      <div id="assignedFileList"></div>
+      <div class="unassigned-empty" id="assignedEmptyState" style="display:none;">
+        <div class="unassigned-empty-text">過去14日間に振り分け済みのファイルはありません</div>
       </div>
     </div>
   </div>
@@ -5304,6 +5391,233 @@ async function setupAutoIntakeMenuItem() {
   if (lb) lb.remove();
 }
 
+// ===== v2.3.5: 未振り分けトレイ =====
+let _unassignedTrayInterval = null;
+let _unassignedData = [];
+let _assignedData = [];
+let _selectedUnassignedIds = new Set();
+let _unassignedSig = '';
+let _activeUnassignedSubTab = 'unassigned';
+
+function unassignedReasonLabel(r) {
+  if (r === 'no_matching_rule') return 'ルール未該当';
+  if (r === 'no_workspace_setup') return 'WS未設定';
+  if (r === 'ambiguous_match') return '複数該当';
+  return '-';
+}
+
+function unassignedSourceBadge(source) {
+  const cls = source === 'email' ? 'email' : source === 'dropbox' ? 'dropbox' : 'gdrive';
+  const label = source === 'email' ? 'メール' : source === 'dropbox' ? 'Dropbox' : 'Google Drive';
+  return `<span class="source-badge ${escapeHtml(cls)}">${label}</span>`;
+}
+
+function unassignedRelativeTime(isoStr) {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const min = Math.floor(diff / 60000);
+  const hr = Math.floor(min / 60);
+  const day = Math.floor(hr / 24);
+  if (min < 1) return 'たった今';
+  if (min < 60) return min + '分前';
+  if (hr < 24) return hr + '時間前';
+  if (day === 1) return '昨日';
+  return day + '日前';
+}
+
+function unassignedThumbHtml(filePath) {
+  if (!filePath) return '<span class="thumb-icon">📄</span>';
+  const ext = (filePath.split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') return '<span class="thumb-icon">📄</span>';
+  if (['jpg','jpeg','png','gif','webp'].includes(ext)) {
+    return `<img src="${escapeHtml(filePath)}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'thumb-icon\\'>📄</span>'">`;
+  }
+  return '<span class="thumb-icon">📄</span>';
+}
+
+function renderUnassignedFiles() {
+  const list = document.getElementById('unassignedFileList');
+  const empty = document.getElementById('unassignedEmptyState');
+  const actionBar = document.getElementById('unassignedActionBar');
+  if (!list) return;
+  if (_unassignedData.length === 0) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = '';
+    if (actionBar) actionBar.style.display = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (actionBar) actionBar.style.display = '';
+  const wss = window._workspaces || [];
+  const wsOptions = wss.length === 0
+    ? '<option value="">ワークスペースなし</option>'
+    : '<option value="">WS選択...</option>' + wss.map(w =>
+        `<option value="${escapeHtml(w.id)}">${escapeHtml(w.name)}</option>`
+      ).join('');
+  list.innerHTML = _unassignedData.map(f => {
+    const checked = _selectedUnassignedIds.has(f.id) ? 'checked' : '';
+    const fname = (f.file_path || '').split('/').pop() || f.source_id || '不明';
+    return `<div class="unassigned-card" id="ucard-${escapeHtml(f.id)}">
+      <div class="unassigned-card-check">
+        <input type="checkbox" ${checked} onchange="toggleUnassignedSelect('${escapeHtml(f.id)}', this.checked)">
+      </div>
+      <div class="unassigned-card-thumb">${unassignedThumbHtml(f.file_path)}</div>
+      <div class="unassigned-card-body">
+        <div class="unassigned-card-name" title="${escapeHtml(f.file_path||'')}">${escapeHtml(fname)}</div>
+        <div class="unassigned-card-meta">
+          ${unassignedSourceBadge(f.source)}
+          ${f.from_address ? `<span>${escapeHtml(f.from_address)}</span>` : ''}
+          <span>${unassignedRelativeTime(f.processed_at)}</span>
+        </div>
+        ${f.subject ? `<div class="unassigned-card-subject">件名: ${escapeHtml(f.subject)}</div>` : ''}
+        <div class="unassigned-card-reason">理由: ${unassignedReasonLabel(f.unassigned_reason)}</div>
+      </div>
+      <div class="unassigned-card-right">
+        <select onchange="onUnassignedWsChange('${escapeHtml(f.id)}', this.value)">${wsOptions}</select>
+      </div>
+    </div>`;
+  }).join('');
+  updateUnassignedSelCount();
+}
+
+function renderAssignedFiles() {
+  const list = document.getElementById('assignedFileList');
+  const empty = document.getElementById('assignedEmptyState');
+  if (!list) return;
+  if (_assignedData.length === 0) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = _assignedData.map(f => {
+    const fname = (f.file_path || '').split('/').pop() || f.source_id || '不明';
+    return `<div class="unassigned-card">
+      <div class="unassigned-card-thumb">${unassignedThumbHtml(f.file_path)}</div>
+      <div class="unassigned-card-body">
+        <div class="unassigned-card-name" title="${escapeHtml(f.file_path||'')}">${escapeHtml(fname)}</div>
+        <div class="unassigned-card-meta">
+          ${unassignedSourceBadge(f.source)}
+          ${f.from_address ? `<span>${escapeHtml(f.from_address)}</span>` : ''}
+          <span>${unassignedRelativeTime(f.processed_at)}</span>
+        </div>
+        ${f.subject ? `<div class="unassigned-card-subject">件名: ${escapeHtml(f.subject)}</div>` : ''}
+        <div class="unassigned-card-ws-name">振り分け先: ${escapeHtml(f.workspace_name || '不明')}</div>
+      </div>
+      <div class="unassigned-card-right">
+        <button class="reassign-btn" disabled>再振り分け</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleUnassignedSelect(id, checked) {
+  if (checked) _selectedUnassignedIds.add(id);
+  else _selectedUnassignedIds.delete(id);
+  updateUnassignedSelCount();
+}
+
+function unassignedSelectAll() {
+  _unassignedData.forEach(f => _selectedUnassignedIds.add(f.id));
+  renderUnassignedFiles();
+}
+
+function unassignedSelectNone() {
+  _selectedUnassignedIds.clear();
+  renderUnassignedFiles();
+}
+
+function updateUnassignedSelCount() {
+  const el = document.getElementById('unassignedSelCount');
+  if (el) el.textContent = _selectedUnassignedIds.size + '件選択中';
+  // bulkAssignBtn は Group 3 で実装予定のため常時 disabled
+}
+
+function onUnassignedWsChange(fileId, wsId) {
+  console.log('[unassigned-tray] WS選択 fileId:', fileId, 'wsId:', wsId, '(Group 3 で実装)');
+}
+
+function switchUnassignedTab(tab) {
+  _activeUnassignedSubTab = tab;
+  const tabU = document.getElementById('utabUnassigned');
+  const tabA = document.getElementById('utabAssigned');
+  const paneU = document.getElementById('unassigned-tray-pane');
+  const paneA = document.getElementById('assigned-tray-pane');
+  if (tab === 'unassigned') {
+    tabU && tabU.classList.add('active');
+    tabA && tabA.classList.remove('active');
+    paneU && (paneU.style.display = '');
+    paneA && (paneA.style.display = 'none');
+  } else {
+    tabA && tabA.classList.add('active');
+    tabU && tabU.classList.remove('active');
+    paneU && (paneU.style.display = 'none');
+    paneA && (paneA.style.display = '');
+  }
+}
+
+async function loadUnassignedTray() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  if (window._workspacesReady) await window._workspacesReady;
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch('/api/inbox/unassigned?uid=' + uid),
+      fetch('/api/inbox/assigned-recent?uid=' + uid)
+    ]);
+    const d1 = await r1.json();
+    const d2 = await r2.json();
+    const newU = d1.files || [];
+    const newA = d2.files || [];
+    const sig = JSON.stringify({ u: newU.map(f => f.id), a: newA.map(f => f.id) });
+    if (sig !== _unassignedSig) {
+      _unassignedSig = sig;
+      _unassignedData = newU;
+      _assignedData = newA;
+      const countEl = document.getElementById('utabUnassignedCount');
+      if (countEl) countEl.textContent = newU.length;
+      renderUnassignedFiles();
+      renderAssignedFiles();
+    }
+    _updateUnassignedSidebarBadge(newU.length);
+    console.log('[unassigned-tray] loaded:', newU.length, '未振り分け,', newA.length, '振り分け済み');
+  } catch(e) { console.warn('loadUnassignedTray error:', e); }
+}
+
+async function updateUnassignedBadge() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/inbox/unassigned?uid=' + uid);
+    const d = await r.json();
+    _updateUnassignedSidebarBadge((d.files || []).length);
+  } catch(e) { /* silent */ }
+}
+
+function _updateUnassignedSidebarBadge(count) {
+  const badge = document.getElementById('unassignedSidebarBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function startUnassignedTrayPolling() {
+  if (_unassignedTrayInterval) clearInterval(_unassignedTrayInterval);
+  _unassignedTrayInterval = setInterval(loadUnassignedTray, 60000);
+  console.log('[unassigned-tray] polling started (60s)');
+}
+
+function stopUnassignedTrayPolling() {
+  if (_unassignedTrayInterval) {
+    clearInterval(_unassignedTrayInterval);
+    _unassignedTrayInterval = null;
+  }
+}
+
 // Dropbox OAuth callback (?dropbox=connected) の処理
 if (new URLSearchParams(location.search).get('dropbox') === 'connected') {
   window.history.replaceState({}, '', '/');
@@ -5320,6 +5634,19 @@ const _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
   if (typeof _origSwitchTab === 'function') _origSwitchTab(tab);
   if (tab === 'auto-intake') loadAutoIntakeSettings();
+};
+
+// v2.3.5: 未振り分けトレイのタブ切替ハンドラ
+const _origSwitchTab_v235 = window.switchTab;
+window.switchTab = function(tab) {
+  if (typeof _origSwitchTab_v235 === 'function') _origSwitchTab_v235(tab);
+  if (tab === 'unassigned-tray') {
+    document.getElementById('navUnassignedTray')?.classList.add('active');
+    loadUnassignedTray();
+    startUnassignedTrayPolling();
+  } else {
+    stopUnassignedTrayPolling();
+  }
 };
 
 // ログイン後に自動取り込み関連を初期化（Firebase onAuthStateChanged の後）
@@ -6008,6 +6335,10 @@ window.addEventListener('DOMContentLoaded', () => {
       loadInboxTray();
       setupAutoIntakeMenuItem();
       startInboxPolling();
+      // v2.3.5: 未振り分けメニュー + バッジ初期化
+      const navUT = document.getElementById('navUnassignedTray');
+      if (navUT) navUT.style.display = '';
+      updateUnassignedBadge();
       // 既に卒業済みのユーザーはlocalStorageフラグだけ立てる（モーダルは出さない）
       fetchGraduationStatus().then(grad => {
         const uid = window._firebaseUser?.uid || '';
