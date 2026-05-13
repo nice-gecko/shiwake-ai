@@ -2465,7 +2465,7 @@ const server = http.createServer(async (req, res) => {
         // 対象ファイルの所有確認&取得(自uid所有 + まだ未振り分けのもののみ)
         const ids = file_ids.slice(0, 100);
         const files = await supabaseQuery(
-          `/inbox_files?id=in.(${ids.join(',')})&uid=eq.${uid}&workspace_id=is.null&select=id,sender,subject`
+          `/inbox_files?id=in.(${ids.join(',')})&uid=eq.${uid}&workspace_id=is.null&select=id,sender,subject,source`
         );
         if (!files || files.length === 0) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -2484,7 +2484,8 @@ const server = http.createServer(async (req, res) => {
           workspace_id,
           from_address: f.sender || null,
           domain: f.sender ? (f.sender.split('@')[1] || null) : null,
-          subject: f.subject || null
+          subject: f.subject || null,
+          source: f.source || 'email'
         }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ updated: matchedIds.length, candidates }));
@@ -2507,7 +2508,7 @@ const server = http.createServer(async (req, res) => {
         const ids = file_ids.slice(0, 100);
         const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
         const files = await supabaseQuery(
-          `/inbox_files?id=in.(${ids.join(',')})&uid=eq.${uid}&workspace_id=not.is.null&created_at=gte.${since}&select=id,sender,subject`
+          `/inbox_files?id=in.(${ids.join(',')})&uid=eq.${uid}&workspace_id=not.is.null&created_at=gte.${since}&select=id,sender,subject,source`
         );
         if (!files || files.length === 0) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -2525,10 +2526,133 @@ const server = http.createServer(async (req, res) => {
           workspace_id,
           from_address: f.sender || null,
           domain: f.sender ? (f.sender.split('@')[1] || null) : null,
-          subject: f.subject || null
+          subject: f.subject || null,
+          source: f.source || 'email'
         }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ updated: matchedIds.length, candidates }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/inbox/extract-rule-candidates → 振り分け候補からルール候補をAI抽出
+  if (req.method === 'POST' && reqPath === '/api/inbox/extract-rule-candidates') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, candidates } = JSON.parse(body || '{}');
+        if (!uid || !Array.isArray(candidates) || candidates.length === 0) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid, candidates required' })); return;
+        }
+        // ワークスペース名を取得
+        const wsIds = [...new Set(candidates.map(c => c.workspace_id).filter(Boolean))];
+        const wsMap = {};
+        if (wsIds.length > 0) {
+          const wsList = await supabaseQuery(
+            `/workspaces?id=in.(${wsIds.join(',')})&owner_uid=eq.${uid}&select=id,name`
+          );
+          if (Array.isArray(wsList)) wsList.forEach(w => { wsMap[w.id] = w.name; });
+        }
+        const apiKey = process.env.ANTHROPIC_API_KEY || '';
+        // 各候補のキーワードをHaikuで並列抽出
+        const rules = await Promise.all(candidates.slice(0, 20).map(async c => {
+          const fromAddress = c.from_address || null;
+          const fromAddressRule = fromAddress && /^\S+@\S+\.\S+$/.test(fromAddress) ? fromAddress : null;
+          const domainRule = fromAddress && fromAddress.includes('@') ? (fromAddress.split('@')[1] || null) : null;
+          let keywordRules = [];
+          if (c.subject && apiKey) {
+            try {
+              const hRes = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+                body: JSON.stringify({
+                  model: 'claude-haiku-4-5-20251001',
+                  max_tokens: 100,
+                  messages: [{ role: 'user', content: `この件名から、メール振り分けルールに使える特徴的なキーワードを2〜4個、JSON配列で返してください。一般的すぎる語(請求書、領収書、ご連絡等)は除外。\n件名: ${c.subject}\n\nJSON配列のみ返答:` }]
+                })
+              });
+              const hData = await hRes.json();
+              const raw = (hData.content?.[0]?.text || '').trim();
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                keywordRules = parsed.filter(k => typeof k === 'string' && k.length > 0).slice(0, 4);
+              }
+            } catch(e) { keywordRules = []; }
+          }
+          return {
+            file_id: c.file_id,
+            workspace_id: c.workspace_id,
+            workspace_name: wsMap[c.workspace_id] || c.workspace_id || '',
+            from_address_rule: fromAddressRule,
+            domain_rule: domainRule,
+            keyword_rules: keywordRules,
+            source: c.source || 'email'
+          };
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ rules }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/inbox/save-rules → 承認されたルールをワークスペースに保存
+  if (req.method === 'POST' && reqPath === '/api/inbox/save-rules') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, rules } = JSON.parse(body || '{}');
+        if (!uid || !Array.isArray(rules) || rules.length === 0) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid, rules required' })); return;
+        }
+        // workspace_id ごとにグループ化
+        const byWs = {};
+        for (const r of rules) {
+          if (!r.workspace_id || !r.type || !r.value) continue;
+          if (!byWs[r.workspace_id]) byWs[r.workspace_id] = { from_address: [], domain: [], keyword: [] };
+          if (r.type === 'from_address') byWs[r.workspace_id].from_address.push(r.value);
+          else if (r.type === 'domain') byWs[r.workspace_id].domain.push(r.value);
+          else if (r.type === 'keyword') byWs[r.workspace_id].keyword.push(r.value);
+        }
+        let saved = 0, skipped = 0;
+        for (const [wsId, additions] of Object.entries(byWs)) {
+          const wsList = await supabaseQuery(
+            `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id,client_email_addresses,client_email_domains,subject_keywords`
+          );
+          if (!wsList || wsList.length === 0) continue;
+          const current = wsList[0];
+          const patch = {};
+          if (additions.from_address.length > 0) {
+            const existing = current.client_email_addresses || [];
+            const newVals = additions.from_address.filter(v => !existing.includes(v));
+            skipped += additions.from_address.length - newVals.length;
+            saved += newVals.length;
+            if (newVals.length > 0) patch.client_email_addresses = [...existing, ...newVals];
+          }
+          if (additions.domain.length > 0) {
+            const existing = current.client_email_domains || [];
+            const newVals = additions.domain.filter(v => !existing.includes(v));
+            skipped += additions.domain.length - newVals.length;
+            saved += newVals.length;
+            if (newVals.length > 0) patch.client_email_domains = [...existing, ...newVals];
+          }
+          if (additions.keyword.length > 0) {
+            const existing = current.subject_keywords || [];
+            const newVals = additions.keyword.filter(v => !existing.includes(v));
+            skipped += additions.keyword.length - newVals.length;
+            saved += newVals.length;
+            if (newVals.length > 0) patch.subject_keywords = [...existing, ...newVals];
+          }
+          if (Object.keys(patch).length > 0) {
+            patch.updated_at = new Date().toISOString();
+            await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', patch);
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ saved, skipped_duplicates: skipped }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;

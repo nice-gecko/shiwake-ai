@@ -938,6 +938,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .rcb-btn{padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;font-family:inherit;}
 .rcb-btn.primary{background:#185FA5;color:#fff;border:none;}
 .rcb-btn.secondary{background:#fff;color:#555;border:1px solid #ccc;}
+.rule-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:700;align-items:flex-start;justify-content:center;padding:24px 16px 40px;overflow-y:auto;}
+.rule-modal-overlay.show{display:flex;}
+.rule-modal{background:#fff;border-radius:14px;min-width:320px;max-width:540px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.18);}
+.rule-modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 0;}
+.rule-modal-title{font-size:15px;font-weight:700;color:#1a1a1a;}
+.rule-modal-close{background:none;border:none;font-size:20px;color:#888;cursor:pointer;padding:0;line-height:1;}
+.rule-modal-desc{font-size:12px;color:#888;padding:6px 20px 14px;line-height:1.6;}
+.rule-modal-body{max-height:60vh;overflow-y:auto;padding:0 20px;}
+.rule-section{border:1px solid #e8e7e0;border-radius:9px;padding:12px 14px;margin-bottom:10px;}
+.rule-section-head{font-size:12px;font-weight:600;color:#555;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.rule-section-ws{font-size:11px;color:#1D9E75;font-weight:600;margin-left:auto;}
+.rule-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #f2ede2;}
+.rule-row:first-of-type{border-top:none;}
+.rule-row input[type=checkbox]{flex-shrink:0;width:14px;height:14px;cursor:pointer;accent-color:#185FA5;}
+.rule-row-label{font-size:11px;color:#888;flex-shrink:0;min-width:90px;}
+.rule-row-value{font-size:12px;color:#222;font-family:monospace;word-break:break-all;}
+.rule-modal-footer{display:flex;gap:8px;padding:14px 20px 18px;}
+.rule-modal-save{flex:1;padding:9px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
+.rule-modal-save:disabled{opacity:0.5;cursor:not-allowed;}
+.rule-modal-cancel{flex:0 0 auto;padding:9px 16px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#555;cursor:pointer;}
+.rule-modal-loading{text-align:center;padding:40px 20px;font-size:13px;color:#888;}
 .ws-picker-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:600;align-items:center;justify-content:center;}
 .ws-picker-overlay.show{display:flex;}
 .ws-picker-inner{background:#fff;border-radius:14px;padding:24px;min-width:280px;max-width:360px;width:90%;}
@@ -5698,8 +5719,124 @@ function dismissRuleCandidates() {
   updateRuleCandidateBanner();
 }
 
-function reviewRuleCandidates() {
-  alert('この機能は Group 4 で実装予定です。');
+let _ruleModalData = [];
+
+async function reviewRuleCandidates() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid || _pendingRuleCandidates.length === 0) return;
+  const overlay = document.getElementById('ruleModalOverlay');
+  const body = document.getElementById('ruleModalBody');
+  const saveBtn = document.getElementById('ruleModalSaveBtn');
+  if (!overlay) return;
+  body.innerHTML = '<div class="rule-modal-loading">AIが候補を抽出中...</div>';
+  if (saveBtn) saveBtn.disabled = true;
+  overlay.classList.add('show');
+  try {
+    const r = await fetch('/api/inbox/extract-rule-candidates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, candidates: _pendingRuleCandidates })
+    });
+    if (!r.ok) throw new Error('extraction failed');
+    const data = await r.json();
+    _ruleModalData = data.rules || [];
+    renderRuleModal(_ruleModalData);
+    if (saveBtn) saveBtn.disabled = false;
+  } catch(e) {
+    body.innerHTML = '<div class="rule-modal-loading" style="color:#dc2626;">読み込みに失敗しました</div>';
+  }
+}
+
+function renderRuleModal(rules) {
+  const body = document.getElementById('ruleModalBody');
+  if (!body) return;
+  const sections = rules.map((r, i) => {
+    const rows = [];
+    if (r.from_address_rule) rows.push(`
+      <div class="rule-row">
+        <input type="checkbox" id="rcb-${i}-from" checked>
+        <span class="rule-row-label">メールアドレス</span>
+        <span class="rule-row-value">${escapeHtml(r.from_address_rule)}</span>
+      </div>`);
+    if (r.domain_rule) rows.push(`
+      <div class="rule-row">
+        <input type="checkbox" id="rcb-${i}-domain">
+        <span class="rule-row-label">ドメイン</span>
+        <span class="rule-row-value">${escapeHtml(r.domain_rule)}</span>
+      </div>`);
+    (r.keyword_rules || []).forEach((kw, ki) => {
+      rows.push(`
+      <div class="rule-row">
+        <input type="checkbox" id="rcb-${i}-kw-${ki}">
+        <span class="rule-row-label">件名キーワード</span>
+        <span class="rule-row-value">${escapeHtml(kw)}</span>
+      </div>`);
+    });
+    if (rows.length === 0) return '';
+    const senderLabel = r.from_address_rule || r.domain_rule || '不明な送信元';
+    return `
+    <div class="rule-section">
+      <div class="rule-section-head">
+        <span>${escapeHtml(senderLabel)}</span>
+        <span class="rule-section-ws">${escapeHtml(r.workspace_name || r.workspace_id || '')}</span>
+      </div>
+      ${rows.join('')}
+    </div>`;
+  }).filter(Boolean).join('');
+  body.innerHTML = sections || '<div class="rule-modal-loading">候補がありません</div>';
+}
+
+function closeRuleModal() {
+  const overlay = document.getElementById('ruleModalOverlay');
+  if (overlay) overlay.classList.remove('show');
+}
+
+function ruleModalOverlayClick(e) {
+  if (e.target === document.getElementById('ruleModalOverlay')) closeRuleModal();
+}
+
+async function saveSelectedRules() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  const saveBtn = document.getElementById('ruleModalSaveBtn');
+  const rules = [];
+  _ruleModalData.forEach((r, i) => {
+    if (r.from_address_rule) {
+      const cb = document.getElementById(`rcb-${i}-from`);
+      if (cb?.checked) rules.push({ workspace_id: r.workspace_id, type: 'from_address', value: r.from_address_rule });
+    }
+    if (r.domain_rule) {
+      const cb = document.getElementById(`rcb-${i}-domain`);
+      if (cb?.checked) rules.push({ workspace_id: r.workspace_id, type: 'domain', value: r.domain_rule });
+    }
+    (r.keyword_rules || []).forEach((kw, ki) => {
+      const cb = document.getElementById(`rcb-${i}-kw-${ki}`);
+      if (cb?.checked) rules.push({ workspace_id: r.workspace_id, type: 'keyword', value: kw });
+    });
+  });
+  if (rules.length === 0) {
+    closeRuleModal();
+    _pendingRuleCandidates = [];
+    updateRuleCandidateBanner();
+    return;
+  }
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    const r = await fetch('/api/inbox/save-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, rules })
+    });
+    const data = await r.json();
+    closeRuleModal();
+    _pendingRuleCandidates = [];
+    updateRuleCandidateBanner();
+    const skipMsg = data.skipped_duplicates > 0 ? `（重複 ${data.skipped_duplicates}件スキップ）` : '';
+    showToast(`${data.saved}件のルールを保存しました${skipMsg}`);
+  } catch(e) {
+    showToast('保存に失敗しました');
+    if (saveBtn) saveBtn.disabled = false;
+  }
 }
 
 function switchUnassignedTab(tab) {
@@ -6535,6 +6672,24 @@ window.addEventListener('DOMContentLoaded', () => {
     <div class="ws-picker-title" id="wsPickerTitle">振り分け先を選択</div>
     <div class="ws-picker-list" id="wsPickerList"></div>
     <button class="ws-picker-cancel" onclick="closeWsPicker()">キャンセル</button>
+  </div>
+</div>
+
+<!-- ===== ルール承認モーダル ===== -->
+<div id="ruleModalOverlay" class="rule-modal-overlay" onclick="ruleModalOverlayClick(event)">
+  <div class="rule-modal" onclick="event.stopPropagation()">
+    <div class="rule-modal-header">
+      <span class="rule-modal-title">振り分けルール候補</span>
+      <button class="rule-modal-close" onclick="closeRuleModal()">×</button>
+    </div>
+    <p class="rule-modal-desc">チェックを入れたルールを保存すると、次回から自動で振り分けられます。</p>
+    <div class="rule-modal-body" id="ruleModalBody">
+      <div class="rule-modal-loading">読み込み中...</div>
+    </div>
+    <div class="rule-modal-footer">
+      <button class="rule-modal-cancel" onclick="closeRuleModal()">キャンセル</button>
+      <button class="rule-modal-save" id="ruleModalSaveBtn" onclick="saveSelectedRules()" disabled>選択したルールを保存</button>
+    </div>
   </div>
 </div>
 
