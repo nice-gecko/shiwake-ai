@@ -584,6 +584,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .mobile-header-catch{font-size:11px;font-weight:500;color:#555;line-height:1.45;}
 
 /* レスポンシブ */
+@media(min-width:641px){.sp-only{display:none !important;}}
 @media(max-width:640px){
   .sp-hide{display:none !important;}
   .mobile-header{display:block;}
@@ -615,6 +616,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .scan-footer-btn.cancel{background:#333;color:#aaa;}
 .scan-footer-btn.skip{background:#555;color:#fff;}
 .scan-footer-btn.apply{background:#185FA5;color:#fff;}
+.scan-footer-btn.sendall{background:#252525;color:#888;}
+.scan-footer-btn.continue-act{background:#2d4f7c;color:#fff;}
 
 /* スマホ撮影モード: 行き先トグル */
 .scan-dest-area{display:none;padding:7px 16px 5px;background:#111;text-align:center;flex-shrink:0;}
@@ -1741,7 +1744,7 @@ function updateFabBadge() {
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="11" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="8" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
       仕訳処理
     </div>
-    <div class="sidebar-nav-item sp-hide" onclick="switchTab('scan')">
+    <div class="sidebar-nav-item sp-only" onclick="switchTab('scan')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>
       スキャン
     </div>
@@ -2518,13 +2521,6 @@ function updateFabBadge() {
     <span class="scan-modal-title">パース補正</span>
     <button class="scan-modal-close" onclick="closeScanModal()">×</button>
   </div>
-  <!-- 行き先トグル: @media(max-width:640px) のみ表示 -->
-  <div class="scan-dest-area" id="scanDestArea">
-    <div class="scan-dest-toggle">
-      <button class="scan-dest-btn active" id="scanDestShiwake" onclick="setScanDest('shiwake')">仕訳に送る</button>
-      <button class="scan-dest-btn" id="scanDestStock" onclick="setScanDest('stock')">ためる</button>
-    </div>
-  </div>
   <!-- スタックサムネ: 「ためる」OK後に表示 -->
   <div class="scan-stack-thumbs-wrap" id="scanStackThumbsWrap" style="display:none;">
     <div class="scan-stack-thumbs" id="scanStackThumbs"></div>
@@ -2543,6 +2539,13 @@ function updateFabBadge() {
     </div>
   </div>
   <div class="scan-persp-hint" id="scanPerspHint">四隅・四辺のハンドルをドラッグして領収書の枠に合わせてください</div>
+  <!-- 行き先トグル: @media(max-width:640px) のみ表示 / hint とフッターの間 -->
+  <div class="scan-dest-area" id="scanDestArea">
+    <div class="scan-dest-toggle">
+      <button class="scan-dest-btn active" id="scanDestShiwake" onclick="setScanDest('shiwake')">仕訳に送る</button>
+      <button class="scan-dest-btn" id="scanDestStock" onclick="setScanDest('stock')">ためる</button>
+    </div>
+  </div>
   <!-- 補正フッター -->
   <div class="scan-modal-footer" id="scanModalFooterCorrect">
     <button class="scan-footer-btn cancel" onclick="retakeScan()">撮り直し</button>
@@ -2551,8 +2554,8 @@ function updateFabBadge() {
   </div>
   <!-- スタックフッター: 「ためる」OK後に表示 -->
   <div class="scan-modal-footer" id="scanModalFooterStack" style="display:none;">
-    <button class="scan-footer-btn cancel" onclick="continueScan()">続けて撮る</button>
-    <button class="scan-footer-btn apply" id="scanSendAllBtn" onclick="sendAllStack()">全部送信(0件)</button>
+    <button class="scan-footer-btn sendall" id="scanSendAllBtn" onclick="sendAllStack()">全部送信(0件)</button>
+    <button class="scan-footer-btn continue-act" onclick="continueScan()">続けて撮る</button>
   </div>
 </div>
 </div>
