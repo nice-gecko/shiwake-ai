@@ -1490,6 +1490,8 @@ function updateFabBadge() {
       } catch(e) { console.warn('incentive init error:', e); }
       updateAiStats();
       loadTrustMetrics();
+      // v2.3.5: navAutoIntake / navUnassignedTray の表示を同一パスで更新
+      if (typeof setupAutoIntakeMenuItem === 'function') setupAutoIntakeMenuItem();
       // 初回ログイン時にチュートリアル自動表示
       try {
         const tutorialKey = 'shiwake_tutorial_shown_v1';
