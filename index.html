@@ -723,6 +723,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 @keyframes masterPlusPop{0%{opacity:0;transform:translate(-50%, -10px) scale(0.6);}20%{opacity:1;transform:translate(-50%, -28px) scale(1.1);}80%{opacity:1;transform:translate(-50%, -50px) scale(1);}100%{opacity:0;transform:translate(-50%, -70px) scale(0.9);}}
 .master-plus-pop{position:absolute;top:50%;left:50%;font-size:22px;font-weight:800;color:#1ABE7E;pointer-events:none;animation:masterPlusPop 1.2s ease forwards;text-shadow:0 2px 8px rgba(26,190,126,0.4);z-index:10;}
 .dash-card{position:relative;}
+/* フローティングカウントピル */
+.floating-count-pill{position:fixed;top:12px;right:12px;z-index:50;background:var(--color-background-primary,#fff);border:0.5px solid var(--color-border-secondary,#e0dfd8);border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,0.08);padding:8px 14px;display:flex;align-items:center;gap:10px;opacity:0;pointer-events:none;transition:opacity 0.15s ease;}
+.floating-count-pill.visible{opacity:1;pointer-events:auto;}
+.fcp-section{display:flex;align-items:center;gap:5px;}
+.fcp-label{font-size:10px;color:var(--color-text-secondary,#888);}
+.fcp-value{font-size:14px;font-weight:500;color:#185FA5;}
+.fcp-badge{font-size:9px;background:var(--color-background-success,#E6F9F1);color:var(--color-text-success,#0F6E56);padding:1px 5px;border-radius:3px;}
+.fcp-divider{width:0.5px;height:14px;background:var(--color-border-tertiary,#e8e7e0);}
+.fcp-reset-btn{background:none;border:none;cursor:pointer;color:#bbb;font-size:13px;padding:0 0 0 3px;line-height:1;vertical-align:middle;}
+.fcp-reset-btn:hover{color:#666;}
+@keyframes fcpPop{0%{transform:scale(1);}40%{transform:scale(1.2);color:#1D9E75;}100%{transform:scale(1);}}
+.fcp-value.fcpAnimate{animation:fcpPop 0.35s ease;}
+@media(max-width:480px){.floating-count-pill{padding:6px 10px;gap:7px;}.fcp-label{display:none;}.fcp-value{font-size:13px;}}
 
 /* 信頼度ダッシュボード */
 #trustDashboard{margin:0 0 12px;}
@@ -3200,6 +3213,7 @@ function updateAiStats(){
     const elPlanBadge = document.getElementById('userPlanBadge');
     if(elPlanBadge) elPlanBadge.textContent = window._userPlanName || '無料トライアル';
   }
+  window._updatePillValues?.();
 }
 
 function _popIncentiveValue(id){
@@ -3208,6 +3222,7 @@ function _popIncentiveValue(id){
   el.classList.remove('pop');
   void el.offsetWidth;
   el.classList.add('pop');
+  if(window._isPillVisible && window._isPillVisible()) window._animatePillLeft?.();
 }
 
 function addMonthlyCount(n){
@@ -3233,6 +3248,9 @@ function addMonthlyCount(n){
         };
         _popIncentiveValue('incTotal');
         _popIncentiveValue('incUnredeemed');
+      } else {
+        // 一般ユーザー：cumulative count pop
+        _popIncentiveValue('statProcessed');
       }
       updateAiStats();
     }).catch(e=>console.warn('Supabase count sync failed:', e));
@@ -4158,6 +4176,7 @@ function flashMasterCount(n){
     setTimeout(()=>pop.remove(), 1200);
   }
   setTimeout(()=>el.classList.remove('master-flash'), 800);
+  if(window._isPillVisible && window._isPillVisible()) window._animatePillRight?.(n);
 }
 
 async function approveGroup(indices){
@@ -6811,6 +6830,109 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, 1000);
 });
+
+// ===== v2.4.x: フローティングカウントピル制御 =====
+(function(){
+  let _leftInView = true;
+  let _rightInView = true;
+
+  function _pillVisible(){
+    const pill = document.getElementById('floatingCountPill');
+    return !!(pill && pill.classList.contains('visible'));
+  }
+  window._isPillVisible = _pillVisible;
+
+  function _updatePillVisibility(){
+    const pill = document.getElementById('floatingCountPill');
+    if(!pill) return;
+    if(!_leftInView && !_rightInView){
+      pill.classList.add('visible');
+      _doUpdatePillValues();
+    } else {
+      pill.classList.remove('visible');
+    }
+  }
+
+  function _doUpdatePillValues(){
+    const leftEl = document.getElementById('fcpLeftValue');
+    const leftLabel = document.getElementById('fcpLeftLabel');
+    const rightEl = document.getElementById('fcpRightValue');
+    if(!leftEl || !rightEl) return;
+    if(typeof _incentiveState !== 'undefined' && _incentiveState.is_agency){
+      if(leftLabel) leftLabel.textContent = '対象';
+      leftEl.textContent = (_incentiveState.unredeemed||0).toLocaleString();
+    } else {
+      if(leftLabel) leftLabel.textContent = '累計';
+      const total = typeof window._userTotalCount === 'number' ? window._userTotalCount : 0;
+      leftEl.textContent = total.toLocaleString();
+    }
+    const mc = typeof masterData !== 'undefined' ? Object.keys(masterData||{}).length : 0;
+    rightEl.textContent = mc.toLocaleString();
+  }
+  window._updatePillValues = _doUpdatePillValues;
+
+  function _animatePillValue(elId, badgeId, count){
+    const el = document.getElementById(elId);
+    if(!el) return;
+    _doUpdatePillValues();
+    el.classList.remove('fcpAnimate');
+    void el.offsetWidth;
+    el.classList.add('fcpAnimate');
+    const badge = document.getElementById(badgeId);
+    if(badge){
+      badge.textContent = '+' + (count != null ? count : 1);
+      badge.style.display = '';
+      clearTimeout(badge._hideTimer);
+      badge._hideTimer = setTimeout(function(){ badge.style.display='none'; }, 1500);
+    }
+  }
+  window._animatePillLeft = function(){ _animatePillValue('fcpLeftValue','fcpLeftBadge',1); };
+  window._animatePillRight = function(n){ _animatePillValue('fcpRightValue','fcpRightBadge',n); };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const dashLeft = document.querySelector('.dashboard-left');
+    const dashRight = document.querySelector('.dashboard-grid > .dash-card');
+    if(dashLeft && dashRight){
+      const observer = new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          if(entry.target === dashLeft) _leftInView = entry.isIntersecting;
+          else _rightInView = entry.isIntersecting;
+        });
+        _updatePillVisibility();
+      }, { threshold: 0.01 });
+      observer.observe(dashLeft);
+      observer.observe(dashRight);
+    }
+
+    // リセットボタン
+    const resetBtn = document.getElementById('fcpResetBtn');
+    if(resetBtn){
+      resetBtn.addEventListener('click', async function(){
+        if(!confirm('累計処理数をリセットしますか？(取引先マスタはリセットされません)')) return;
+        const uid = window._firebaseUser?.uid;
+        if(!uid){ showToast('ログインが必要です'); return; }
+        try {
+          const res = await fetch('/api/user/reset-count', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({uid})
+          });
+          const data = await res.json();
+          if(data.success){
+            window._userTotalCount = 0;
+            const monthKey = new Date().toISOString().slice(0,7);
+            localStorage.setItem('shiwake_month_count_'+monthKey, '0');
+            updateAiStats();
+          } else {
+            showToast('リセットに失敗しました');
+          }
+        } catch(e){
+          showToast('リセットエラー: '+e.message);
+        }
+      });
+    }
+  });
+})();
 </script>
 <script type="module">
 (async()=>{
@@ -7200,5 +7322,20 @@ async function submitBugReport() {
 }
 </script>
 
+<!-- v2.4.x: フローティングカウントピル -->
+<div id="floatingCountPill" class="floating-count-pill">
+  <div class="fcp-section">
+    <span class="fcp-label" id="fcpLeftLabel">累計</span>
+    <span class="fcp-value" id="fcpLeftValue">0</span>
+    <span class="fcp-badge" id="fcpLeftBadge" style="display:none;">+1</span>
+    <button class="fcp-reset-btn" id="fcpResetBtn" title="累計処理数をリセット">↻</button>
+  </div>
+  <div class="fcp-divider"></div>
+  <div class="fcp-section">
+    <span class="fcp-label">マスタ</span>
+    <span class="fcp-value" id="fcpRightValue">0</span>
+    <span class="fcp-badge" id="fcpRightBadge" style="display:none;">+1</span>
+  </div>
+</div>
 </body>
 </html>

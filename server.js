@@ -1840,6 +1840,24 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /api/user/reset-count → 累計処理数(monthly_count)をリセット
+  if (req.method === 'POST' && req.url === '/api/user/reset-count') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { monthly_count: 0 });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, monthly_count: 0 }));
+      } catch(e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // ===== 代理店API =====
 
   // POST /api/affiliate/apply → 代理店申込
