@@ -115,6 +115,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-rule-add-input:focus{border-color:#185FA5;}
 .ws-rule-add-btn{padding:5px 10px;background:#185FA5;color:#fff;border:none;border-radius:5px;font-size:12px;cursor:pointer;white-space:nowrap;}
 .ws-rule-add-btn:hover{background:#1450a3;}
+/* 自動エクスポート設定 */
+.ae-toggle-row{align-items:center;}
+.ae-toggle-label{display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;}
+.ae-toggle-label input[type=checkbox]{width:16px;height:16px;accent-color:#185FA5;cursor:pointer;flex-shrink:0;}
+.ae-disabled{opacity:0.45;pointer-events:none;}
+.ws-form-row select{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;outline:none;background:#fff;box-sizing:border-box;}
+.ws-form-row select:focus{border-color:#185FA5;}
+.ae-radio-group,.ae-check-group{display:flex;flex-direction:column;gap:6px;margin-top:4px;}
+.ae-radio-label,.ae-check-label{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:#444;cursor:pointer;line-height:1.4;}
+.ae-radio-label input,.ae-check-label input{margin-top:2px;accent-color:#185FA5;flex-shrink:0;}
 /* WS使用状況バー */
 .ws-usage-bar-wrap{margin-bottom:16px;padding:12px 14px;background:#faf9f6;border:1px solid #e8e7e0;border-radius:10px;}
 .ws-usage-bar-label{font-size:12px;color:#555;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;}
@@ -6416,12 +6426,16 @@ async function openWsEdit(wsId) {
   const uid = window._firebaseUser?.uid;
   if (!uid) return;
   try {
-    const r = await fetch('/api/workspaces/' + wsId + '?uid=' + encodeURIComponent(uid));
-    const ws = await r.json();
+    const [wsRes, aeRes] = await Promise.all([
+      fetch('/api/workspaces/' + wsId + '?uid=' + encodeURIComponent(uid)),
+      fetch('/api/auto-export/settings?uid=' + encodeURIComponent(uid) + '&workspace_id=' + encodeURIComponent(wsId))
+    ]);
+    const ws = await wsRes.json();
+    const ae = await aeRes.json().catch(() => ({}));
     if (!ws.id) { body.innerHTML = '<div style="color:#e55;padding:20px;">読み込みに失敗しました</div>'; return; }
     const title = document.getElementById('wsEditTitle');
     if (title) title.textContent = `「${ws.name}」を編集`;
-    renderWsEditBody(ws);
+    renderWsEditBody(ws, ae);
   } catch(e) {
     body.innerHTML = '<div style="color:#e55;padding:20px;">読み込みに失敗しました</div>';
   }
@@ -6488,7 +6502,7 @@ function _refreshWsRuleList(type) {
   ).join('');
 }
 
-function renderWsEditBody(ws) {
+function renderWsEditBody(ws, ae = {}) {
   const body = document.getElementById('wsEditBody');
   if (!body) return;
   _wsEditEmails   = Array.isArray(ws.client_email_addresses) ? [...ws.client_email_addresses] : [];
@@ -6565,10 +6579,67 @@ function renderWsEditBody(ws) {
         <span>ステータス</span><span>${status}</span>
       </div>
     </div>
+    <div class="ws-rule-section">
+      <div class="ws-rule-section-title">自動エクスポート設定</div>
+      <div style="font-size:11px;color:#888;margin:0 0 10px;">承認済み仕訳がN件溜まったら、設定の出力先へ自動でCSVを送ります。デフォルトはOFFです。</div>
+      <div class="ws-form-row ae-toggle-row">
+        <label class="ae-toggle-label">
+          <input type="checkbox" id="wsAeEnabled" ${ae.auto_export_enabled ? 'checked' : ''} onchange="wsAeToggle(this.checked)">
+          <span>自動エクスポートを有効化</span>
+        </label>
+      </div>
+      <div id="wsAeSubWrap" class="${ae.auto_export_enabled ? '' : 'ae-disabled'}">
+        <div class="ws-form-row">
+          <label>何件溜まったら実行する?</label>
+          <input type="number" id="wsAeThreshold" min="1" max="10000" step="1" value="${ae.auto_export_threshold ?? 30}">
+          <div style="font-size:10px;color:#aaa;margin-top:2px;">未エクスポートの承認済み仕訳がこの件数に達したら実行されます</div>
+        </div>
+        <div class="ws-form-row">
+          <label>出力単位</label>
+          <div class="ae-radio-group">
+            <label class="ae-radio-label"><input type="radio" name="wsAeOutputUnit" value="per_workspace" ${(ae.auto_export_output_unit || 'per_workspace') === 'per_workspace' ? 'checked' : ''}> ワークスペースごとに別ファイル</label>
+            <label class="ae-radio-label"><input type="radio" name="wsAeOutputUnit" value="merged" ${ae.auto_export_output_unit === 'merged' ? 'checked' : ''}> 全ワークスペースを1ファイルにまとめる（WSラベル列付き）</label>
+          </div>
+        </div>
+        <div class="ws-form-row">
+          <label>どこに送る?（複数選択可、最低1つ）</label>
+          <div class="ae-check-group">
+            <label class="ae-check-label"><input type="checkbox" id="wsAeDestEmail" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || ['email']).includes('email') ? 'checked' : ''}> メール（ログインメールアドレスへ添付送信）</label>
+            <label class="ae-check-label"><input type="checkbox" id="wsAeDestCloud" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || []).includes('cloud') ? 'checked' : ''}> クラウド（Dropbox/GDriveのフォルダへ）</label>
+            <label class="ae-check-label"><input type="checkbox" id="wsAeDestLocal" onchange="wsAeCloudChange()" ${(ae.auto_export_destinations || []).includes('local') ? 'checked' : ''}> ローカル（アプリ内通知でダウンロードリンク表示）</label>
+          </div>
+        </div>
+        <div class="ws-form-row" id="wsAeCloudFolderRow" style="${(ae.auto_export_destinations || []).includes('cloud') ? '' : 'display:none;'}">
+          <label>クラウドの保存先フォルダ（空欄=自動取り込みフォルダの /exports/）</label>
+          <input type="text" id="wsAeCloudFolderPath" value="${escapeHtml(ae.auto_export_cloud_folder_path || '')}" placeholder="例: /経理/エクスポート/">
+        </div>
+        <div class="ws-form-row">
+          <label>会計ソフト形式</label>
+          <select id="wsAeFormat">
+            <option value="yayoi" ${(ae.auto_export_format || 'yayoi') === 'yayoi' ? 'selected' : ''}>弥生会計</option>
+            <option value="freee" ${ae.auto_export_format === 'freee' ? 'selected' : ''}>freee</option>
+            <option value="mf" ${ae.auto_export_format === 'mf' ? 'selected' : ''}>マネーフォワード</option>
+            <option value="obc" ${ae.auto_export_format === 'obc' ? 'selected' : ''}>勘定奉行</option>
+            <option value="generic" ${ae.auto_export_format === 'generic' ? 'selected' : ''}>汎用CSV</option>
+          </select>
+        </div>
+      </div>
+    </div>
     <div class="ws-form-btns">
       <button class="ws-form-btn-cancel" onclick="closeWsEdit()">キャンセル</button>
       <button class="ws-form-btn-submit" id="wsEditSubmitBtn" onclick="submitWsEdit()">保存</button>
     </div>`;
+}
+
+function wsAeToggle(enabled) {
+  const wrap = document.getElementById('wsAeSubWrap');
+  if (wrap) wrap.classList.toggle('ae-disabled', !enabled);
+}
+
+function wsAeCloudChange() {
+  const cloud = document.getElementById('wsAeDestCloud');
+  const row = document.getElementById('wsAeCloudFolderRow');
+  if (row) row.style.display = cloud?.checked ? '' : 'none';
 }
 
 function selectWsEditIcon(emoji) {
@@ -6628,6 +6699,11 @@ async function submitWsEdit() {
   const colorVal = document.getElementById('wsEditColor')?.value;
   const color = colorVal || null;
   const icon = document.getElementById('wsEditIcon')?.value || null;
+  // AE クライアントバリデーション
+  const aeThreshold = parseInt(document.getElementById('wsAeThreshold')?.value || '30', 10);
+  if (isNaN(aeThreshold) || aeThreshold < 1 || aeThreshold > 10000) { alert('件数は1〜10000の整数で入力してください'); return; }
+  const aeDests = ['email', 'cloud', 'local'].filter(d => document.getElementById('wsAeDest' + d[0].toUpperCase() + d.slice(1))?.checked);
+  if (aeDests.length === 0) { alert('出力先を最低1つ選択してください'); return; }
   const btn = document.getElementById('wsEditSubmitBtn');
   if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
   try {
@@ -6641,6 +6717,21 @@ async function submitWsEdit() {
     });
     const d = await r.json();
     if (!d.id) { alert(d.error || '保存に失敗しました'); return; }
+    // AE 設定 PATCH
+    const aeEnabled = document.getElementById('wsAeEnabled')?.checked ?? false;
+    const aeOutputUnit = document.querySelector('input[name="wsAeOutputUnit"]:checked')?.value || 'per_workspace';
+    const aeCloudFolder = document.getElementById('wsAeCloudFolderPath')?.value.trim() || null;
+    const aeFormat = document.getElementById('wsAeFormat')?.value || 'yayoi';
+    try {
+      const aeR = await fetch('/api/auto-export/settings', {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ uid, workspace_id: _wsEditId, enabled: aeEnabled, threshold: aeThreshold, output_unit: aeOutputUnit, destinations: aeDests, cloud_folder_path: aeCloudFolder, format: aeFormat })
+      });
+      const aeD = await aeR.json();
+      if (!aeD.ok) showToast('⚠️ 自動エクスポート設定の保存に失敗しました', 3000);
+    } catch(aeErr) {
+      showToast('⚠️ 自動エクスポート設定の保存に失敗しました', 3000);
+    }
     showToast('✓ 変更を保存しました', 2000);
     closeWsEdit();
     await loadWsManageList();
