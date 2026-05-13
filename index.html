@@ -6623,12 +6623,15 @@ function renderWsEditBody(ws, ae = {}) {
             <option value="generic" ${ae.auto_export_format === 'generic' ? 'selected' : ''}>汎用CSV</option>
           </select>
         </div>
-        <div class="ws-form-row" id="wsAeYayoiSplitRow" style="${(ae.auto_export_format || 'yayoi') === 'yayoi' ? '' : 'display:none;'}">
-          <label>弥生の分割設定</label>
-          <div style="font-size:11px;color:#888;margin:0 0 6px;">弥生会計の慣習に合わせ、貸方科目別に複数ファイルへ分割するか選べます</div>
+        <div id="wsAeYayoiSplitRow" style="margin-top:12px;background:#EBF4FD;border:1px solid #b8d4f0;border-radius:8px;padding:12px 14px;${(ae.auto_export_format || 'yayoi') === 'yayoi' ? '' : 'display:none;'}">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="font-size:15px;line-height:1;">⚙️</span>
+            <span style="font-size:13px;font-weight:500;color:#185FA5;">弥生会計の追加設定</span>
+          </div>
+          <div style="font-size:12px;color:#185FA5;margin-bottom:10px;">弥生は .txt 形式で出力します。貸方科目が複数ある場合の扱いを選んでください。</div>
           <div class="ae-radio-group">
-            <label class="ae-radio-label"><input type="radio" name="wsAeYayoiSplitMode" value="single" ${(ae.auto_export_yayoi_split_mode || 'single') === 'single' ? 'checked' : ''}> 単一ファイル(すべての仕訳を1ファイルに)</label>
-            <label class="ae-radio-label"><input type="radio" name="wsAeYayoiSplitMode" value="by_credit_account" ${ae.auto_export_yayoi_split_mode === 'by_credit_account' ? 'checked' : ''}> 貸方科目別に分割(現金/未払金/預金... ごとに別ファイル)</label>
+            <label class="ae-radio-label" style="color:#185FA5;"><input type="radio" name="wsAeYayoiSplitMode" value="single" ${(ae.auto_export_yayoi_split_mode || 'single') === 'single' ? 'checked' : ''}> 単一ファイル(すべての仕訳を1ファイルに)</label>
+            <label class="ae-radio-label" style="color:#185FA5;"><input type="radio" name="wsAeYayoiSplitMode" value="by_credit_account" ${ae.auto_export_yayoi_split_mode === 'by_credit_account' ? 'checked' : ''}> 貸方科目別に分割(現金/未払金/預金... ごとに別ファイル)</label>
           </div>
         </div>
       </div>
