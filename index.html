@@ -4165,6 +4165,34 @@ async function approveGroup(indices){
     } catch(e){ console.warn('autoLearn失敗:', e); }
   }
   syncSessionSave();
+  // === shiwake_records への永続保存 ===
+  const _uid=window._firebaseUser?.uid;
+  if(_uid){
+    const _wsId=window._currentWorkspaceId||null;
+    for(const i of indices){
+      if(deleted.has(i))continue;
+      const r=results[i];
+      try{
+        await fetch('/api/shiwake/approve',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            uid:_uid,workspace_id:_wsId,session_id:SESSION_ID,
+            record:{
+              shiwake_date:r.date,partner_name:r.title,
+              debit_account:r.debit,credit_account:r.credit,
+              tax_category:r.tax,amount:(parseInt((r.amount||'').replace(/[^\d]/g,''))||null),
+              memo:r.memo,invoice_number:r.invoice_number,
+              ai_proposed:r._aiProposed||null,
+              matched_master_key:r.masterKey||null,
+              master_hit_method:r.masterApplied?'partial':null,
+              source_file_name:r._sourceFileName||null
+            }
+          })
+        });
+      }catch(e){console.warn('shiwake record save error:',e);}
+    }
+  }
   // 同じ取引先の未承認カードにマスタを即時適用
   indices.forEach(i=>{
     if(deleted.has(i)) return;
@@ -4195,7 +4223,7 @@ function restoreGroup(indices){
   renderCards();updateBottom();
 }
 // グループ編集保存
-function saveGroupEdit(indices){
+async function saveGroupEdit(indices){
   indices.forEach(i=>{
     const eamt=document.getElementById('eamt'+i);
     const ed=document.getElementById('ed'+i);
@@ -4207,9 +4235,8 @@ function saveGroupEdit(indices){
     if(ec)results[i].credit=ec.value;
     if(et)results[i].tax=et.value;
     if(em)results[i].memo=em.value;
-    approved.add(i);
   });
-  renderCards();updateBottom();checkAllApproved();
+  await approveGroup(indices);
 }
 
 function showToast(msg, duration=2200){
