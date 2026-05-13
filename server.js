@@ -445,6 +445,9 @@ async function executeAutoExport(uid, workspaceId) {
     records = Array.isArray(records) ? records : [];
     if (records.length === 0) return;
 
+    // SELECT 時点の id を確定させ、後続 UPDATE の race condition を防ぐ
+    const recordIds = records.map(r => r.id);
+
     const recordCount = records.length;
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
     const timePart = now.toISOString().slice(11, 19).replace(/:/g, '');
@@ -546,21 +549,14 @@ async function executeAutoExport(uid, workspaceId) {
     const finalStatus = anySuccess ? 'success' : 'failed';
 
     // 成功した場合のみ exported_at を更新
-    if (anySuccess) {
+    // 必ず SELECT 時点で取得した recordIds に限定する（race condition 防止）
+    if (anySuccess && recordIds.length > 0) {
       const exportedAt = new Date().toISOString();
-      if (outputUnit === 'merged') {
-        await supabaseQuery(
-          `/shiwake_records?uid=eq.${uid}&exported_at=is.null`,
-          'PATCH',
-          { exported_at: exportedAt }
-        );
-      } else {
-        await supabaseQuery(
-          `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${workspaceId}&exported_at=is.null`,
-          'PATCH',
-          { exported_at: exportedAt }
-        );
-      }
+      await supabaseQuery(
+        `/shiwake_records?id=in.(${recordIds.join(',')})`,
+        'PATCH',
+        { exported_at: exportedAt }
+      );
     }
 
     await supabaseQuery(`/shiwake_exports?id=eq.${exportId}`, 'PATCH', {
