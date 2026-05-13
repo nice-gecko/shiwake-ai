@@ -1869,7 +1869,6 @@ function updateFabBadge() {
           <div class="incentive-header">
             <span class="incentive-title">⚡ 仕訳実績</span>
             <span id="wsBadge" class="ws-badge" style="display:none;"><span id="wsBadgeIcon">📁</span><span id="wsBadgeName">ワークスペース</span></span>
-            <span class="incentive-badge" id="userPlanBadge">無料トライアル</span>
           </div>
           <div class="ds-row">
             <div class="ds-main">
@@ -3230,8 +3229,6 @@ function updateAiStats(){
     const lastCount = parseInt(localStorage.getItem('shiwake_month_count_'+lastMonth)||'0');
     const elLM = document.getElementById('statLastMonth');
     if(elLM) elLM.textContent = lastCount.toLocaleString()+'枚';
-    const elPlanBadge = document.getElementById('userPlanBadge');
-    if(elPlanBadge) elPlanBadge.textContent = window._userPlanName || '無料トライアル';
   }
   window._updatePillValues?.();
 }
