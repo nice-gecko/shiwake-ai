@@ -295,6 +295,24 @@ async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
 // workspace_id を解決する（Group 3-B 共通ヘルパー）
 // - queryWsId 指定あり: owner_uid=uid で所有確認 → 他人のWSなら 403 エラー
 // - queryWsId 未指定: users.current_workspace_id を採用 → null なら null を返す(呼び出し側で 400)
+// 自動エクスポートトリガー判定(Group 2 で実行ロジックを追加する)
+async function checkAutoExportTrigger(uid, wsId) {
+  const wsList = await supabaseQuery(
+    `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=auto_export_enabled,auto_export_threshold`
+  );
+  const ws = wsList?.[0];
+  if (!ws || !ws.auto_export_enabled) {
+    return { unexported_count: 0, threshold: ws?.auto_export_threshold ?? 30, should_trigger: false };
+  }
+  const unexported = await supabaseQuery(
+    `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${wsId}&exported_at=is.null&select=id`
+  );
+  const unexported_count = Array.isArray(unexported) ? unexported.length : 0;
+  const threshold = ws.auto_export_threshold ?? 30;
+  // TODO(Group 2): should_trigger === true のときエクスポート実行ロジックをここで呼び出す
+  return { unexported_count, threshold, should_trigger: unexported_count >= threshold };
+}
+
 // ※ ensureDefaultWorkspace が /api/user/upsert(新規作成時)と /api/user(ログイン時フォールバック)で
 //   呼ばれるため、ログイン済みユーザーで current_workspace_id が null になることは通常ない
 async function resolveWorkspaceId(uid, queryWsId) {
@@ -3002,6 +3020,9 @@ const server = http.createServer(async (req, res) => {
         // 信頼度メトリクス再計算（非同期）
         recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error:', e.message));
 
+        // 自動エクスポートトリガー確認（非同期、失敗しても承認は成功）
+        checkAutoExportTrigger(uid, wsId).catch(e => console.warn('auto-export trigger check error:', e.message));
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
@@ -3072,6 +3093,108 @@ const server = http.createServer(async (req, res) => {
         last_calculated_at: m.last_calculated_at
       }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // ===== v2.4.0 Group 1: 自動エクスポート API =====
+
+  // GET /api/auto-export/settings?uid=xxx&workspace_id=yyy
+  if (req.method === 'GET' && reqPath === '/api/auto-export/settings') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    const workspaceId = params.get('workspace_id');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const wsId = await resolveWorkspaceId(uid, workspaceId);
+      if (!wsId) { res.writeHead(400); res.end(JSON.stringify({ error: 'workspace_id required' })); return; }
+      const wsList = await supabaseQuery(
+        `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id,auto_export_enabled,auto_export_threshold,auto_export_output_unit,auto_export_destinations,auto_export_cloud_folder_path,auto_export_format`
+      );
+      if (!wsList || wsList.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return; }
+      const ws = wsList[0];
+      // 未エクスポート件数
+      const unexported = await supabaseQuery(
+        `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${wsId}&exported_at=is.null&select=id`
+      );
+      const unexported_count = Array.isArray(unexported) ? unexported.length : 0;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ...ws, unexported_count }));
+    } catch(e) { handleWsError(e, res); }
+    return;
+  }
+
+  // PATCH /api/auto-export/settings
+  if (req.method === 'PATCH' && reqPath === '/api/auto-export/settings') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, enabled, threshold, output_unit, destinations, cloud_folder_path, format } = JSON.parse(body || '{}');
+        if (!uid || !workspace_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id required' })); return; }
+        try { await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
+        // バリデーション
+        const VALID_FORMATS = ['yayoi', 'freee', 'mf', 'obc', 'generic'];
+        const VALID_DESTS = ['email', 'cloud', 'local'];
+        if (threshold !== undefined && (!Number.isInteger(threshold) || threshold < 1 || threshold > 10000)) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'threshold は1〜10000の整数で指定してください' })); return;
+        }
+        if (destinations !== undefined) {
+          if (!Array.isArray(destinations) || destinations.length === 0 || destinations.some(d => !VALID_DESTS.includes(d))) {
+            res.writeHead(400); res.end(JSON.stringify({ error: 'destinations は ["email","cloud","local"] のサブセット(最低1個)' })); return;
+          }
+        }
+        if (format !== undefined && !VALID_FORMATS.includes(format)) {
+          res.writeHead(400); res.end(JSON.stringify({ error: `format は ${VALID_FORMATS.join('/')} のいずれか` })); return;
+        }
+        const patch = { updated_at: new Date().toISOString() };
+        if (enabled       !== undefined) patch.auto_export_enabled           = Boolean(enabled);
+        if (threshold     !== undefined) patch.auto_export_threshold          = threshold;
+        if (output_unit   !== undefined) patch.auto_export_output_unit        = output_unit;
+        if (destinations  !== undefined) patch.auto_export_destinations       = destinations;
+        if (cloud_folder_path !== undefined) patch.auto_export_cloud_folder_path = cloud_folder_path || null;
+        if (format        !== undefined) patch.auto_export_format             = format;
+        await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}`, 'PATCH', patch);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/auto-export/history?uid=xxx&workspace_id=yyy&limit=20
+  if (req.method === 'GET' && reqPath === '/api/auto-export/history') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    const workspaceId = params.get('workspace_id');
+    const limit = Math.min(parseInt(params.get('limit') || '20', 10), 100);
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      let q = `/shiwake_exports?uid=eq.${uid}&order=created_at.desc&limit=${limit}&select=*`;
+      if (workspaceId) {
+        try { await resolveWorkspaceId(uid, workspaceId); } catch(e) { handleWsError(e, res); return; }
+        q = `/shiwake_exports?uid=eq.${uid}&workspace_id=eq.${workspaceId}&order=created_at.desc&limit=${limit}&select=*`;
+      }
+      const rows = await supabaseQuery(q);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ exports: Array.isArray(rows) ? rows : [] }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // POST /api/auto-export/trigger-check (内部用、Group 2で本格利用)
+  if (req.method === 'POST' && reqPath === '/api/auto-export/trigger-check') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id } = JSON.parse(body || '{}');
+        if (!uid || !workspace_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id required' })); return; }
+        try { await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
+        const result = await checkAutoExportTrigger(uid, workspace_id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...result, triggered: false }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
     return;
   }
 
