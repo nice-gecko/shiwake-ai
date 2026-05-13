@@ -2822,6 +2822,15 @@ function closeScanModal(){
   // スタッククリア
   (window._scanStack||[]).forEach(item=>{ try{URL.revokeObjectURL(item.thumbUrl);}catch(e){} });
   window._scanStack=[];
+  // サムネDOMクリア
+  const _t=document.getElementById('scanStackThumbs'); if(_t) _t.innerHTML='';
+  // 送信ボタン状態リセット(次回開いた時のため)
+  const _sb=document.getElementById('scanSendAllBtn');
+  if(_sb){ _sb.disabled=false; _sb.textContent='全部送信(0件)'; }
+  // トグルを「仕訳に送る」にリセット(意図しない蓄積防止)
+  window._scanDest='shiwake';
+  const _ds=document.getElementById('scanDestShiwake'); if(_ds) _ds.className='scan-dest-btn active';
+  const _dk=document.getElementById('scanDestStock');   if(_dk) _dk.className='scan-dest-btn';
   _setScanModalState('correct');
 }
 
@@ -2902,11 +2911,9 @@ async function sendAllStack(){
   }
   window._scanStack = failedItems;
   if(failedItems.length === 0){
+    // 全件成功: closeScanModal() に一元化(ボタンリセット・DOM clear・toggle reset を含む)
     showToast(`📁 ${successCount}件 蓄積しました`);
-    window._scanStack = [];
-    document.getElementById('scanModalOverlay').className='scan-modal-overlay';
-    if(scanRawUrl){ URL.revokeObjectURL(scanRawUrl); scanRawUrl=null; }
-    _setScanModalState('correct');
+    closeScanModal();
   } else {
     renderScanStack();
     showToast(`${successCount}件成功、${failedItems.length}件失敗。再送してください`);
