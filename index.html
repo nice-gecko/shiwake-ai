@@ -616,6 +616,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .scan-footer-btn.skip{background:#555;color:#fff;}
 .scan-footer-btn.apply{background:#185FA5;color:#fff;}
 
+/* スマホ撮影モード: 行き先トグル */
+.scan-dest-area{display:none;padding:7px 16px 5px;background:#111;text-align:center;flex-shrink:0;}
+.scan-dest-toggle{display:inline-flex;border-radius:99px;border:0.5px solid rgba(255,255,255,0.25);overflow:hidden;}
+.scan-dest-btn{padding:5px 15px;font-size:12px;border:none;cursor:pointer;background:transparent;color:rgba(255,255,255,0.45);font-weight:500;transition:background 0.15s,color 0.15s;font-family:inherit;line-height:1.4;}
+.scan-dest-btn.active{background:#185FA5;color:#fff;}
+/* スタックサムネ */
+.scan-stack-thumbs-wrap{background:#111;overflow:hidden;flex-shrink:0;}
+.scan-stack-thumbs{display:flex;gap:8px;overflow-x:auto;padding:8px 12px;-webkit-overflow-scrolling:touch;}
+.scan-stack-thumb{position:relative;flex-shrink:0;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1.5px solid #555;}
+.scan-stack-thumb img{width:100%;height:100%;object-fit:cover;}
+.scan-stack-del{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:rgba(0,0,0,0.75);color:#fff;border:none;font-size:10px;line-height:16px;cursor:pointer;text-align:center;padding:0;}
+@media(max-width:640px){
+  .scan-dest-area{display:block;}
+}
+
 /* パース補正キャンバス */
 .perspective-wrap{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#1a1a1a;}
 
@@ -2503,6 +2518,17 @@ function updateFabBadge() {
     <span class="scan-modal-title">パース補正</span>
     <button class="scan-modal-close" onclick="closeScanModal()">×</button>
   </div>
+  <!-- 行き先トグル: @media(max-width:640px) のみ表示 -->
+  <div class="scan-dest-area" id="scanDestArea">
+    <div class="scan-dest-toggle">
+      <button class="scan-dest-btn active" id="scanDestShiwake" onclick="setScanDest('shiwake')">仕訳に送る</button>
+      <button class="scan-dest-btn" id="scanDestStock" onclick="setScanDest('stock')">ためる</button>
+    </div>
+  </div>
+  <!-- スタックサムネ: 「ためる」OK後に表示 -->
+  <div class="scan-stack-thumbs-wrap" id="scanStackThumbsWrap" style="display:none;">
+    <div class="scan-stack-thumbs" id="scanStackThumbs"></div>
+  </div>
   <div class="scan-modal-body">
     <div class="perspective-wrap" id="perspWrap">
       <canvas class="perspective-canvas" id="perspCanvas"></canvas>
@@ -2516,11 +2542,17 @@ function updateFabBadge() {
       <div class="persp-handle persp-handle-mid" id="ph7"></div>
     </div>
   </div>
-  <div class="scan-persp-hint">四隅・四辺のハンドルをドラッグして領収書の枠に合わせてください</div>
-  <div class="scan-modal-footer">
+  <div class="scan-persp-hint" id="scanPerspHint">四隅・四辺のハンドルをドラッグして領収書の枠に合わせてください</div>
+  <!-- 補正フッター -->
+  <div class="scan-modal-footer" id="scanModalFooterCorrect">
     <button class="scan-footer-btn cancel" onclick="retakeScan()">撮り直し</button>
     <button class="scan-footer-btn skip" onclick="applyScanEditSkip()">補正なしで進める</button>
     <button class="scan-footer-btn apply" onclick="applyScanEdit()">OK</button>
+  </div>
+  <!-- スタックフッター: 「ためる」OK後に表示 -->
+  <div class="scan-modal-footer" id="scanModalFooterStack" style="display:none;">
+    <button class="scan-footer-btn cancel" onclick="continueScan()">続けて撮る</button>
+    <button class="scan-footer-btn apply" id="scanSendAllBtn" onclick="sendAllStack()">全部送信(0件)</button>
   </div>
 </div>
 </div>
@@ -2760,26 +2792,144 @@ function retakeScan(){
 // 補正なしで進める: 元画像のままパイプラインへ
 async function applyScanEditSkip(){
   const url = scanRawUrl;
-  closeScanModal();
   if(!url) return;
   try{
     const blob = await fetch(url).then(r=>r.blob());
     const file = new File([blob], 'camera_capture.jpg', {type: blob.type || 'image/jpeg'});
-    addFiles([file]);
-    if(typeof switchTab === 'function') switchTab('siwake');
+    if(window._scanDest==='stock'){
+      URL.revokeObjectURL(url); scanRawUrl=null;
+      _handleScanFileInStockMode(file);
+    } else {
+      closeScanModal();
+      addFiles([file]);
+      if(typeof switchTab === 'function') switchTab('siwake');
+    }
   }catch(e){ console.warn('skip補正失敗:', e); }
 }
 
 function openScanModal(url){
   document.getElementById('scanModalOverlay').className='scan-modal-overlay show';
+  _setScanModalState('correct');
   requestAnimationFrame(()=>requestAnimationFrame(()=>initPerspective()));
 }
 
 function closeScanModal(){
   document.getElementById('scanModalOverlay').className='scan-modal-overlay';
-  // ㉗ ObjectURLをrevokeしてメモリリーク防止
   if(scanRawUrl){URL.revokeObjectURL(scanRawUrl);scanRawUrl=null;}
+  // スタッククリア
+  (window._scanStack||[]).forEach(item=>{ try{URL.revokeObjectURL(item.thumbUrl);}catch(e){} });
+  window._scanStack=[];
+  _setScanModalState('correct');
 }
+
+// ===== スマホ撮影モード =====
+window._scanDest = 'shiwake'; // 'shiwake' | 'stock'
+window._scanStack = [];       // { file, thumbUrl }[]
+
+function setScanDest(mode){
+  window._scanDest = mode;
+  document.getElementById('scanDestShiwake').className = 'scan-dest-btn' + (mode==='shiwake' ? ' active' : '');
+  document.getElementById('scanDestStock').className   = 'scan-dest-btn' + (mode==='stock'   ? ' active' : '');
+}
+
+function _setScanModalState(state){
+  const wrap   = document.getElementById('perspWrap');
+  const hint   = document.getElementById('scanPerspHint');
+  const thumbsW= document.getElementById('scanStackThumbsWrap');
+  const footerC= document.getElementById('scanModalFooterCorrect');
+  const footerS= document.getElementById('scanModalFooterStack');
+  const isStack = state === 'stack';
+  if(wrap)    wrap.style.display    = isStack ? 'none' : '';
+  if(hint)    hint.style.display    = isStack ? 'none' : '';
+  if(thumbsW) thumbsW.style.display = isStack ? ''     : 'none';
+  if(footerC) footerC.style.display = isStack ? 'none' : '';
+  if(footerS) footerS.style.display = isStack ? ''     : 'none';
+}
+
+function _handleScanFileInStockMode(file){
+  const thumbUrl = URL.createObjectURL(file);
+  window._scanStack.push({file, thumbUrl});
+  _setScanModalState('stack');
+  renderScanStack();
+}
+
+function renderScanStack(){
+  const thumbsEl = document.getElementById('scanStackThumbs');
+  if(!thumbsEl) return;
+  thumbsEl.innerHTML = window._scanStack.map((item, i) =>
+    `<div class="scan-stack-thumb"><img src="${item.thumbUrl}"><button class="scan-stack-del" onclick="removeScanStack(${i})">×</button></div>`
+  ).join('');
+  const btn = document.getElementById('scanSendAllBtn');
+  if(btn) btn.textContent = `全部送信(${window._scanStack.length}件)`;
+}
+
+function removeScanStack(i){
+  try{ URL.revokeObjectURL(window._scanStack[i].thumbUrl); }catch(e){}
+  window._scanStack.splice(i, 1);
+  if(window._scanStack.length === 0){ _setScanModalState('correct'); return; }
+  renderScanStack();
+}
+
+function continueScan(){
+  // 現在のスタック画像を保ちつつカメラを再起動
+  const inp = document.getElementById('scanInput');
+  if(inp){ inp.value=''; inp.click(); }
+  // openScanModal → _setScanModalState('correct') が呼ばれる
+}
+
+async function sendAllStack(){
+  if(!window._scanStack.length){ showToast('送信するファイルがありません'); return; }
+  const btn = document.getElementById('scanSendAllBtn');
+  if(btn){ btn.disabled=true; btn.textContent='送信中…'; }
+  let successCount = 0;
+  const failedItems = [];
+  for(const item of [...window._scanStack]){
+    try{
+      await uploadImageToDropbox(item.file);
+      try{ URL.revokeObjectURL(item.thumbUrl); }catch(e){}
+      successCount++;
+    }catch(e){
+      if(e.message === 'dropbox_not_connected'){
+        showToast('⚠️ Dropboxが接続されていません。設定から連携してください');
+        if(btn){ btn.disabled=false; btn.textContent=`全部送信(${window._scanStack.length}件)`; }
+        return;
+      }
+      failedItems.push(item);
+    }
+  }
+  window._scanStack = failedItems;
+  if(failedItems.length === 0){
+    showToast(`📁 ${successCount}件 蓄積しました`);
+    window._scanStack = [];
+    document.getElementById('scanModalOverlay').className='scan-modal-overlay';
+    if(scanRawUrl){ URL.revokeObjectURL(scanRawUrl); scanRawUrl=null; }
+    _setScanModalState('correct');
+  } else {
+    renderScanStack();
+    showToast(`${successCount}件成功、${failedItems.length}件失敗。再送してください`);
+    if(btn){ btn.disabled=false; btn.textContent=`全部送信(${window._scanStack.length}件)`; }
+  }
+}
+
+async function uploadImageToDropbox(file){
+  const uid = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  if(!uid) throw new Error('not logged in');
+  const base64 = await new Promise((res, rej) => {
+    const rd = new FileReader();
+    rd.onload = e => res(e.target.result.split(',')[1]);
+    rd.onerror = rej;
+    rd.readAsDataURL(file);
+  });
+  const r = await fetch('/api/dropbox/upload-image', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({uid, workspace_id: wsId, imageBase64: base64, filename: file.name})
+  });
+  const d = await r.json();
+  if(!d.ok) throw new Error(d.error || 'upload failed');
+  return d;
+}
+// ===== スマホ撮影モード ここまで =====
 
 // switchScanTab廃止（パース補正のみ）
 
@@ -3009,9 +3159,14 @@ async function applyScanEdit(){
       octx.putImageData(dstData,0,0);
       out.toBlob(blob=>{
         const file=new File([blob],'scan_perspective.jpg',{type:'image/jpeg'});
-        addFiles([file]);
-        closeScanModal();
-        switchTab('siwake');
+        if(window._scanDest==='stock'){
+          URL.revokeObjectURL(scanRawUrl); scanRawUrl=null;
+          _handleScanFileInStockMode(file);
+        } else {
+          addFiles([file]);
+          closeScanModal();
+          switchTab('siwake');
+        }
       },'image/jpeg',0.92);
     };
     img.src=scanRawUrl;

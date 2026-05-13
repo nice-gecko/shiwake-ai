@@ -3233,6 +3233,30 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /api/dropbox/upload-image → スマホ「ためる」モード: 補正済み画像をDropboxに直接アップロード
+  if (req.method === 'POST' && reqPath === '/api/dropbox/upload-image') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, imageBase64, filename } = JSON.parse(body);
+        if (!uid || !imageBase64) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and imageBase64 required' })); return; }
+        let wsId;
+        try { wsId = await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
+        const wsFilter = wsId ? `&workspace_id=eq.${wsId}` : '';
+        const conns = await supabaseQuery(`/cloud_connections?uid=eq.${uid}&provider=eq.dropbox&is_active=eq.true${wsFilter}&select=access_token,watched_path`);
+        const conn = conns?.[0];
+        if (!conn) { res.writeHead(409, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'dropbox_not_connected' })); return; }
+        const buf = Buffer.from(imageBase64, 'base64');
+        const fname = filename || `scan_${Date.now()}.jpg`;
+        const uploadedPath = await uploadToDropbox(conn.access_token, conn.watched_path || '', buf, fname);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, path: uploadedPath }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
   // GET /api/gdrive/info?uid=xxx&workspace_id=yyy → サービスアカウントメール取得
   if (req.method === 'GET' && reqPath === '/api/gdrive/info') {
     const qp = new URL(req.url, 'http://localhost').searchParams;
