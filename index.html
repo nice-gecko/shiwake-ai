@@ -930,6 +930,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .bulk-assign-btn:disabled{opacity:0.4;cursor:not-allowed;}
 .reassign-btn{padding:4px 10px;font-size:11px;border-radius:6px;border:1px solid #ddd;background:#fff;color:#888;cursor:pointer;font-family:inherit;}
 .reassign-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.reassign-btn:not(:disabled):hover{background:#f5f4f0;}
+.unassigned-card.fading{opacity:0;transition:opacity 0.3s ease;}
+.rule-candidate-banner{background:#EBF4FD;border:1px solid #b3d4f5;border-radius:9px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.rule-candidate-banner-text{flex:1;font-size:12px;color:#185FA5;min-width:0;}
+.rule-candidate-banner-actions{display:flex;gap:8px;flex-shrink:0;}
+.rcb-btn{padding:4px 12px;font-size:12px;border-radius:6px;cursor:pointer;font-family:inherit;}
+.rcb-btn.primary{background:#185FA5;color:#fff;border:none;}
+.rcb-btn.secondary{background:#fff;color:#555;border:1px solid #ccc;}
+.ws-picker-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:600;align-items:center;justify-content:center;}
+.ws-picker-overlay.show{display:flex;}
+.ws-picker-inner{background:#fff;border-radius:14px;padding:24px;min-width:280px;max-width:360px;width:90%;}
+.ws-picker-title{font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:14px;}
+.ws-picker-list{display:flex;flex-direction:column;gap:7px;max-height:260px;overflow-y:auto;margin-bottom:16px;}
+.ws-picker-item{padding:9px 12px;border:1px solid #e0dfd8;border-radius:8px;cursor:pointer;font-size:13px;color:#333;text-align:left;background:#fff;font-family:inherit;width:100%;}
+.ws-picker-item:hover{background:#f5f4f0;border-color:#185FA5;}
+.ws-picker-cancel{padding:6px 14px;font-size:13px;border-radius:7px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-family:inherit;width:100%;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -2342,13 +2358,21 @@ function updateFabBadge() {
     </div>
     <!-- 未振り分けタブ -->
     <div id="unassigned-tray-pane">
+      <!-- ルール候補バナー (Group 3) -->
+      <div class="rule-candidate-banner" id="ruleCandidateBanner" style="display:none;">
+        <span class="rule-candidate-banner-text" id="ruleCandidateBannerText"></span>
+        <div class="rule-candidate-banner-actions">
+          <button class="rcb-btn secondary" onclick="dismissRuleCandidates()">あとで確認</button>
+          <button class="rcb-btn primary" onclick="reviewRuleCandidates()">ルールをレビュー</button>
+        </div>
+      </div>
       <!-- アクションバー -->
       <div class="unassigned-action-bar" id="unassignedActionBar" style="display:none;">
         <span id="unassignedSelCount">0件選択中</span>
         <button class="unassigned-action-link" onclick="unassignedSelectAll()">すべて選択</button>
         <button class="unassigned-action-link" onclick="unassignedSelectNone()">選択解除</button>
         <div style="margin-left:auto;">
-          <button class="bulk-assign-btn" id="bulkAssignBtn" disabled>まとめて振り分け</button>
+          <button class="bulk-assign-btn" id="bulkAssignBtn" onclick="bulkAssign()" disabled>まとめて振り分け</button>
         </div>
       </div>
       <!-- 一覧 -->
@@ -5403,6 +5427,8 @@ let _assignedData = [];
 let _selectedUnassignedIds = new Set();
 let _unassignedSig = '';
 let _activeUnassignedSubTab = 'unassigned';
+let _pendingRuleCandidates = [];
+let _wsPickerCallback = null;
 
 function unassignedReasonLabel(r) {
   if (r === 'no_matching_rule') return 'ルール未該当';
@@ -5478,7 +5504,7 @@ function renderUnassignedFiles() {
         <div class="unassigned-card-reason">理由: ${unassignedReasonLabel(f.unassigned_reason)}</div>
       </div>
       <div class="unassigned-card-right">
-        <select onchange="onUnassignedWsChange('${escapeHtml(f.id)}', this.value)">${wsOptions}</select>
+        <select onchange="onUnassignedWsChange('${escapeHtml(f.id)}', this.value, this)">${wsOptions}</select>
       </div>
     </div>`;
   }).join('');
@@ -5497,7 +5523,7 @@ function renderAssignedFiles() {
   if (empty) empty.style.display = 'none';
   list.innerHTML = _assignedData.map(f => {
     const fname = (f.file_path || '').split('/').pop() || f.source_id || '不明';
-    return `<div class="unassigned-card">
+    return `<div class="unassigned-card" id="acard-${escapeHtml(f.id)}">
       <div class="unassigned-card-thumb">${unassignedThumbHtml(f.file_path)}</div>
       <div class="unassigned-card-body">
         <div class="unassigned-card-name" title="${escapeHtml(f.file_path||'')}">${escapeHtml(fname)}</div>
@@ -5510,7 +5536,7 @@ function renderAssignedFiles() {
         <div class="unassigned-card-ws-name">振り分け先: ${escapeHtml(f.workspace_name || '不明')}</div>
       </div>
       <div class="unassigned-card-right">
-        <button class="reassign-btn" disabled>再振り分け</button>
+        <button class="reassign-btn" onclick="reassignFile('${escapeHtml(f.id)}')">再振り分け</button>
       </div>
     </div>`;
   }).join('');
@@ -5535,11 +5561,143 @@ function unassignedSelectNone() {
 function updateUnassignedSelCount() {
   const el = document.getElementById('unassignedSelCount');
   if (el) el.textContent = _selectedUnassignedIds.size + '件選択中';
-  // bulkAssignBtn は Group 3 で実装予定のため常時 disabled
+  const btn = document.getElementById('bulkAssignBtn');
+  if (btn) btn.disabled = _selectedUnassignedIds.size === 0;
 }
 
-function onUnassignedWsChange(fileId, wsId) {
-  console.log('[unassigned-tray] WS選択 fileId:', fileId, 'wsId:', wsId, '(Group 3 で実装)');
+function onUnassignedWsChange(fileId, wsId, selectEl) {
+  if (!wsId) return;
+  if (selectEl) selectEl.disabled = true;
+  doAssignFiles([fileId], wsId, false).catch(() => {
+    if (selectEl) { selectEl.disabled = false; selectEl.value = ''; }
+  });
+}
+
+async function doAssignFiles(fileIds, wsId, isReassign) {
+  const uid = window._firebaseUser?.uid;
+  if (!uid || !wsId || fileIds.length === 0) return;
+  const endpoint = isReassign ? '/api/inbox/reassign' : '/api/inbox/assign';
+  const cardPrefix = isReassign ? 'acard-' : 'ucard-';
+  const cards = fileIds.map(id => document.getElementById(cardPrefix + id)).filter(Boolean);
+  cards.forEach(c => c.classList.add('fading'));
+  try {
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ uid, file_ids: fileIds, workspace_id: wsId })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'API error');
+    if (!isReassign) {
+      // カードを削除・データ更新
+      fileIds.forEach(id => {
+        _unassignedData = _unassignedData.filter(f => f.id !== id);
+        _selectedUnassignedIds.delete(id);
+        const card = document.getElementById('ucard-' + id);
+        if (card) setTimeout(() => card.remove(), 320);
+      });
+      const countEl = document.getElementById('utabUnassignedCount');
+      if (countEl) countEl.textContent = _unassignedData.length;
+      _updateUnassignedSidebarBadge(_unassignedData.length);
+      if (_unassignedData.length === 0) {
+        const empty = document.getElementById('unassignedEmptyState');
+        const actionBar = document.getElementById('unassignedActionBar');
+        if (empty) empty.style.display = '';
+        if (actionBar) actionBar.style.display = 'none';
+      }
+      updateUnassignedSelCount();
+      _unassignedSig = '';
+    } else {
+      // 振り分け済みカードのWS名を更新
+      const wsName = (window._workspaces || []).find(w => w.id === wsId)?.name || wsId;
+      fileIds.forEach(id => {
+        const f = _assignedData.find(a => a.id === id);
+        if (f) f.workspace_name = wsName;
+        const card = document.getElementById('acard-' + id);
+        if (card) {
+          const wsEl = card.querySelector('.unassigned-card-ws-name');
+          if (wsEl) wsEl.textContent = '振り分け先: ' + wsName;
+          card.classList.remove('fading');
+        }
+      });
+      _unassignedSig = '';
+    }
+    // ルール候補をスタック
+    if (d.candidates && d.candidates.length > 0) {
+      _pendingRuleCandidates.push(...d.candidates);
+      updateRuleCandidateBanner();
+    }
+  } catch(e) {
+    cards.forEach(c => {
+      c.classList.remove('fading');
+      const sel = c.querySelector('select');
+      if (sel) { sel.disabled = false; sel.value = ''; }
+    });
+    showToast('振り分けに失敗しました');
+    console.error('doAssignFiles error:', e);
+    throw e;
+  }
+}
+
+function bulkAssign() {
+  const ids = [..._selectedUnassignedIds];
+  if (ids.length === 0) return;
+  showWsPicker(ids.length + '件をまとめて振り分け', wsId => doAssignFiles(ids, wsId, false));
+}
+
+function reassignFile(fileId) {
+  showWsPicker('再振り分け先を選択', wsId => doAssignFiles([fileId], wsId, true));
+}
+
+function showWsPicker(title, callback) {
+  const wss = window._workspaces || [];
+  if (wss.length === 0) { showToast('ワークスペースがありません'); return; }
+  _wsPickerCallback = callback;
+  const overlay = document.getElementById('wsPickerOverlay');
+  const titleEl = document.getElementById('wsPickerTitle');
+  const listEl = document.getElementById('wsPickerList');
+  if (!overlay) return;
+  titleEl.textContent = title;
+  listEl.innerHTML = wss.map(w =>
+    `<button class="ws-picker-item" onclick="wsPickerSelect('${escapeHtml(w.id)}')">${escapeHtml(w.name)}</button>`
+  ).join('');
+  overlay.classList.add('show');
+}
+
+function wsPickerSelect(wsId) {
+  closeWsPicker();
+  if (_wsPickerCallback) { _wsPickerCallback(wsId); _wsPickerCallback = null; }
+}
+
+function closeWsPicker() {
+  const overlay = document.getElementById('wsPickerOverlay');
+  if (overlay) overlay.classList.remove('show');
+  _wsPickerCallback = null;
+}
+
+function wsPickerOverlayClick(e) {
+  if (e.target === document.getElementById('wsPickerOverlay')) closeWsPicker();
+}
+
+function updateRuleCandidateBanner() {
+  const banner = document.getElementById('ruleCandidateBanner');
+  const text = document.getElementById('ruleCandidateBannerText');
+  if (!banner) return;
+  if (_pendingRuleCandidates.length === 0) {
+    banner.style.display = 'none';
+  } else {
+    if (text) text.textContent = `${_pendingRuleCandidates.length}件のルール候補があります。次回からこの送信元を自動で振り分けますか?`;
+    banner.style.display = '';
+  }
+}
+
+function dismissRuleCandidates() {
+  _pendingRuleCandidates = [];
+  updateRuleCandidateBanner();
+}
+
+function reviewRuleCandidates() {
+  alert('この機能は Group 4 で実装予定です。');
 }
 
 function switchUnassignedTab(tab) {
@@ -6368,6 +6526,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }catch(e){console.warn('scanic読み込み失敗:',e.message);}
 })();
 </script>
+
+<!-- ===== WS ピッカー(未振り分け一括/再振り分け用) ===== -->
+<div id="wsPickerOverlay" class="ws-picker-overlay" onclick="wsPickerOverlayClick(event)">
+  <div class="ws-picker-inner" onclick="event.stopPropagation()">
+    <div class="ws-picker-title" id="wsPickerTitle">振り分け先を選択</div>
+    <div class="ws-picker-list" id="wsPickerList"></div>
+    <button class="ws-picker-cancel" onclick="closeWsPicker()">キャンセル</button>
+  </div>
+</div>
 
 <!-- ===== ワークスペース管理モーダル ===== -->
 <div id="wsManageOverlay" class="ws-manage-overlay" onclick="wsManageOverlayClick(event)">

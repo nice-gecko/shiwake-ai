@@ -2493,6 +2493,47 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /api/inbox/reassign → 振り分け済みファイルを別WSに再振り分け(過去14日以内)
+  if (req.method === 'POST' && reqPath === '/api/inbox/reassign') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, file_ids, workspace_id } = JSON.parse(body || '{}');
+        if (!uid || !Array.isArray(file_ids) || file_ids.length === 0 || !workspace_id) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid, file_ids, workspace_id required' })); return;
+        }
+        try { await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
+        const ids = file_ids.slice(0, 100);
+        const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+        const files = await supabaseQuery(
+          `/inbox_files?id=in.(${ids.join(',')})&uid=eq.${uid}&workspace_id=not.is.null&created_at=gte.${since}&select=id,sender,subject`
+        );
+        if (!files || files.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ updated: 0, candidates: [] }));
+          return;
+        }
+        const matchedIds = files.map(f => f.id);
+        await supabaseQuery(
+          `/inbox_files?id=in.(${matchedIds.join(',')})&uid=eq.${uid}`,
+          'PATCH',
+          { workspace_id, unassigned_reason: null }
+        );
+        const candidates = files.map(f => ({
+          file_id: f.id,
+          workspace_id,
+          from_address: f.sender || null,
+          domain: f.sender ? (f.sender.split('@')[1] || null) : null,
+          subject: f.subject || null
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ updated: matchedIds.length, candidates }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
   // POST /api/inbound-parse/:token → SendGrid Inbound Parse Webhook
   if (req.method === 'POST' && reqPath.startsWith('/api/inbound-parse/')) {
     const token = reqPath.replace('/api/inbound-parse/', '');
