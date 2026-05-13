@@ -1055,6 +1055,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .unlock-card-action{margin-top:12px;display:flex;justify-content:flex-end;}
 .unlock-action-btn{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:#185FA5;color:#fff;transition:background 0.15s;}
 .unlock-action-btn:hover{background:#0C447C;}
+.unlock-toggle{display:inline-flex;align-items:center;width:40px;height:22px;border-radius:11px;background:#d0d0d0;border:none;cursor:pointer;transition:background 0.2s;position:relative;padding:0;flex-shrink:0;}
+.unlock-toggle.on{background:#185FA5;}
+.unlock-toggle:hover{opacity:0.85;}
+.unlock-toggle-thumb{position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:transform 0.2s;left:2px;pointer-events:none;}
+.unlock-toggle.on .unlock-toggle-thumb{transform:translateX(18px);}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -1799,10 +1804,10 @@ function updateFabBadge() {
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M2 3h11a1 1 0 011 1v6a1 1 0 01-1 1H8l-3 2v-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
       対話モード設定<span class="nav-badge-coming">準備中</span>
     </div>
-    <!-- v2.3.0: 自動取り込みメニュー -->
+    <!-- v2.3.0: 自動取込メニュー -->
     <div class="sidebar-nav-item" id="navAutoIntake" style="display:none;" onclick="switchTab('auto-intake')">
       <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      自動取り込み
+      自動取込
     </div>
     <!-- v2.3.5: 未振り分けトレイ -->
     <div class="sidebar-nav-item" id="navUnassignedTray" style="display:none;" onclick="switchTab('unassigned-tray')">
@@ -2222,14 +2227,14 @@ function updateFabBadge() {
       </div>
 
       <!-- Agent版 -->
-      <div class="pricing-section-title" style="margin-top:28px;">🤖 Agent版 — 自走する記帳エージェント</div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">AIが自律的に仕訳・ルール学習・自動取り込み・自動承認を行います。精度を確認しながら、お好きな機能を有効化できます。</div>
+      <div class="pricing-section-title" style="margin-top:28px;">🤖 エージェント版 — 自走する記帳エージェント</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">AIが自律的に仕訳・ルール学習・自動取込・自動承認を行います。精度を確認しながら、お好きな機能を有効化できます。</div>
       <div class="pricing-card" onclick="startCheckout('agent_lite')">
         <div class="pricing-card-header">
           <span class="pricing-card-name">Agent ライト</span>
           <span class="pricing-card-price">¥30,000<span>/月</span></span>
         </div>
-        <div class="pricing-card-desc">月200件含む。自動取り込み・ルール学習・業種テンプレート対応。</div>
+        <div class="pricing-card-desc">月200件含む。自動取込・ルール学習・業種テンプレート対応。</div>
       </div>
       <div class="pricing-card" onclick="startCheckout('agent_std')">
         <div class="pricing-card-header">
@@ -2381,10 +2386,10 @@ function updateFabBadge() {
 
     <!-- 自動取り込み設定 -->
     <div class="intake-settings-section" id="autoIntakeSection" hidden>
-      <h3>⚙ 自動取り込み設定</h3>
+      <h3>⚙ 自動取込設定</h3>
       <label class="switch-row">
         <input type="checkbox" id="autoIntakeToggle" onchange="updateIntakeSetting('auto_intake_enabled', this.checked)">
-        <span>自動取り込みを有効にする</span>
+        <span>自動取込を有効にする</span>
       </label>
       <p class="setting-hint">メール送信またはクラウドフォルダからファイルを自動で取り込みます。</p>
 
@@ -2448,7 +2453,7 @@ function updateFabBadge() {
   <div class="panel" id="panel-unassigned-tray">
     <div class="unassigned-tray-header">
       <h2 class="unassigned-tray-title">未振り分けトレイ</h2>
-      <p class="unassigned-tray-desc">自動取り込みで届いたファイルのうち、どのワークスペースに振り分けるかが決まらなかったものです</p>
+      <p class="unassigned-tray-desc">自動取込で届いたファイルのうち、どのワークスペースに振り分けるかが決まらなかったものです</p>
     </div>
     <!-- タブ -->
     <div class="unassigned-tab-bar">
@@ -6808,12 +6813,12 @@ function renderWsEditBody(ws, ae = {}) {
       </div>
     </div>
     <div class="ws-rule-section" id="auto-export-section">
-      <div class="ws-rule-section-title">自動エクスポート設定</div>
+      <div class="ws-rule-section-title">自動書出設定</div>
       <div style="font-size:11px;color:#888;margin:0 0 10px;">承認済み仕訳がN件溜まったら、設定の出力先へ自動でCSVを送ります。デフォルトはOFFです。</div>
       <div class="ws-form-row ae-toggle-row">
         <label class="ae-toggle-label">
           <input type="checkbox" id="wsAeEnabled" ${ae.auto_export_enabled ? 'checked' : ''} onchange="wsAeToggle(this.checked)">
-          <span>自動エクスポートを有効化</span>
+          <span>自動書出を有効化</span>
         </label>
       </div>
       <div id="wsAeSubWrap" class="${ae.auto_export_enabled ? '' : 'ae-disabled'}">
@@ -6825,7 +6830,7 @@ function renderWsEditBody(ws, ae = {}) {
           <div class="ws-form-row" style="margin-bottom:0;">
             <label>何件溜まったら実行する?</label>
             <input type="number" id="wsAeThreshold" min="1" max="10000" step="1" value="${ae.auto_export_threshold ?? 30}">
-            <div style="font-size:10px;color:#aaa;margin-top:2px;">未エクスポートの承認済み仕訳がこの件数に達したら実行されます</div>
+            <div style="font-size:10px;color:#aaa;margin-top:2px;">未書出の承認済み仕訳がこの件数に達したら実行されます</div>
           </div>
         </div>
         <div class="ae-step">
@@ -6876,8 +6881,8 @@ function renderWsEditBody(ws, ae = {}) {
             </div>
           </div>
           <div class="ws-form-row" id="wsAeCloudFolderRow" style="margin-bottom:0;${(ae.auto_export_destinations || []).includes('cloud') ? '' : 'display:none;'}">
-            <label>クラウドの保存先フォルダ（空欄=自動取り込みフォルダの /exports/）</label>
-            <input type="text" id="wsAeCloudFolderPath" value="${escapeHtml(ae.auto_export_cloud_folder_path || '')}" placeholder="例: /経理/エクスポート/">
+            <label>クラウドの保存先フォルダ（空欄=自動取込フォルダの /exports/）</label>
+            <input type="text" id="wsAeCloudFolderPath" value="${escapeHtml(ae.auto_export_cloud_folder_path || '')}" placeholder="例: /経理/書出/">
           </div>
         </div>
       </div>
@@ -6995,9 +7000,9 @@ async function submitWsEdit() {
         body: JSON.stringify(aePatch)
       });
       const aeD = await aeR.json();
-      if (!aeD.ok) showToast('⚠️ 自動エクスポート設定の保存に失敗しました', 3000);
+      if (!aeD.ok) showToast('⚠️ 自動書出設定の保存に失敗しました', 3000);
     } catch(aeErr) {
-      showToast('⚠️ 自動エクスポート設定の保存に失敗しました', 3000);
+      showToast('⚠️ 自動書出設定の保存に失敗しました', 3000);
     }
     showToast('✓ 変更を保存しました', 2000);
     closeWsEdit();
@@ -7619,60 +7624,82 @@ async function loadUnlockFeatures() {
 }
 
 function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) {
-  const cards = [
-    {
-      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M2 10V8a2 2 0 012-2h7a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 6V4.5a2 2 0 014 0V6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="9" r="1" fill="currentColor"/></svg>',
-      title: '自動エクスポート',
-      desc: '承認済み仕訳が一定件数溜まったら、メール / クラウド / ローカルへ自動でCSVを送ります',
-      status: autoExportEnabled ? 'unlocked' : 'locked',
-      statusLabel: autoExportEnabled ? '✓ 開放済み' : '未開放',
-      action: autoExportEnabled ? '設定を変更' : '設定を開く',
-      onclick: "openWsEditAndScroll('" + wsId + "','auto-export-section')"
-    },
-    {
-      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-      title: '自動取り込み',
-      desc: 'メール / Dropbox / Google Drive から証憑を自動で取り込みます',
-      status: autoIntakeActive ? 'unlocked' : 'locked',
-      statusLabel: autoIntakeActive ? '✓ 開放済み' : '未開放',
-      action: '設定を開く',
-      onclick: "switchTab('auto-intake')"
-    },
-    {
-      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>',
-      title: 'スマホ撮影モード',
-      desc: 'スマホで撮影 → Dropbox 蓄積、PCで後からまとめて処理。出先・隙間時間に活用できます',
-      status: 'available',
-      statusLabel: '利用可能',
-      action: 'スマホで開く',
-      onclick: 'showQR()'
-    },
-    {
-      icon: '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M7.5 1.5l1.4 2.9 3.1.45-2.25 2.2.53 3.1L7.5 8.55 4.72 10.15l.53-3.1L3 4.85l3.1-.45z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>',
-      title: 'Agent モード',
-      desc: 'AIが自動仕訳・自動承認を実行する次世代モード（将来実装予定）',
-      status: 'future',
-      statusLabel: '将来実装',
-      sub: 'アップグレードで利用可能',
-      action: 'プランを比較',
-      onclick: 'openUpgradeModal()'
-    }
-  ];
-  wrap.innerHTML = cards.map(c => `
-    <div class="unlock-card${c.status === 'unlocked' ? ' unlocked' : ''}${c.status === 'future' ? ' future' : ''}">
+  const iconIntake = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const iconApproval = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M7.5 1.5l1.4 2.9 3.1.45-2.25 2.2.53 3.1L7.5 8.55 4.72 10.15l.53-3.1L3 4.85l3.1-.45z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
+  const iconExport = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M2 10V8a2 2 0 012-2h7a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 6V4.5a2 2 0 014 0V6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="9" r="1" fill="currentColor"/></svg>';
+
+  function toggleBtn(id, isOn) {
+    return `<button class="unlock-toggle${isOn ? ' on' : ''}" id="${id}" title="${isOn ? 'OFFにする' : 'ONにする'}"><span class="unlock-toggle-thumb"></span></button>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="unlock-card${autoIntakeActive ? ' unlocked' : ''}">
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
-          <div class="unlock-card-title">${c.icon}${c.title}</div>
-          ${c.sub ? `<div style="font-size:11px;color:#92400e;margin-top:2px;">${c.sub}</div>` : ''}
+          <div class="unlock-card-title">${iconIntake}自動取込</div>
         </div>
-        <span class="unlock-status-badge ${c.status}">${c.statusLabel}</span>
+        ${toggleBtn('unlockToggleIntake', autoIntakeActive)}
       </div>
-      <div class="unlock-card-desc">${c.desc}</div>
+      <div class="unlock-card-desc">メール / Dropbox / Google Drive から証憑を自動で取り込みます</div>
       <div class="unlock-card-action">
-        <button class="unlock-action-btn" onclick="${c.onclick}">${c.action}</button>
+        <button class="unlock-action-btn" onclick="switchTab('auto-intake')">設定を開く</button>
       </div>
     </div>
-  `).join('');
+    <div class="unlock-card future">
+      <div class="unlock-card-top">
+        <div class="unlock-card-title-wrap">
+          <div class="unlock-card-title">${iconApproval}自動承認</div>
+          <div style="font-size:11px;color:#92400e;margin-top:2px;">アップグレードで利用可能</div>
+        </div>
+        <span class="unlock-status-badge future">将来実装</span>
+      </div>
+      <div class="unlock-card-desc">エージェントモードで自動仕訳・自動承認を実行する次世代機能（将来実装予定）</div>
+      <div class="unlock-card-action">
+        <button class="unlock-action-btn" onclick="openUpgradeModal()">プランを比較</button>
+      </div>
+    </div>
+    <div class="unlock-card${autoExportEnabled ? ' unlocked' : ''}">
+      <div class="unlock-card-top">
+        <div class="unlock-card-title-wrap">
+          <div class="unlock-card-title">${iconExport}自動書出</div>
+        </div>
+        ${toggleBtn('unlockToggleExport', autoExportEnabled)}
+      </div>
+      <div class="unlock-card-desc">承認済み仕訳が一定件数溜まったら、メール / クラウド / ローカルへ自動でCSVを送ります</div>
+      <div class="unlock-card-action">
+        <button class="unlock-action-btn" onclick="openWsEditAndScroll('${wsId}','auto-export-section')">${autoExportEnabled ? '設定を変更' : '設定を開く'}</button>
+      </div>
+    </div>
+  `;
+
+  // トグルイベント設定
+  document.getElementById('unlockToggleIntake')?.addEventListener('click', () => {
+    switchTab('auto-intake');
+  });
+  document.getElementById('unlockToggleExport')?.addEventListener('click', () => {
+    toggleAutoExport(wsId, autoExportEnabled);
+  });
+}
+
+async function toggleAutoExport(wsId, currentEnabled) {
+  const uid = window._firebaseUser?.uid;
+  if (!uid || !wsId) return;
+  const newEnabled = !currentEnabled;
+  const btn = document.getElementById('unlockToggleExport');
+  if (btn) btn.classList.toggle('on', newEnabled);
+  try {
+    const r = await fetch('/api/auto-export/settings', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ uid, workspace_id: wsId, enabled: newEnabled })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error('API error');
+    await loadUnlockFeatures();
+  } catch(e) {
+    if (btn) btn.classList.toggle('on', currentEnabled);
+    showToast('⚠️ 切り替えに失敗しました', 3000);
+  }
 }
 
 function openWsEditAndScroll(wsId, anchorId) {
