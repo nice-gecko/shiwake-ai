@@ -1744,7 +1744,7 @@ const server = http.createServer(async (req, res) => {
         features: EDITION_FEATURES[user.edition] || EDITION_FEATURES.saas,
         usage: {
           monthly_count: user.monthly_count || 0,
-          limit: plan?.limit || null,
+          limit: plan?.limit ?? null,
           billing_period_end: user.billing_period_end,
         },
         workspace_limit: workspaceLimit,
