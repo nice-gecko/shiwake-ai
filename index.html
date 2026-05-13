@@ -16,12 +16,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-selector-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;background:#f0efe9;border:1px solid #e0dfd8;border-radius:7px;font-size:12px;color:#333;cursor:pointer;white-space:nowrap;max-width:160px;transition:background 0.15s;}
 /* サイドバー内ワークスペースセクション */
 .ws-sidebar-section{padding:8px 8px 6px;border-bottom:1px solid #e0dfd8;}
-.ws-section-label-text{font-size:9px;font-weight:400;color:#999;letter-spacing:0.07em;}
-.ws-gear-btn{display:flex;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:#888;padding:2px 4px;font-size:10px;line-height:1;border-radius:5px;transition:color 0.15s,background 0.15s;}
+.ws-section-label-text{font-size:11px;font-weight:400;color:#999;letter-spacing:0.07em;}
+.ws-gear-btn{display:flex;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:#888;padding:2px 4px;font-size:11px;line-height:1;border-radius:5px;transition:color 0.15s,background 0.15s;}
 .ws-gear-btn:hover{color:#185FA5;background:#EBF4FD;}
 .ws-dropdown-action-icon{font-size:15px;line-height:1;}
 .ws-sidebar-section .ws-selector{margin-left:0;width:100%;}
-.ws-sidebar-section .ws-selector-btn{width:100%;box-sizing:border-box;max-width:none;font-size:11px;padding:4px 8px;border:0.5px solid #e0dfd8;}
+.ws-sidebar-section .ws-selector-btn{width:100%;box-sizing:border-box;max-width:none;font-size:13px;padding:4px 8px;border:0.5px solid #e0dfd8;}
 .ws-sidebar-section .ws-dropdown{left:0;right:0;top:calc(100% + 4px);}
 .ws-sidebar-manage{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:12px;color:#888;cursor:pointer;border-radius:6px;margin-top:3px;}
 .ws-sidebar-manage:hover{background:#e0dfd8;color:#555;}
@@ -175,7 +175,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-subcopy-item{font-size:10px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;}
 .sidebar-sub{font-size:10px;color:#666;line-height:1.5;}
 .sidebar-nav{padding:12px 8px;flex:1;}
-.sidebar-section-label{font-size:9px;color:#999;letter-spacing:0.07em;text-transform:uppercase;padding:6px 10px 4px;}
+.sidebar-section-label{font-size:11px;color:#999;letter-spacing:0.07em;text-transform:uppercase;padding:6px 10px 4px;}
 .sidebar-nav-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;font-size:13px;color:#555;cursor:pointer;transition:background 0.15s;margin-bottom:1px;}
 .sidebar-nav-item:hover{background:#e0dfd8;color:#1a1a1a;}
 .sidebar-nav-item.active{background:#fff;color:#185FA5;font-weight:500;box-shadow:0 1px 3px rgba(0,0,0,0.07);}
@@ -682,10 +682,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sbps-bar-fill{height:100%;background:#185FA5;border-radius:2px;transition:width 0.3s;}
 .sbps-upgrade-btn{width:100%;font-size:11px;color:var(--color-text-secondary,#888);font-weight:500;border:0.5px solid var(--color-border-secondary,#e0dfd8);border-radius:4px;padding:5px 0;background:#fff;cursor:pointer;text-align:center;margin-top:2px;}
 .sbps-upgrade-btn:hover{color:var(--color-text-primary,#1a1a1a);background:#f5f5f5;}
-.sbps-upgrade-btn.warning{color:#d97706;border-color:#d97706;}
-.sbps-upgrade-btn.warning:hover{background:#fff7ed;}
-.sbps-upgrade-btn.danger{color:#e53e3e;border-color:#e53e3e;}
-.sbps-upgrade-btn.danger:hover{background:#fff5f5;}
+.sbps-upgrade-btn.warning{color:var(--color-text-secondary,#888);border-color:var(--color-border-secondary,#e0dfd8);}
+.sbps-upgrade-btn.warning:hover{color:var(--color-text-primary,#1a1a1a);background:#f5f5f5;}
+.sbps-upgrade-btn.danger{color:var(--color-text-secondary,#888);border-color:var(--color-border-secondary,#e0dfd8);}
+.sbps-upgrade-btn.danger:hover{color:var(--color-text-primary,#1a1a1a);background:#f5f5f5;}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;align-items:stretch;}
 .dashboard-left{display:flex;flex-direction:column;}
 .dashboard-left > .dash-card{flex:1;}
@@ -1346,15 +1346,7 @@ function updateFabBadge() {
     const nextPlan = getNextPlan(planKey);
     if (nextPlan !== null && limit != null) {
       const pct = Math.min(100, Math.round(used / limit * 100));
-      let btnClass;
-      if (pct >= 90) {
-        btnClass = 'sbps-upgrade-btn danger';
-      } else if (pct >= 70) {
-        btnClass = 'sbps-upgrade-btn warning';
-      } else {
-        btnClass = 'sbps-upgrade-btn';
-      }
-      upgradeHtml = `<button class="${btnClass}" onclick="openUpgradeModal()">アップグレード</button>`;
+      upgradeHtml = `<button class="sbps-upgrade-btn" onclick="openUpgradeModal()">アップグレード</button>`;
     }
 
     el.innerHTML = `<span class="sbps-plan-name">${planName}</span>${usageHtml}${barHtml}${upgradeHtml}`;
@@ -1717,7 +1709,7 @@ function updateFabBadge() {
     <div class="ws-sidebar-section">
       <div class="sidebar-section-label" style="display:flex;align-items:center;justify-content:space-between;">
         <span class="ws-section-label-text">ワークスペース</span>
-        <button class="ws-gear-btn" onclick="openWsManage()" title="ワークスペースを管理"><span style="font-size:12px;">⚙</span>設定</button>
+        <button class="ws-gear-btn" onclick="openWsManage()" title="ワークスペースを管理"><span style="font-size:13px;">⚙</span>設定</button>
       </div>
       <div id="wsSelector" class="ws-selector">
         <button class="ws-selector-btn" id="wsSelectorBtn" onclick="toggleWsDropdown()">
