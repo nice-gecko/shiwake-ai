@@ -6579,7 +6579,7 @@ function renderWsEditBody(ws, ae = {}) {
         <span>ステータス</span><span>${status}</span>
       </div>
     </div>
-    <div class="ws-rule-section">
+    <div class="ws-rule-section" id="auto-export-section">
       <div class="ws-rule-section-title">自動エクスポート設定</div>
       <div style="font-size:11px;color:#888;margin:0 0 10px;">承認済み仕訳がN件溜まったら、設定の出力先へ自動でCSVを送ります。デフォルトはOFFです。</div>
       <div class="ws-form-row ae-toggle-row">
@@ -6615,13 +6615,21 @@ function renderWsEditBody(ws, ae = {}) {
         </div>
         <div class="ws-form-row">
           <label>会計ソフト形式</label>
-          <select id="wsAeFormat">
+          <select id="wsAeFormat" onchange="wsAeFormatChange(this.value)">
             <option value="yayoi" ${(ae.auto_export_format || 'yayoi') === 'yayoi' ? 'selected' : ''}>弥生会計</option>
             <option value="freee" ${ae.auto_export_format === 'freee' ? 'selected' : ''}>freee</option>
             <option value="mf" ${ae.auto_export_format === 'mf' ? 'selected' : ''}>マネーフォワード</option>
             <option value="obc" ${ae.auto_export_format === 'obc' ? 'selected' : ''}>勘定奉行</option>
             <option value="generic" ${ae.auto_export_format === 'generic' ? 'selected' : ''}>汎用CSV</option>
           </select>
+        </div>
+        <div class="ws-form-row" id="wsAeYayoiSplitRow" style="${(ae.auto_export_format || 'yayoi') === 'yayoi' ? '' : 'display:none;'}">
+          <label>弥生の分割設定</label>
+          <div style="font-size:11px;color:#888;margin:0 0 6px;">弥生会計の慣習に合わせ、貸方科目別に複数ファイルへ分割するか選べます</div>
+          <div class="ae-radio-group">
+            <label class="ae-radio-label"><input type="radio" name="wsAeYayoiSplitMode" value="single" ${(ae.auto_export_yayoi_split_mode || 'single') === 'single' ? 'checked' : ''}> 単一ファイル(すべての仕訳を1ファイルに)</label>
+            <label class="ae-radio-label"><input type="radio" name="wsAeYayoiSplitMode" value="by_credit_account" ${ae.auto_export_yayoi_split_mode === 'by_credit_account' ? 'checked' : ''}> 貸方科目別に分割(現金/未払金/預金... ごとに別ファイル)</label>
+          </div>
         </div>
       </div>
     </div>
@@ -6640,6 +6648,11 @@ function wsAeCloudChange() {
   const cloud = document.getElementById('wsAeDestCloud');
   const row = document.getElementById('wsAeCloudFolderRow');
   if (row) row.style.display = cloud?.checked ? '' : 'none';
+}
+
+function wsAeFormatChange(format) {
+  const row = document.getElementById('wsAeYayoiSplitRow');
+  if (row) row.style.display = format === 'yayoi' ? '' : 'none';
 }
 
 function selectWsEditIcon(emoji) {
@@ -6722,10 +6735,15 @@ async function submitWsEdit() {
     const aeOutputUnit = document.querySelector('input[name="wsAeOutputUnit"]:checked')?.value || 'per_workspace';
     const aeCloudFolder = document.getElementById('wsAeCloudFolderPath')?.value.trim() || null;
     const aeFormat = document.getElementById('wsAeFormat')?.value || 'yayoi';
+    const aeYayoiSplitMode = aeFormat === 'yayoi'
+      ? (document.querySelector('input[name="wsAeYayoiSplitMode"]:checked')?.value || 'single')
+      : undefined;
+    const aePatch = { uid, workspace_id: _wsEditId, enabled: aeEnabled, threshold: aeThreshold, output_unit: aeOutputUnit, destinations: aeDests, cloud_folder_path: aeCloudFolder, format: aeFormat };
+    if (aeYayoiSplitMode !== undefined) aePatch.yayoi_split_mode = aeYayoiSplitMode;
     try {
       const aeR = await fetch('/api/auto-export/settings', {
         method: 'PATCH', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ uid, workspace_id: _wsEditId, enabled: aeEnabled, threshold: aeThreshold, output_unit: aeOutputUnit, destinations: aeDests, cloud_folder_path: aeCloudFolder, format: aeFormat })
+        body: JSON.stringify(aePatch)
       });
       const aeD = await aeR.json();
       if (!aeD.ok) showToast('⚠️ 自動エクスポート設定の保存に失敗しました', 3000);

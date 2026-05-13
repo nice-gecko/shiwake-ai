@@ -238,6 +238,36 @@ async function sendEmailWithAttachment(to, subject, html, attachmentContent, att
   }
 }
 
+async function sendEmailWithAttachments(to, subject, html, files) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = process.env.SENDGRID_FROM_EMAIL || 'noreply@shiwake-ai.com';
+  if (!apiKey) { console.warn('SENDGRID_API_KEY未設定'); return; }
+  try {
+    const body = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: from, name: '証憑仕訳AI' },
+      subject,
+      content: [{ type: 'text/html', value: html }],
+      attachments: files.map(({ filename, content }) => ({
+        content: Buffer.from(content, 'utf8').toString('base64'),
+        filename,
+        type: filename.endsWith('.txt') ? 'text/plain' : 'text/csv',
+        disposition: 'attachment'
+      }))
+    };
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) console.error('SendGrid attachments error:', res.status, await res.text());
+    else console.log(`添付メール送信完了(${files.length}件): ${to} / ${subject}`);
+  } catch(e) {
+    console.error('SendGrid添付例外:', e.message);
+    throw e;
+  }
+}
+
 async function sendIncentiveNotification(ownerEmail, staffName, unredeemedCount) {
   const adminEmail = process.env.ADMIN_EMAIL || 'easy.you.me@gmail.com';
   const subject = `【証憑仕訳AI】インセンティブ付与対象: ${staffName}さんが${unredeemedCount}件到達`;
@@ -324,39 +354,57 @@ async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
 
 // ===== v2.4.0 Group 2: 自動エクスポート実行エンジン =====
 
-function generateCsvContent(records, format, includeWsName, wsNameMap) {
+// 戻り値: [{ filename, content }, ...] (弥生分割時は複数要素)
+function generateCsvContent({ records, format, includeWsName, wsNameMap, yayoiSplitMode, baseName }) {
+  const ext = format === 'yayoi' ? 'txt' : 'csv';
+  const sanitize = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
   const cleanAmt = (v) => String(v || '').replace(/[¥,￥]/g, '');
   const invCol = (r) => r.invoice_number || '';
   const dedCol = (r) => r.invoice_number ? '適格' : '不適格(80%控除)';
   const wsCol = (r) => (wsNameMap && r.workspace_id) ? (wsNameMap[r.workspace_id] || '') : '';
-
-  let headers, rows;
-  if (format === 'freee') {
-    headers = ['取引日','借方勘定科目','借方税区分','借方金額','貸方勘定科目','貸方税区分','貸方金額','摘要','インボイス登録番号','適格区分'];
-    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',r.tax_category||'',cleanAmt(r.amount),r.credit_account||'',r.tax_category||'',cleanAmt(r.amount),r.memo||'',invCol(r),dedCol(r)]);
-  } else if (format === 'mf') {
-    headers = ['決済日','借方勘定科目','借方補助科目','借方税区分','借方金額','貸方勘定科目','貸方補助科目','貸方税区分','貸方金額','摘要','仕訳メモ','インボイス登録番号','適格区分'];
-    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'','',r.tax_category||'',cleanAmt(r.amount),r.credit_account||'','',r.tax_category||'',cleanAmt(r.amount),r.memo||'','',invCol(r),dedCol(r)]);
-  } else if (format === 'obc') {
-    headers = ['伝票日付','借方科目','借方金額','貸方科目','貸方金額','摘要','消費税区分','インボイス登録番号','適格区分'];
-    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',cleanAmt(r.amount),r.credit_account||'',cleanAmt(r.amount),r.memo||'',r.tax_category||'',invCol(r),dedCol(r)]);
-  } else if (format === 'generic') {
-    headers = ['日付','借方','貸方','金額','税区分','摘要','インボイス登録番号','適格区分'];
-    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',r.credit_account||'',cleanAmt(r.amount),r.tax_category||'',r.memo||'',invCol(r),dedCol(r)]);
-  } else {
-    // yayoi (default)
-    headers = ['日付','借方科目','貸方科目','金額','税区分','摘要','インボイス登録番号','適格区分'];
-    rows = records.map(r => [r.shiwake_date||'',r.debit_account||'',r.credit_account||'',cleanAmt(r.amount),r.tax_category||'',r.memo||'',invCol(r),dedCol(r)]);
-  }
-
-  if (includeWsName) {
-    headers = ['ワークスペース', ...headers];
-    rows = rows.map((row, i) => [wsCol(records[i]), ...row]);
-  }
-
   const escape = (v) => '"' + String(v).replace(/"/g, '""') + '"';
-  const csvBody = [headers, ...rows].map(row => row.map(escape).join(',')).join('\n');
-  return '﻿' + csvBody; // UTF-8 BOM付き
+
+  function buildContent(recs) {
+    let headers, rows;
+    if (format === 'freee') {
+      headers = ['取引日','借方勘定科目','借方税区分','借方金額','貸方勘定科目','貸方税区分','貸方金額','摘要','インボイス登録番号','適格区分'];
+      rows = recs.map(r => [r.shiwake_date||'',r.debit_account||'',r.tax_category||'',cleanAmt(r.amount),r.credit_account||'',r.tax_category||'',cleanAmt(r.amount),r.memo||'',invCol(r),dedCol(r)]);
+    } else if (format === 'mf') {
+      headers = ['決済日','借方勘定科目','借方補助科目','借方税区分','借方金額','貸方勘定科目','貸方補助科目','貸方税区分','貸方金額','摘要','仕訳メモ','インボイス登録番号','適格区分'];
+      rows = recs.map(r => [r.shiwake_date||'',r.debit_account||'','',r.tax_category||'',cleanAmt(r.amount),r.credit_account||'','',r.tax_category||'',cleanAmt(r.amount),r.memo||'','',invCol(r),dedCol(r)]);
+    } else if (format === 'obc') {
+      headers = ['伝票日付','借方科目','借方金額','貸方科目','貸方金額','摘要','消費税区分','インボイス登録番号','適格区分'];
+      rows = recs.map(r => [r.shiwake_date||'',r.debit_account||'',cleanAmt(r.amount),r.credit_account||'',cleanAmt(r.amount),r.memo||'',r.tax_category||'',invCol(r),dedCol(r)]);
+    } else if (format === 'generic') {
+      headers = ['日付','借方','貸方','金額','税区分','摘要','インボイス登録番号','適格区分'];
+      rows = recs.map(r => [r.shiwake_date||'',r.debit_account||'',r.credit_account||'',cleanAmt(r.amount),r.tax_category||'',r.memo||'',invCol(r),dedCol(r)]);
+    } else {
+      // yayoi (default)
+      headers = ['日付','借方科目','貸方科目','金額','税区分','摘要','インボイス登録番号','適格区分'];
+      rows = recs.map(r => [r.shiwake_date||'',r.debit_account||'',r.credit_account||'',cleanAmt(r.amount),r.tax_category||'',r.memo||'',invCol(r),dedCol(r)]);
+    }
+    if (includeWsName) {
+      headers = ['ワークスペース', ...headers];
+      rows = rows.map((row, i) => [wsCol(recs[i]), ...row]);
+    }
+    const csvBody = [headers, ...rows].map(row => row.map(escape).join(',')).join('\n');
+    return '﻿' + csvBody; // UTF-8 BOM付き
+  }
+
+  if (format === 'yayoi' && yayoiSplitMode === 'by_credit_account') {
+    const groups = {};
+    for (const r of records) {
+      const key = r.credit_account || '未分類';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    }
+    return Object.entries(groups).map(([account, recs]) => ({
+      filename: `${baseName}_${sanitize(account)}.${ext}`,
+      content: buildContent(recs)
+    }));
+  }
+
+  return [{ filename: `${baseName}.${ext}`, content: buildContent(records) }];
 }
 
 async function executeAutoExport(uid, workspaceId) {
@@ -367,7 +415,7 @@ async function executeAutoExport(uid, workspaceId) {
   try {
     // WS設定取得
     const wsList = await supabaseQuery(
-      `/workspaces?id=eq.${workspaceId}&owner_uid=eq.${uid}&select=id,name,slug,auto_export_enabled,auto_export_threshold,auto_export_output_unit,auto_export_destinations,auto_export_cloud_folder_path,auto_export_format`
+      `/workspaces?id=eq.${workspaceId}&owner_uid=eq.${uid}&select=id,name,slug,auto_export_enabled,auto_export_threshold,auto_export_output_unit,auto_export_destinations,auto_export_cloud_folder_path,auto_export_format,auto_export_yayoi_split_mode`
     );
     const ws = wsList?.[0];
     if (!ws || !ws.auto_export_enabled) return;
@@ -375,6 +423,7 @@ async function executeAutoExport(uid, workspaceId) {
     const outputUnit = ws.auto_export_output_unit || 'per_workspace';
     const format = ws.auto_export_format || 'yayoi';
     const destinations = ws.auto_export_destinations || ['email'];
+    const yayoiSplitMode = ws.auto_export_yayoi_split_mode || 'single';
     const wsSlug = ws.slug || workspaceId.slice(0, 8);
     const wsName = ws.name || wsSlug;
 
@@ -399,7 +448,7 @@ async function executeAutoExport(uid, workspaceId) {
     const recordCount = records.length;
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
     const timePart = now.toISOString().slice(11, 19).replace(/:/g, '');
-    const filename = `${wsSlug}_${format}_${datePart}-${timePart}.csv`;
+    const baseName = `${wsSlug}_${format}_${datePart}-${timePart}`;
 
     // shiwake_exports に pending で INSERT
     await supabaseQuery('/shiwake_exports', 'POST', {
@@ -414,9 +463,9 @@ async function executeAutoExport(uid, workspaceId) {
       created_at: now.toISOString()
     });
 
-    // CSV生成
+    // CSV/TXT生成(配列: [{filename, content}, ...])
     const includeWsName = outputUnit === 'merged';
-    const csvContent = generateCsvContent(records, format, includeWsName, wsNameMap);
+    const files = generateCsvContent({ records, format, includeWsName, wsNameMap, yayoiSplitMode, baseName });
 
     // 配送先ごとに処理
     const outputDestinations = {};
@@ -429,6 +478,8 @@ async function executeAutoExport(uid, workspaceId) {
           const toEmail = userRows?.[0]?.email;
           if (!toEmail) throw new Error('user email not found');
           const subject = `【shiwake-ai】自動エクスポート完了 [${wsName}] ${recordCount}件`;
+          const splitNote = files.length >= 2
+            ? `<p style="color:#666;font-size:13px;">${files.length}個のファイルに分割して添付しています。</p>` : '';
           const html = `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
   <h2 style="color:#185FA5;">自動エクスポート完了</h2>
@@ -438,10 +489,11 @@ async function executeAutoExport(uid, workspaceId) {
     <tr><td style="padding:6px 0;color:#666;">出力形式</td><td>${format}</td></tr>
     <tr><td style="padding:6px 0;color:#666;">実行日時</td><td>${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}</td></tr>
   </table>
+  ${splitNote}
   <hr style="margin:16px 0;">
   <p style="font-size:12px;color:#888;">証憑仕訳AI / shiwake-ai.com</p>
 </div>`;
-          await sendEmailWithAttachment(toEmail, subject, html, csvContent, filename);
+          await sendEmailWithAttachments(toEmail, subject, html, files);
           outputDestinations[dest] = 'success';
         } else if (dest === 'cloud') {
           const connRows = await supabaseQuery(
@@ -450,24 +502,38 @@ async function executeAutoExport(uid, workspaceId) {
           const conn = connRows?.[0];
           if (!conn) throw new Error('no_connection');
           const folderPath = ws.auto_export_cloud_folder_path || '/exports';
-          const csvBuffer = Buffer.from(csvContent, 'utf8');
-          if (conn.provider === 'dropbox') {
-            const uploadedPath = await uploadToDropbox(conn.access_token, folderPath, csvBuffer, filename);
-            csvStoragePath = csvStoragePath || uploadedPath;
-          } else if (conn.provider === 'gdrive') {
-            const folderId = folderPath.replace(/^\//, '');
-            const fileId = await uploadToGDrive(folderId || null, csvBuffer, filename);
-            csvStoragePath = csvStoragePath || `gdrive:${fileId}`;
-          } else {
-            throw new Error(`unsupported_provider:${conn.provider}`);
+          let cloudSuccessCount = 0;
+          const cloudFailures = [];
+          for (const { filename: fn, content } of files) {
+            try {
+              const buf = Buffer.from(content, 'utf8');
+              if (conn.provider === 'dropbox') {
+                const uploadedPath = await uploadToDropbox(conn.access_token, folderPath, buf, fn);
+                if (!csvStoragePath) csvStoragePath = uploadedPath;
+              } else if (conn.provider === 'gdrive') {
+                const folderId = folderPath.replace(/^\//, '');
+                const fileId = await uploadToGDrive(folderId || null, buf, fn);
+                if (!csvStoragePath) csvStoragePath = `gdrive:${fileId}`;
+              } else {
+                throw new Error(`unsupported_provider:${conn.provider}`);
+              }
+              cloudSuccessCount++;
+            } catch(fileErr) {
+              cloudFailures.push({ file: fn, error: fileErr.message });
+            }
           }
-          outputDestinations[dest] = 'success';
+          if (cloudSuccessCount === 0) throw new Error(cloudFailures.map(f => f.error).join('; '));
+          outputDestinations[dest] = cloudFailures.length > 0
+            ? `partial:${JSON.stringify(cloudFailures)}` : 'success';
         } else if (dest === 'local') {
           await ensureAutoExportsBucket();
-          const storagePath = `${uid}/${exportId}/${filename}`;
-          const csvBuffer = Buffer.from(csvContent, 'utf8');
-          await supabaseStorageUpload('auto-exports', storagePath, csvBuffer, 'text/csv');
-          csvStoragePath = csvStoragePath || storagePath;
+          for (const { filename: fn, content } of files) {
+            const storagePath = `${uid}/${exportId}/${fn}`;
+            const buf = Buffer.from(content, 'utf8');
+            const mimeType = fn.endsWith('.txt') ? 'text/plain' : 'text/csv';
+            await supabaseStorageUpload('auto-exports', storagePath, buf, mimeType);
+            if (!csvStoragePath) csvStoragePath = storagePath;
+          }
           outputDestinations[dest] = 'success';
         }
       } catch(e) {
@@ -476,7 +542,7 @@ async function executeAutoExport(uid, workspaceId) {
       }
     }
 
-    const anySuccess = Object.values(outputDestinations).some(v => v === 'success');
+    const anySuccess = Object.values(outputDestinations).some(v => v === 'success' || v.startsWith('partial'));
     const finalStatus = anySuccess ? 'success' : 'failed';
 
     // 成功した場合のみ exported_at を更新
@@ -3399,7 +3465,7 @@ const server = http.createServer(async (req, res) => {
       const wsId = await resolveWorkspaceId(uid, workspaceId);
       if (!wsId) { res.writeHead(400); res.end(JSON.stringify({ error: 'workspace_id required' })); return; }
       const wsList = await supabaseQuery(
-        `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id,auto_export_enabled,auto_export_threshold,auto_export_output_unit,auto_export_destinations,auto_export_cloud_folder_path,auto_export_format`
+        `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id,auto_export_enabled,auto_export_threshold,auto_export_output_unit,auto_export_destinations,auto_export_cloud_folder_path,auto_export_format,auto_export_yayoi_split_mode`
       );
       if (!wsList || wsList.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return; }
       const ws = wsList[0];
@@ -3420,12 +3486,13 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, workspace_id, enabled, threshold, output_unit, destinations, cloud_folder_path, format } = JSON.parse(body || '{}');
+        const { uid, workspace_id, enabled, threshold, output_unit, destinations, cloud_folder_path, format, yayoi_split_mode } = JSON.parse(body || '{}');
         if (!uid || !workspace_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id required' })); return; }
         try { await resolveWorkspaceId(uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
         // バリデーション
         const VALID_FORMATS = ['yayoi', 'freee', 'mf', 'obc', 'generic'];
         const VALID_DESTS = ['email', 'cloud', 'local'];
+        const VALID_SPLIT_MODES = ['single', 'by_credit_account'];
         if (threshold !== undefined && (!Number.isInteger(threshold) || threshold < 1 || threshold > 10000)) {
           res.writeHead(400); res.end(JSON.stringify({ error: 'threshold は1〜10000の整数で指定してください' })); return;
         }
@@ -3437,13 +3504,17 @@ const server = http.createServer(async (req, res) => {
         if (format !== undefined && !VALID_FORMATS.includes(format)) {
           res.writeHead(400); res.end(JSON.stringify({ error: `format は ${VALID_FORMATS.join('/')} のいずれか` })); return;
         }
+        if (yayoi_split_mode !== undefined && !VALID_SPLIT_MODES.includes(yayoi_split_mode)) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'yayoi_split_mode は single/by_credit_account のいずれか' })); return;
+        }
         const patch = { updated_at: new Date().toISOString() };
-        if (enabled       !== undefined) patch.auto_export_enabled           = Boolean(enabled);
-        if (threshold     !== undefined) patch.auto_export_threshold          = threshold;
-        if (output_unit   !== undefined) patch.auto_export_output_unit        = output_unit;
-        if (destinations  !== undefined) patch.auto_export_destinations       = destinations;
-        if (cloud_folder_path !== undefined) patch.auto_export_cloud_folder_path = cloud_folder_path || null;
-        if (format        !== undefined) patch.auto_export_format             = format;
+        if (enabled           !== undefined) patch.auto_export_enabled                = Boolean(enabled);
+        if (threshold         !== undefined) patch.auto_export_threshold               = threshold;
+        if (output_unit       !== undefined) patch.auto_export_output_unit             = output_unit;
+        if (destinations      !== undefined) patch.auto_export_destinations            = destinations;
+        if (cloud_folder_path !== undefined) patch.auto_export_cloud_folder_path       = cloud_folder_path || null;
+        if (format            !== undefined) patch.auto_export_format                  = format;
+        if (yayoi_split_mode  !== undefined) patch.auto_export_yayoi_split_mode        = yayoi_split_mode;
         await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}`, 'PATCH', patch);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
