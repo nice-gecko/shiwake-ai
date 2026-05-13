@@ -1295,7 +1295,7 @@ function updateFabBadge() {
     const planKey  = window._userPlanKey  || null;
     const usage = window._userUsage || {};
     const used  = usage.monthly_count ?? (window._userTotalCount || 0);
-    const limit = usage.monthly_limit ?? null;
+    const limit = usage.limit ?? null;
 
     let usageHtml = '';
     if (limit != null) {
