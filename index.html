@@ -673,19 +673,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .invite-banner{background:#E6F1FB;border-radius:10px;padding:12px 14px;margin-bottom:14px;text-align:center;}
 .invite-banner-title{font-size:14px;font-weight:600;color:#185FA5;margin-bottom:4px;}
 .invite-banner-sub{font-size:12px;color:#555;}
-/* インセンティブカウンター */
-.plan-status-banner{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
-.plan-status-banner.agent{border-color:#185FA5;background:#f0f6ff;}
-.plan-status-banner.elite{border-color:#7c3aed;background:#f5f0ff;}
-.plan-status-plan{font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;}
-.plan-status-usage{font-size:12px;color:#666;flex:1;}
-.plan-status-bar{width:80px;height:5px;background:#e5e5e5;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin:0 6px;}
-.plan-status-bar-fill{height:100%;background:#185FA5;border-radius:3px;transition:width 0.3s;}
-.plan-status-upgrade{font-size:11px;color:#185FA5;white-space:nowrap;cursor:pointer;text-decoration:underline;}
-.plan-status-upgrade.warning{color:#d97706;font-weight:600;border:1px solid #d97706;border-radius:4px;padding:2px 6px;text-decoration:none;}
-.plan-status-upgrade.warning:hover{background:#fff7ed;}
-.plan-status-upgrade.danger{color:var(--color-text-secondary,#888);font-weight:600;border:0.5px solid var(--color-border-secondary,#e0dfd8);border-radius:4px;padding:2px 6px;text-decoration:none;}
-.plan-status-upgrade.danger:hover{color:var(--color-text-primary,#1a1a1a);background:#f5f5f5;}
+/* サイドバープランステータス (v2.4.x) */
+.sidebar-plan-status-wrap{padding:8px 8px 0;}
+#sidebarPlanStatus{background:#fff;border:0.5px solid var(--color-border-tertiary,#e8e7e0);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;}
+.sbps-plan-name{font-size:12px;font-weight:500;color:#1a1a1a;}
+.sbps-usage{font-size:11px;color:var(--color-text-secondary,#888);}
+.sbps-bar{width:100%;height:3px;background:#e5e5e5;border-radius:2px;overflow:hidden;}
+.sbps-bar-fill{height:100%;background:#185FA5;border-radius:2px;transition:width 0.3s;}
+.sbps-upgrade-btn{width:100%;font-size:11px;color:var(--color-text-secondary,#888);font-weight:500;border:0.5px solid var(--color-border-secondary,#e0dfd8);border-radius:4px;padding:5px 0;background:#fff;cursor:pointer;text-align:center;margin-top:2px;}
+.sbps-upgrade-btn:hover{color:var(--color-text-primary,#1a1a1a);background:#f5f5f5;}
+.sbps-upgrade-btn.warning{color:#d97706;border-color:#d97706;}
+.sbps-upgrade-btn.warning:hover{background:#fff7ed;}
+.sbps-upgrade-btn.danger{color:#e53e3e;border-color:#e53e3e;}
+.sbps-upgrade-btn.danger:hover{background:#fff5f5;}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;align-items:stretch;}
 .dashboard-left{display:flex;flex-direction:column;}
 .dashboard-left > .dash-card{flex:1;}
@@ -1323,9 +1323,8 @@ function updateFabBadge() {
   }
 
   function renderPlanStatusBanner() {
-    const el = document.getElementById('plan-status-banner');
+    const el = document.getElementById('sidebarPlanStatus');
     if (!el) return;
-    const edition = window._userEdition || 'saas';
     const planName = window._userPlanName || '無料トライアル';
     const planKey  = window._userPlanKey  || null;
     const usage = window._userUsage || {};
@@ -1333,38 +1332,32 @@ function updateFabBadge() {
     const limit = usage.limit ?? null;
 
     let usageHtml = '';
+    let barHtml = '';
     if (limit != null) {
       const pct = Math.min(100, Math.round(used / limit * 100));
       const fillColor = pct >= 90 ? '#e53e3e' : pct >= 70 ? '#d97706' : '#185FA5';
-      usageHtml = `<span class="plan-status-usage">
-        今月 ${used.toLocaleString()} / ${limit.toLocaleString()} 件
-        <span class="plan-status-bar"><span class="plan-status-bar-fill" style="width:${pct}%;background:${fillColor};"></span></span>
-        ${pct}%
-      </span>`;
+      usageHtml = `<span class="sbps-usage">今月 ${used.toLocaleString()} / ${limit.toLocaleString()} 件</span>`;
+      barHtml = `<div class="sbps-bar"><div class="sbps-bar-fill" style="width:${pct}%;background:${fillColor};"></div></div>`;
     } else {
-      usageHtml = `<span class="plan-status-usage">今月 ${used.toLocaleString()} 件（無制限）</span>`;
+      usageHtml = `<span class="sbps-usage">今月 ${used.toLocaleString()} 件（無制限）</span>`;
     }
 
     let upgradeHtml = '';
     const nextPlan = getNextPlan(planKey);
     if (nextPlan !== null && limit != null) {
       const pct = Math.min(100, Math.round(used / limit * 100));
-      let ctaText, ctaClass;
+      let btnClass;
       if (pct >= 90) {
-        ctaText  = 'アップグレード';
-        ctaClass = 'plan-status-upgrade danger';
+        btnClass = 'sbps-upgrade-btn danger';
       } else if (pct >= 70) {
-        ctaText  = `上限が近づいています → ${nextPlan.name}へ`;
-        ctaClass = 'plan-status-upgrade warning';
+        btnClass = 'sbps-upgrade-btn warning';
       } else {
-        ctaText  = 'アップグレード';
-        ctaClass = 'plan-status-upgrade';
+        btnClass = 'sbps-upgrade-btn';
       }
-      upgradeHtml = `<span class="${ctaClass}" onclick="openUpgradeModal()">${ctaText}</span>`;
+      upgradeHtml = `<button class="${btnClass}" onclick="openUpgradeModal()">アップグレード</button>`;
     }
 
-    el.className = `plan-status-banner${edition === 'elite' ? ' elite' : edition === 'agent' ? ' agent' : ''}`;
-    el.innerHTML = `<span class="plan-status-plan">${planName}</span>${usageHtml}${upgradeHtml}`;
+    el.innerHTML = `<span class="sbps-plan-name">${planName}</span>${usageHtml}${barHtml}${upgradeHtml}`;
     el.style.display = '';
   }
 
@@ -1715,6 +1708,10 @@ function updateFabBadge() {
       </div>
     </div>
   </div>
+  <!-- プランステータス(v2.4.x) -->
+  <div class="sidebar-plan-status-wrap">
+    <div id="sidebarPlanStatus" style="display:none;"></div>
+  </div>
   <nav class="sidebar-nav">
     <!-- ワークスペースセクション(v2.3.2 Group 5-D) -->
     <div class="ws-sidebar-section">
@@ -1859,8 +1856,6 @@ function updateFabBadge() {
       カメラで撮影する
     </button>
     <div class="mobile-scan-link"><a onclick="document.getElementById('fi').click()">またはファイルを選択</a></div>
-    <!-- プランステータスバナー -->
-    <div id="plan-status-banner" style="display:none;"></div>
     <!-- ダッシュボード：左右2カード -->
     <div class="dashboard-grid">
       <!-- 左カード：プラン別 -->
