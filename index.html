@@ -4241,7 +4241,7 @@ async function approve(i){
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          uid,session_id:SESSION_ID,
+          uid,workspace_id:window._currentWorkspaceId||null,session_id:SESSION_ID,
           record:{
             shiwake_date:results[i].date,partner_name:results[i].title,
             debit_account:results[i].debit,credit_account:results[i].credit,
