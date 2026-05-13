@@ -5381,14 +5381,17 @@ async function disconnectGDrive() {
 // ===== サイドバー自動取り込みメニュー出し分け =====
 async function setupAutoIntakeMenuItem() {
   const menuItem = document.getElementById('navAutoIntake');
-  if (!menuItem) return;
+  const menuUT   = document.getElementById('navUnassignedTray');
+  if (!menuItem && !menuUT) return;
   const grad = await fetchGraduationStatus();
-  if (!grad) { menuItem.style.display = 'none'; return; }
-  // 有料プランなら表示、無料は非表示
-  menuItem.style.display = grad.is_paid ? '' : 'none';
-  // 既存のロックバッジは念のため削除
-  const lb = menuItem.querySelector('.lock-badge');
-  if (lb) lb.remove();
+  const show = !!(grad && grad.is_paid);
+  // 有料プランなら表示、無料は非表示(navAutoIntake / navUnassignedTray 共通)
+  if (menuItem) {
+    menuItem.style.display = show ? '' : 'none';
+    const lb = menuItem.querySelector('.lock-badge');
+    if (lb) lb.remove();
+  }
+  if (menuUT) menuUT.style.display = show ? '' : 'none';
 }
 
 // ===== v2.3.5: 未振り分けトレイ =====
@@ -6335,9 +6338,7 @@ window.addEventListener('DOMContentLoaded', () => {
       loadInboxTray();
       setupAutoIntakeMenuItem();
       startInboxPolling();
-      // v2.3.5: 未振り分けメニュー + バッジ初期化
-      const navUT = document.getElementById('navUnassignedTray');
-      if (navUT) navUT.style.display = '';
+      // v2.3.5: 未振り分けバッジ初期化 (表示制御は setupAutoIntakeMenuItem が担当)
       updateUnassignedBadge();
       // 既に卒業済みのユーザーはlocalStorageフラグだけ立てる（モーダルは出さない）
       fetchGraduationStatus().then(grad => {
