@@ -4764,6 +4764,79 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // GET /api/reverted-records?uid=xxx&workspace_id=yyy
+  if (req.method === 'GET' && reqPath === '/api/reverted-records') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    const workspaceId = params.get('workspace_id');
+    if (!uid || !workspaceId) {
+      res.writeHead(400); res.end(JSON.stringify({ error: 'uid and workspace_id required' })); return;
+    }
+    try {
+      const wsId = await resolveWorkspaceId(uid, workspaceId);
+      const fields = 'id,partner_name,amount,debit_account,credit_account,tax_category,memo,approved_at,ai_proposed_debit_account,ai_proposed_credit_account,ai_proposed_tax_category,ai_proposed_memo';
+      const records = await supabaseQuery(
+        `/shiwake_records?workspace_id=eq.${wsId}&status=eq.reverted&order=approved_at.desc&limit=100&select=${fields}`
+      ) || [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ records }));
+    } catch(e) {
+      if (e.status === 403) { res.writeHead(403); res.end(JSON.stringify({ error: e.message })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // POST /api/reverted-records/re-approve
+  if (req.method === 'POST' && reqPath === '/api/reverted-records/re-approve') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, record_id, final_values } = JSON.parse(body);
+        if (!uid || !workspace_id || !record_id || !final_values) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, record_id, final_values required' })); return;
+        }
+        const wsId = await resolveWorkspaceId(uid, workspace_id);
+
+        const [record] = await supabaseQuery(
+          `/shiwake_records?id=eq.${record_id}&workspace_id=eq.${wsId}&select=id,status,debit_account,credit_account,tax_category,memo,ai_proposed_debit_account,ai_proposed_credit_account,ai_proposed_tax_category,ai_proposed_memo`
+        );
+        if (!record) { res.writeHead(404); res.end(JSON.stringify({ error: 'record not found' })); return; }
+        if (record.status !== 'reverted') {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'record is not in reverted status' })); return;
+        }
+
+        // was_modified 計算: ai_proposed_* との比較（既存 approve ロジックと同じ基準）
+        const modifiedFields = [];
+        if (final_values.debit_account !== record.ai_proposed_debit_account) modifiedFields.push('debit_account');
+        if (final_values.credit_account !== record.ai_proposed_credit_account) modifiedFields.push('credit_account');
+        if (final_values.tax_category !== record.ai_proposed_tax_category) modifiedFields.push('tax_category');
+        if (final_values.memo !== record.ai_proposed_memo) modifiedFields.push('memo');
+        const wasModified = modifiedFields.length > 0;
+
+        await supabaseQuery(`/shiwake_records?id=eq.${record_id}`, 'PATCH', {
+          status: 're_approved',
+          debit_account: final_values.debit_account || record.debit_account,
+          credit_account: final_values.credit_account || record.credit_account,
+          tax_category: final_values.tax_category || record.tax_category,
+          memo: final_values.memo != null ? final_values.memo : record.memo,
+          was_modified: wasModified,
+          modified_fields: wasModified ? modifiedFields : null,
+          approved_at: new Date().toISOString()
+        });
+
+        recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error:', e.message));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, was_modified: wasModified }));
+      } catch(e) {
+        if (e.status === 403) { res.writeHead(403); res.end(JSON.stringify({ error: e.message })); return; }
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // POST /api/auto-approve/revert
   if (req.method === 'POST' && reqPath === '/api/auto-approve/revert') {
     let body = '';

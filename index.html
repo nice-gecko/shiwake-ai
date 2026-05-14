@@ -890,6 +890,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .aa-revert-btn{font-size:11px;padding:2px 8px;border-radius:5px;border:1px solid #dc2626;color:#dc2626;background:#fff;cursor:pointer;}
 .aa-revert-btn:hover{background:#FEF2F2;}
 .aa-empty{text-align:center;color:#bbb;padding:32px;font-size:13px;}
+/* v2.6.0: 差し戻しトレイ */
+.reverted-sidebar-badge{margin-left:auto;font-size:10px;padding:1px 6px;border-radius:8px;background:#FEF3C7;color:#d97706;font-weight:600;}
+.sidebar-nav-item.active .reverted-sidebar-badge{background:#fde68a;color:#92400e;}
+.ra-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:300;align-items:center;justify-content:center;}
+.ra-modal-overlay.show{display:flex;}
+.ra-modal{background:#fff;border-radius:12px;padding:20px 22px;width:360px;max-width:95vw;box-shadow:0 4px 24px rgba(0,0,0,0.15);}
+.ra-modal h3{font-size:15px;font-weight:700;margin-bottom:14px;color:#1a1a1a;}
+.ra-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.ra-row label{font-size:12px;color:#666;width:60px;flex-shrink:0;}
+.ra-row select,.ra-row input{flex:1;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;}
+.ra-footer{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+.btn-ra-cancel{padding:7px 16px;border-radius:7px;border:1px solid #ddd;background:#fff;font-size:13px;cursor:pointer;}
+.btn-ra-ok{padding:7px 16px;border-radius:7px;border:none;background:#185FA5;color:#fff;font-size:13px;cursor:pointer;font-weight:500;}
+.btn-ra-ok:hover{background:#1450a3;}
 
 /* 承認アニメーション */
 @keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
@@ -1928,6 +1942,12 @@ function updateFabBadge() {
           <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="9" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="9" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="7" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><circle cx="12" cy="10.5" r="1.8" fill="#1D9E75"/></svg>
           自動承認ログ
         </div>
+        <!-- v2.6.0: 差し戻しトレイ -->
+        <div class="sidebar-nav-item" id="navRevertedTray" onclick="switchTab('reverted-tray')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><polyline points="4,9 6,11 11,6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          差し戻しトレイ
+          <span class="reverted-sidebar-badge" id="revertedSidebarBadge" style="display:none;"></span>
+        </div>
         <!-- Agent版メニュー (edition: agent / elite) -->
         <div class="sidebar-nav-item" id="navAgentDashboard" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
           <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
@@ -2703,6 +2723,15 @@ function updateFabBadge() {
     <div id="autoApproveLogBody"><div class="aa-empty">読み込み中...</div></div>
   </div>
 
+  <!-- v2.6.0: 差し戻しトレイパネル -->
+  <div class="panel" id="panel-reverted-tray">
+    <div class="aa-log-header">
+      <div class="aa-log-title">差し戻しトレイ</div>
+      <div class="aa-log-sub">差し戻しされた仕訳の一覧です。再承認して処理を完了させてください</div>
+    </div>
+    <div id="revertedTrayBody"><div class="aa-empty">読み込み中...</div></div>
+  </div>
+
   <!-- スキャンパネル -->
   <div class="panel" id="panel-scan">
     <p class="main-subcopy">スマホのカメラで領収書を撮影し、そのまま仕訳処理へ送れます。</p>
@@ -2805,6 +2834,25 @@ function updateFabBadge() {
     <div class="modal-btns">
       <button class="btn-modal-cancel" onclick="closeModal()">キャンセル</button>
       <button class="btn-modal-ok" onclick="saveMasterRule()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- v2.6.0: 再承認モーダル -->
+<div class="ra-modal-overlay" id="raModalOverlay" onclick="raModalOverlayClick(event)">
+  <div class="ra-modal">
+    <h3>再承認</h3>
+    <div class="ra-row"><label>取引先</label><input id="raPartner" readonly></div>
+    <div class="ra-row"><label>金額</label><input id="raAmount" readonly></div>
+    <div class="ra-row"><label>借方</label><select id="raDebit"></select></div>
+    <div class="ra-row"><label>貸方</label><select id="raCredit"></select></div>
+    <div class="ra-row"><label>税区分</label><select id="raTax">
+      <option>課税仕入(10%)</option><option>課税仕入(8%軽減)</option><option>非課税</option><option>不課税</option>
+    </select></div>
+    <div class="ra-row"><label>摘要</label><input id="raMemo"></div>
+    <div class="ra-footer">
+      <button class="btn-ra-cancel" onclick="closeRaModal()">キャンセル</button>
+      <button class="btn-ra-ok" id="btnRaOk" onclick="submitReApprove()">確定</button>
     </div>
   </div>
 </div>
@@ -2952,7 +3000,7 @@ function switchTab(tab){
     'siwake':'navSiwake','scan':'navScan','master':'navMaster','csvmerge':'navCsvmerge',
     'staff':'navStaff','auto-intake':'navAutoIntake','unassigned-tray':'navUnassignedTray',
     'unlock-features':'navUnlockFeatures','pricing':'navPlanInSettings',
-    'auto-approve-log':'navAutoApproveLog'
+    'auto-approve-log':'navAutoApproveLog','reverted-tray':'navRevertedTray'
   };
   const navId=tabNavMap[tab];
   if(navId)document.getElementById(navId)?.classList.add('active');
@@ -2964,6 +3012,7 @@ function switchTab(tab){
   if(tab==='master'){loadMasterFromServer();updateLearnedRuleAnomalyBadge();}
   if(tab==='staff')loadStaffList();
   if(tab==='auto-approve-log')loadAutoApproveLog();
+  if(tab==='reverted-tray')loadRevertedTray();
   // スマホ：タブ切替でサイドバーを閉じる
   closeSidebar();
 }
@@ -4920,6 +4969,134 @@ async function revertAutoApproveLog(recordId){
   } catch(e){
     console.warn('revertAutoApproveLog error:',e);
     showToast('差し戻しに失敗しました（APIは実装中です）',2500);
+  }
+}
+
+// ===== v2.6.0: 差し戻しトレイ =====
+let _raCurrentRecordId = null;
+
+async function loadRevertedTray(){
+  const uid = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  const el = document.getElementById('revertedTrayBody');
+  if(!el) return;
+  if(!uid||!wsId){
+    el.innerHTML='<div class="aa-empty">ワークスペースを選択してください</div>';
+    return;
+  }
+  el.innerHTML='<div class="aa-empty">読み込み中...</div>';
+  try {
+    const r = await fetch(`/api/reverted-records?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}`);
+    const d = await r.json();
+    const records = d.records || [];
+    _updateRevertedSidebarBadge(records.length);
+    if(records.length===0){
+      el.innerHTML='<div class="aa-empty">差し戻された仕訳はありません</div>';
+      return;
+    }
+    const rows = records.map(rec=>{
+      const dt = new Date(rec.approved_at);
+      const dateStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const amount = rec.amount!=null ? `¥${Number(rec.amount).toLocaleString()}` : '—';
+      const debit = escapeHtml(rec.debit_account||'—');
+      const credit = escapeHtml(rec.credit_account||'—');
+      const safeId = escapeHtml(rec.id);
+      const safePartner = escapeHtml(rec.partner_name||'').replace(/'/g,'&apos;');
+      const safeDebit = escapeHtml(rec.debit_account||'').replace(/'/g,'&apos;');
+      const safeCredit = escapeHtml(rec.credit_account||'').replace(/'/g,'&apos;');
+      const safeTax = escapeHtml(rec.tax_category||'').replace(/'/g,'&apos;');
+      const safeMemo = escapeHtml(rec.memo||'').replace(/'/g,'&apos;');
+      const amt = rec.amount || 0;
+      return `<tr>
+        <td>${escapeHtml(rec.partner_name||'—')}</td>
+        <td>${debit} → ${credit}</td>
+        <td>${amount}</td>
+        <td>${dateStr}</td>
+        <td><button class="aa-revert-btn" style="border-color:#185FA5;color:#185FA5;" onclick="openRaModal('${safeId}','${safePartner}',${amt},'${safeDebit}','${safeCredit}','${safeTax}','${safeMemo}')">再承認</button></td>
+      </tr>`;
+    }).join('');
+    el.innerHTML=`<table class="aa-log-table">
+      <thead><tr><th>取引先</th><th>借方→貸方</th><th>金額</th><th>差し戻し日時</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch(e){
+    console.warn('loadRevertedTray error:', e);
+    el.innerHTML='<div class="aa-empty">読み込みに失敗しました</div>';
+  }
+}
+
+async function updateRevertedBadge(){
+  const uid = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  if(!uid||!wsId) return;
+  try {
+    const r = await fetch(`/api/reverted-records?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}`);
+    const d = await r.json();
+    _updateRevertedSidebarBadge((d.records||[]).length);
+  } catch(e){ /* silent */ }
+}
+
+function _updateRevertedSidebarBadge(count){
+  const badge = document.getElementById('revertedSidebarBadge');
+  if(!badge) return;
+  if(count>0){ badge.textContent=count; badge.style.display=''; }
+  else { badge.style.display='none'; }
+}
+
+function openRaModal(recordId, partnerName, amount, debit, credit, tax, memo){
+  _raCurrentRecordId = recordId;
+  // raDebit / raCredit に ACCTS の option を挿入
+  const raDebit = document.getElementById('raDebit');
+  const raCredit = document.getElementById('raCredit');
+  raDebit.innerHTML = aOpts(debit);
+  raCredit.innerHTML = aOpts(credit);
+  document.getElementById('raTax').innerHTML = tOpts(tax);
+  document.getElementById('raPartner').value = partnerName;
+  document.getElementById('raAmount').value = amount ? `¥${Number(amount).toLocaleString()}` : '—';
+  document.getElementById('raMemo').value = memo;
+  document.getElementById('raModalOverlay').classList.add('show');
+}
+
+function closeRaModal(){
+  document.getElementById('raModalOverlay').classList.remove('show');
+  _raCurrentRecordId = null;
+}
+
+function raModalOverlayClick(e){
+  if(e.target === document.getElementById('raModalOverlay')) closeRaModal();
+}
+
+async function submitReApprove(){
+  if(!_raCurrentRecordId) return;
+  const uid = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  if(!uid||!wsId) return;
+  const btn = document.getElementById('btnRaOk');
+  if(btn){ btn.disabled=true; btn.textContent='処理中…'; }
+  try {
+    const r = await fetch('/api/reverted-records/re-approve', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        uid, workspace_id: wsId, record_id: _raCurrentRecordId,
+        final_values: {
+          debit_account: document.getElementById('raDebit').value,
+          credit_account: document.getElementById('raCredit').value,
+          tax_category: document.getElementById('raTax').value,
+          memo: document.getElementById('raMemo').value
+        }
+      })
+    });
+    const d = await r.json();
+    if(!d.ok) throw new Error(d.error||'re-approve failed');
+    closeRaModal();
+    showToast('再承認しました', 2000);
+    loadRevertedTray();
+  } catch(e){
+    console.warn('submitReApprove error:', e);
+    showToast('再承認に失敗しました', 2500);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='確定'; }
   }
 }
 
@@ -7721,6 +7898,8 @@ window.addEventListener('DOMContentLoaded', () => {
       startInboxPolling();
       // v2.3.5: 未振り分けバッジ初期化 (表示制御は setupAutoIntakeMenuItem が担当)
       updateUnassignedBadge();
+      // v2.6.0: 差し戻しトレイバッジ初期化
+      updateRevertedBadge();
       // 既に卒業済みのユーザーはlocalStorageフラグだけ立てる（モーダルは出さない）
       fetchGraduationStatus().then(grad => {
         const uid = window._firebaseUser?.uid || '';
