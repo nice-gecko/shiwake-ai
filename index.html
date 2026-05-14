@@ -4825,7 +4825,7 @@ function _toggleTrustAcc(){
 }
 
 function getDashboardLayout(m){
-  if((m.total_approved||0)<50) return 'rookie_layout';
+  if((m.total_approved||0)<30) return 'rookie_layout';
   if((m.trust_score_recent||0)>=95&&(m.total_approved||0)>=200) return 'mature_layout';
   return 'stable_layout';
 }
