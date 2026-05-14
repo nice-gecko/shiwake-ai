@@ -841,6 +841,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .trust-acc-mini-bar{height:5px;background:#e8e7e0;border-radius:3px;margin-top:5px;overflow:hidden;}
 .trust-acc-mini-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#185FA5,#1D9E75);transition:width 0.6s ease;}
 .trust-acc[aria-expanded=true] .trust-acc-mini-bar{display:none;}
+.trust-acc[aria-expanded=true] .trust-score-badge{display:none;}
 /* 信頼度メーター */
 .trust-meter-wrap{position:relative;height:26px;margin:10px 0 22px;}
 .trust-meter-track{height:8px;background:#e8e7e0;border-radius:4px;overflow:visible;position:absolute;top:8px;width:100%;}
@@ -4740,8 +4741,9 @@ function renderTrustDashboard(m){
     headerHtml=`<div class="trust-acc-header-2line" onclick="_toggleTrustAcc()">
       <div class="trust-acc-row1">
         <span class="trust-acc-title">信頼度メーター</span>
-        <span class="trust-score-badge" style="margin-left:8px;">信頼度 ${scoreDisp}%</span>
-        <span class="trust-acc-chevron" style="margin-left:auto;">▶</span>
+        <span style="font-size:10px;color:#888;margin-left:8px;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">承認実績から信頼度を算出し、自動承認できる範囲を解放します</span>
+        <span class="trust-score-badge" style="margin-left:8px;flex-shrink:0;">信頼度 ${scoreDisp}%</span>
+        <span class="trust-acc-chevron" style="margin-left:4px;">▶</span>
       </div>
       <div class="trust-acc-mini-bar">
         <div class="trust-acc-mini-fill" style="width:${Math.min(99,score)}%;"></div>
@@ -4766,7 +4768,7 @@ function renderTrustDashboard(m){
   ${headerHtml}
   <div class="trust-acc-body">
     <div class="trust-acc-inner">
-      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">承認実績から信頼度を算出し、自動承認できる範囲を解放</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.5;">承認実績から信頼度を算出し、自動承認できる範囲を解放します</div>
       <div style="font-size:11px;color:#888;margin-bottom:2px;">信頼度</div>
       <div class="trust-score-row">
         <span class="trust-score-big2">${scoreDisp}</span>
