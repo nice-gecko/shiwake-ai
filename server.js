@@ -1593,9 +1593,129 @@ function getSessionIdFromUrl(url) {
   return u.searchParams.get('sessionId') || null;
 }
 
+// ===== v2.5.0: 自動ルール学習 ヘルパー関数 =====
+
+function extractKeywords(text) {
+  if (!text) return [];
+  return [...new Set(
+    text.split(/[\s　！-／：-＠［-｀｛-･!-/:-@[-`{-~、。「」・]+/)
+      .map(w => w.trim()).filter(w => w.length >= 3)
+  )].slice(0, 5);
+}
+
+async function getApprovedCountInWorkspace(workspaceId) {
+  const rows = await supabaseQuery(
+    `/workspace_trust_metrics?workspace_id=eq.${workspaceId}&select=total_approved`
+  );
+  return rows?.[0]?.total_approved || 0;
+}
+
+function findLearnedRuleMatch(partnerName, description, rules) {
+  if (!partnerName || !rules || rules.length === 0) return null;
+  const desc = description || '';
+  return rules
+    .filter(r => {
+      const c = r.conditions || {};
+      const rp = c.partner_name || '';
+      if (!partnerName.includes(rp) && !rp.includes(partnerName)) return false;
+      const rk = c.description_keywords || [];
+      if (rk.length > 0 && !rk.some(k => desc.includes(k))) return false;
+      return true;
+    })
+    .sort((a, b) => (b.applied_count || 0) - (a.applied_count || 0))[0] || null;
+}
+
+async function incrementRuleApplied(ruleId) {
+  const rows = await supabaseQuery(`/learned_rules?id=eq.${ruleId}&select=applied_count`);
+  const current = rows?.[0]?.applied_count || 0;
+  await supabaseQuery(`/learned_rules?id=eq.${ruleId}`, 'PATCH', {
+    applied_count: current + 1,
+    last_applied_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+}
+
+async function autoRuleAnomalyCheck(ruleId, strictness) {
+  const rows = await supabaseQuery(
+    `/learned_rules?id=eq.${ruleId}&select=applied_count,modified_after_apply_count`
+  );
+  const rule = rows?.[0];
+  if (!rule) return;
+  const newMod = (rule.modified_after_apply_count || 0) + 1;
+  const patch = { modified_after_apply_count: newMod, updated_at: new Date().toISOString() };
+  const threshold = { strict: 0.20, balanced: 0.30, loose: 0.50 }[strictness] || 0.30;
+  if ((rule.applied_count || 0) >= 5 && newMod / (rule.applied_count || 1) > threshold) {
+    patch.anomaly_flag = 'high_modification_rate';
+    console.log(`[auto_rule] anomaly high_modification_rate rule=${ruleId}`);
+  }
+  await supabaseQuery(`/learned_rules?id=eq.${ruleId}`, 'PATCH', patch);
+}
+
+async function detectAndStoreRules(workspaceId, strictness) {
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const records = await supabaseQuery(
+    `/shiwake_records?workspace_id=eq.${workspaceId}&approved_at=gte.${ninetyDaysAgo}&was_modified=eq.false&select=partner_name,memo,debit_account,credit_account&limit=1000`
+  );
+  if (!records || records.length === 0) return;
+
+  // (partner_name, keyword) → {debit: Map, credit: Map} 集計
+  const counts = {};
+  for (const rec of records) {
+    const pname = (rec.partner_name || '').trim();
+    if (!pname) continue;
+    const words = ['', ...extractKeywords(rec.memo || '')];
+    for (const kw of words) {
+      const key = `${pname}\x00${kw}`;
+      if (!counts[key]) counts[key] = { partner_name: pname, keyword: kw, debit: {}, credit: {} };
+      if (rec.debit_account)  counts[key].debit[rec.debit_account]  = (counts[key].debit[rec.debit_account]  || 0) + 1;
+      if (rec.credit_account) counts[key].credit[rec.credit_account] = (counts[key].credit[rec.credit_account] || 0) + 1;
+    }
+  }
+
+  // 3回以上同一借方科目 → 候補
+  const candidates = [];
+  for (const data of Object.values(counts)) {
+    const topDebit  = Object.entries(data.debit).sort(([,a],[,b])=>b-a)[0];
+    const topCredit = Object.entries(data.credit).sort(([,a],[,b])=>b-a)[0];
+    if (!topDebit || topDebit[1] < 3) continue;
+    candidates.push({
+      conditions: { partner_name: data.partner_name, description_keywords: data.keyword ? [data.keyword] : [] },
+      result:     { debit_account: topDebit[0], credit_account: topCredit?.[0] || null }
+    });
+  }
+  if (candidates.length === 0) return;
+
+  const existingRules = await supabaseQuery(
+    `/learned_rules?workspace_id=eq.${workspaceId}&select=id,conditions,result,anomaly_flag`
+  ) || [];
+  const now = new Date().toISOString();
+
+  for (const cand of candidates) {
+    const existing = existingRules.find(r => {
+      const c = r.conditions || {};
+      return c.partner_name === cand.conditions.partner_name &&
+        JSON.stringify(c.description_keywords || []) === JSON.stringify(cand.conditions.description_keywords);
+    });
+    if (existing) {
+      if ((existing.result || {}).debit_account !== cand.result.debit_account) {
+        await supabaseQuery(`/learned_rules?id=eq.${existing.id}`, 'PATCH', { anomaly_flag: 'conflict', updated_at: now });
+      } else {
+        await supabaseQuery(`/learned_rules?id=eq.${existing.id}`, 'PATCH', { updated_at: now });
+      }
+    } else {
+      await supabaseQuery('/learned_rules', 'POST', {
+        workspace_id: workspaceId, conditions: cand.conditions, result: cand.result,
+        is_active: true, created_at: now, updated_at: now
+      });
+    }
+  }
+  console.log(`[auto_rule] detectAndStoreRules ws=${workspaceId} candidates=${candidates.length}`);
+}
+// ===== /v2.5.0: 自動ルール学習 =====
+
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
@@ -2354,6 +2474,16 @@ const server = http.createServer(async (req, res) => {
         const master = loadMaster(cacheUid, workspace_id);
         const masterKeys = Object.keys(master);
 
+        // 学習済みルールを取得（anomaly_flag が設定されていないもののみ）
+        let workspaceLearnedRules = [];
+        if (workspace_id) {
+          try {
+            workspaceLearnedRules = await supabaseQuery(
+              `/learned_rules?workspace_id=eq.${workspace_id}&anomaly_flag=is.null&select=id,partner_name,keywords,debit_account,credit_account,applied_count`
+            ) || [];
+          } catch(e) { /* ルール取得失敗は無視してフォールバック */ }
+        }
+
         // ===== ステップ1: フォーマット判定（Haiku・高速） =====
         let formatKey = docType || null;
         let orientation = 'normal';
@@ -2428,6 +2558,18 @@ const server = http.createServer(async (req, res) => {
             return true;
           })
           .map(item => {
+            // 学習済みルールのヒット判定（マスタより優先）
+            const learnedMatch = findLearnedRuleMatch(item.title, item.memo, workspaceLearnedRules);
+            if (learnedMatch) {
+              return {
+                ...item,
+                debit: learnedMatch.debit_account,
+                credit: learnedMatch.credit_account,
+                masterApplied: false,
+                learnedRuleApplied: true,
+                learnedRuleId: learnedMatch.id
+              };
+            }
             // マスタヒット判定（部分一致）
             const matchResult = findMasterMatch(item.title, master);
             if (matchResult.matched_id) {
@@ -2444,6 +2586,11 @@ const server = http.createServer(async (req, res) => {
             }
             return { ...item, masterApplied: false };
           });
+
+        // 適用した学習ルールの使用回数を非同期更新
+        items.filter(it => it.learnedRuleApplied && it.learnedRuleId).forEach(it => {
+          incrementRuleApplied(it.learnedRuleId).catch(e => console.warn('incrementRuleApplied error:', e.message));
+        });
 
         // ===== ステップ4: Haikuでインボイス番号のみ抽出（Sonnetから分離してコスト削減） =====
         if (items.length > 0 && imageDataList.length > 0) {
@@ -3384,7 +3531,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { uid, workspace_id, session_id, record } = JSON.parse(body);
+        const { uid, workspace_id, session_id, record, rule_id } = JSON.parse(body);
         if (!uid || !record) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'uid and record required' }));
@@ -3395,10 +3542,10 @@ const server = http.createServer(async (req, res) => {
         const wsId = workspace_id || await ensureDefaultWorkspace(uid);
 
         // ワークスペース所有者確認
-        const ws = await supabaseQuery(
-          `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id`
+        const [ws] = await supabaseQuery(
+          `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id,auto_rule_learning_enabled,auto_rule_strictness`
         );
-        if (!ws || !ws[0]) {
+        if (!ws) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'forbidden' }));
           return;
@@ -3444,6 +3591,15 @@ const server = http.createServer(async (req, res) => {
 
         // 自動エクスポートトリガー確認（非同期、失敗しても承認は成功）
         checkAutoExportTrigger(uid, wsId).catch(e => console.warn('auto-export trigger check error:', e.message));
+
+        // 自動ルール学習トリガー（非同期、失敗しても承認は成功）
+        if (ws.auto_rule_learning_enabled) {
+          const strictness = ws.auto_rule_strictness || 'balanced';
+          if (rule_id) {
+            autoRuleAnomalyCheck(rule_id, strictness).catch(e => console.warn('auto-rule anomaly check error:', e.message));
+          }
+          detectAndStoreRules(wsId, strictness).catch(e => console.warn('auto-rule detect error:', e.message));
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -3651,6 +3807,69 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.5.0: 学習済みルール管理 API =====
+
+  // GET /api/learned-rules?uid=xxx&ws_id=yyy → ルール一覧取得
+  if (req.method === 'GET' && reqPath === '/api/learned-rules') {
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
+    const wsId = qp.get('ws_id');
+    if (!uid || !wsId) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+    try {
+      await resolveWorkspaceId(uid, wsId);
+      const rules = await supabaseQuery(
+        `/learned_rules?workspace_id=eq.${wsId}&order=applied_count.desc&select=id,partner_name,keywords,debit_account,credit_account,applied_count,modified_after_apply_count,anomaly_flag,created_at,updated_at`
+      );
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ rules: rules || [] }));
+    } catch(e) {
+      if (e.message === 'forbidden') { res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // PATCH /api/learned-rules/:id → ルール更新（anomaly_flag クリア等）
+  if (req.method === 'PATCH' && reqPath.startsWith('/api/learned-rules/')) {
+    const ruleId = reqPath.slice('/api/learned-rules/'.length);
+    if (!ruleId) { res.writeHead(400); res.end(JSON.stringify({ error: 'rule id required' })); return; }
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, ws_id, anomaly_flag } = JSON.parse(body || '{}');
+        if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        const patch = { updated_at: new Date().toISOString() };
+        if (anomaly_flag !== undefined) patch.anomaly_flag = anomaly_flag || null;
+        await supabaseQuery(`/learned_rules?id=eq.${ruleId}&workspace_id=eq.${ws_id}`, 'PATCH', patch);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // DELETE /api/learned-rules/:id → ルール削除
+  if (req.method === 'DELETE' && reqPath.startsWith('/api/learned-rules/')) {
+    const ruleId = reqPath.slice('/api/learned-rules/'.length);
+    if (!ruleId) { res.writeHead(400); res.end(JSON.stringify({ error: 'rule id required' })); return; }
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
+    const wsId = qp.get('ws_id');
+    if (!uid || !wsId) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+    try {
+      await resolveWorkspaceId(uid, wsId);
+      await supabaseQuery(`/learned_rules?id=eq.${ruleId}&workspace_id=eq.${wsId}`, 'DELETE');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch(e) {
+      if (e.message === 'forbidden') { res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   // ===== v2.3.2 Group 4-B: ワークスペース管理 API(CRUD 系) =====
 
   // POST /api/workspaces → 新規ワークスペース作成
@@ -3799,7 +4018,8 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const { uid, name, slug, color, icon, is_archived,
-                client_email_addresses, client_email_domains, subject_keywords } = JSON.parse(body);
+                client_email_addresses, client_email_domains, subject_keywords,
+                auto_rule_learning_enabled, auto_rule_strictness } = JSON.parse(body);
         if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
         const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
         if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
@@ -3837,6 +4057,14 @@ const server = http.createServer(async (req, res) => {
         if (client_email_addresses !== undefined) patch.client_email_addresses = client_email_addresses;
         if (client_email_domains   !== undefined) patch.client_email_domains   = client_email_domains;
         if (subject_keywords       !== undefined) patch.subject_keywords       = subject_keywords;
+        if (auto_rule_learning_enabled !== undefined) {
+          patch.auto_rule_learning_enabled = auto_rule_learning_enabled;
+          // 初回有効化時のみ auto_rule_unlocked_at を設定
+          if (auto_rule_learning_enabled && !ws[0].auto_rule_unlocked_at) {
+            patch.auto_rule_unlocked_at = new Date().toISOString();
+          }
+        }
+        if (auto_rule_strictness !== undefined) patch.auto_rule_strictness = auto_rule_strictness;
         const updated = await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', patch, { 'Prefer': 'return=representation' });
         const w = updated?.[0] || { ...ws[0], ...patch };
         const stats = await buildWorkspaceStats(wsId);
