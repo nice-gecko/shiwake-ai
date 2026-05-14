@@ -3773,10 +3773,20 @@ const server = http.createServer(async (req, res) => {
     try {
       const wsId = workspaceId || await ensureDefaultWorkspace(uid);
 
-      const metrics = await supabaseQuery(
-        `/workspace_trust_metrics?workspace_id=eq.${wsId}&select=*`
-      );
+      const [metrics, wsRows] = await Promise.all([
+        supabaseQuery(`/workspace_trust_metrics?workspace_id=eq.${wsId}&select=*`),
+        supabaseQuery(`/workspaces?id=eq.${wsId}&select=auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_learned_unlocked_at,auto_approve_all_unlocked_at,auto_approve_paused_at,trust_reset_at`)
+      ]);
       const m = metrics?.[0];
+      const wsAuto = wsRows?.[0] || {};
+      const autoApproveFields = {
+        auto_approve_learned_enabled: wsAuto.auto_approve_learned_enabled ?? false,
+        auto_approve_all_enabled: wsAuto.auto_approve_all_enabled ?? false,
+        auto_approve_learned_unlocked_at: wsAuto.auto_approve_learned_unlocked_at || null,
+        auto_approve_all_unlocked_at: wsAuto.auto_approve_all_unlocked_at || null,
+        auto_approve_paused_at: wsAuto.auto_approve_paused_at || null,
+        trust_reset_at: wsAuto.trust_reset_at || null
+      };
 
       if (!m) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -3786,7 +3796,8 @@ const server = http.createServer(async (req, res) => {
           trust_score_status: 'insufficient_data',
           remaining_to_threshold: 30,
           message: '信頼度を表示するには、あと30件の承認が必要です。',
-          maturity_level: 'rookie'
+          maturity_level: 'rookie',
+          ...autoApproveFields
         }));
         return;
       }
@@ -3799,7 +3810,8 @@ const server = http.createServer(async (req, res) => {
           trust_score_status: 'insufficient_data',
           remaining_to_threshold: 30 - m.total_approved,
           message: `信頼度を表示するには、あと${30 - m.total_approved}件の承認が必要です。`,
-          maturity_level: m.maturity_level
+          maturity_level: m.maturity_level,
+          ...autoApproveFields
         }));
         return;
       }
@@ -3816,7 +3828,8 @@ const server = http.createServer(async (req, res) => {
         master_count: m.master_count,
         master_hit_rate: m.master_hit_rate,
         maturity_level: m.maturity_level,
-        last_calculated_at: m.last_calculated_at
+        last_calculated_at: m.last_calculated_at,
+        ...autoApproveFields
       }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
@@ -4747,6 +4760,62 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: e.message }));
     }
+    return;
+  }
+
+  // POST /api/auto-approve/revert
+  if (req.method === 'POST' && reqPath === '/api/auto-approve/revert') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, record_id } = JSON.parse(body);
+        if (!uid || !workspace_id || !record_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'uid, workspace_id and record_id required' }));
+          return;
+        }
+
+        // workspace 所有チェック
+        const [ws] = await supabaseQuery(
+          `/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`
+        );
+        if (!ws) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'forbidden' }));
+          return;
+        }
+
+        // 対象レコード取得
+        const [record] = await supabaseQuery(
+          `/shiwake_records?id=eq.${record_id}&workspace_id=eq.${workspace_id}&select=id,auto_approved`
+        );
+        if (!record) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'record not found' }));
+          return;
+        }
+        if (!record.auto_approved) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'record is not auto-approved' }));
+          return;
+        }
+
+        // approved_at をクリアして承認前状態に戻す
+        // auto_approved / auto_approve_type / applied_learned_rule_id は履歴として保持
+        await supabaseQuery(
+          `/shiwake_records?id=eq.${record_id}`,
+          'PATCH',
+          { approved_at: null }
+        );
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
     return;
   }
 
