@@ -4111,6 +4111,7 @@ async function addFiles(fl){
 async function drainQueue(){
   if(isProcessing||processQueue.length===0)return;
   isProcessing=true;
+  document.getElementById('runBtn').style.display='none';
   // スピナー表示
   const spinner=document.getElementById('vStepSpinner');
   const hint=document.getElementById('vStepHint');
@@ -5207,6 +5208,7 @@ async function approveGroup(indices, autoApproveInfo){
   const masterCount=Object.keys(masterData||{}).length;
   showToast(`✓ 承認完了 · 学習済み取引先 ${masterCount}社`);
   renderCards();updateBottom();checkAllApproved();
+  loadTrustMetrics();
 }
 // グループ削除
 function deleteGroup(indices){
