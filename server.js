@@ -354,8 +354,11 @@ async function supabaseQuery(path, method='GET', body=null, extraHeaders={}) {
 
 // ===== v2.4.0 Group 2: 自動エクスポート実行エンジン =====
 
+// v2.4.x: 安全弁用 CSV 分割サイズ(通常運用では発生しない)
+const CSV_SPLIT_SIZE = 500;
+
 // 戻り値: [{ filename, content }, ...] (弥生分割時は複数要素)
-function generateCsvContent({ records, format, includeWsName, wsNameMap, yayoiSplitMode, baseName }) {
+function generateCsvContent({ records, format, includeWsName, wsNameMap, yayoiSplitMode, baseName, countSplitSize = Infinity }) {
   const ext = format === 'yayoi' ? 'txt' : 'csv';
   const sanitize = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
   const cleanAmt = (v) => String(v || '').replace(/[¥,￥]/g, '');
@@ -398,10 +401,21 @@ function generateCsvContent({ records, format, includeWsName, wsNameMap, yayoiSp
       if (!groups[key]) groups[key] = [];
       groups[key].push(r);
     }
-    return Object.entries(groups).map(([account, recs]) => ({
-      filename: `${baseName}_${sanitize(account)}.${ext}`,
-      content: buildContent(recs)
-    }));
+    const result = [];
+    for (const [account, recs] of Object.entries(groups)) {
+      if (countSplitSize < Infinity && recs.length > countSplitSize) {
+        for (let i = 0; i < recs.length; i += countSplitSize) {
+          const partNum = Math.floor(i / countSplitSize) + 1;
+          result.push({
+            filename: `${baseName}_${sanitize(account)}_part${partNum}.${ext}`,
+            content: buildContent(recs.slice(i, i + countSplitSize))
+          });
+        }
+      } else {
+        result.push({ filename: `${baseName}_${sanitize(account)}.${ext}`, content: buildContent(recs) });
+      }
+    }
+    return result;
   }
 
   return [{ filename: `${baseName}.${ext}`, content: buildContent(records) }];
@@ -466,13 +480,28 @@ async function executeAutoExport(uid, workspaceId) {
       created_at: now.toISOString()
     });
 
-    // CSV/TXT生成(配列: [{filename, content}, ...])
+    // 500件超安全弁: チャンク分割(通常は1チャンク)
     const includeWsName = outputUnit === 'merged';
-    const files = generateCsvContent({ records, format, includeWsName, wsNameMap, yayoiSplitMode, baseName });
+    let files = [];
+    if (format === 'yayoi' && yayoiSplitMode === 'by_credit_account') {
+      // by_credit_account: 科目グループ内でスライス → 命名 baseName_科目_partN
+      files = generateCsvContent({ records, format, includeWsName, wsNameMap, yayoiSplitMode, baseName, countSplitSize: CSV_SPLIT_SIZE });
+    } else {
+      // その他フォーマット: 機械的チャンクスライス → 命名 baseName_partN
+      const chunks = [];
+      for (let i = 0; i < records.length; i += CSV_SPLIT_SIZE) {
+        chunks.push(records.slice(i, i + CSV_SPLIT_SIZE));
+      }
+      const isMultiChunk = chunks.length > 1;
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const chunkBaseName = isMultiChunk ? `${baseName}_part${ci + 1}` : baseName;
+        files.push(...generateCsvContent({ records: chunks[ci], format, includeWsName, wsNameMap, yayoiSplitMode, baseName: chunkBaseName }));
+      }
+    }
 
     // 配送先ごとに処理
     const outputDestinations = {};
-    let csvStoragePath = null;
+    let csvStoragePaths = [];  // ローカルDL配送のパスのみ記録(JSONB配列)
 
     for (const dest of destinations) {
       try {
@@ -511,12 +540,10 @@ async function executeAutoExport(uid, workspaceId) {
             try {
               const buf = Buffer.from(content, 'utf8');
               if (conn.provider === 'dropbox') {
-                const uploadedPath = await uploadToDropbox(conn.access_token, folderPath, buf, fn);
-                if (!csvStoragePath) csvStoragePath = uploadedPath;
+                await uploadToDropbox(conn.access_token, folderPath, buf, fn);
               } else if (conn.provider === 'gdrive') {
                 const folderId = folderPath.replace(/^\//, '');
-                const fileId = await uploadToGDrive(folderId || null, buf, fn);
-                if (!csvStoragePath) csvStoragePath = `gdrive:${fileId}`;
+                await uploadToGDrive(folderId || null, buf, fn);
               } else {
                 throw new Error(`unsupported_provider:${conn.provider}`);
               }
@@ -535,7 +562,7 @@ async function executeAutoExport(uid, workspaceId) {
             const buf = Buffer.from(content, 'utf8');
             const mimeType = fn.endsWith('.txt') ? 'text/plain' : 'text/csv';
             await supabaseStorageUpload('auto-exports', storagePath, buf, mimeType);
-            if (!csvStoragePath) csvStoragePath = storagePath;
+            csvStoragePaths.push(storagePath);  // 全パスを記録(ローカルDL用)
           }
           outputDestinations[dest] = 'success';
         }
@@ -545,12 +572,12 @@ async function executeAutoExport(uid, workspaceId) {
       }
     }
 
-    const anySuccess = Object.values(outputDestinations).some(v => v === 'success' || v.startsWith('partial'));
-    const finalStatus = anySuccess ? 'success' : 'failed';
+    // 全配送先が成功した場合のみ exported_at を更新(部分成功時は再エクスポート可能状態を維持)
+    // 必ず SELECT 時点で取得した recordIds に限定する(race condition 防止)
+    const allDestsSucceeded = Object.values(outputDestinations).every(v => v === 'success' || v.startsWith('partial'));
+    const finalStatus = allDestsSucceeded ? 'success' : 'failed';
 
-    // 成功した場合のみ exported_at を更新
-    // 必ず SELECT 時点で取得した recordIds に限定する（race condition 防止）
-    if (anySuccess && recordIds.length > 0) {
+    if (allDestsSucceeded && recordIds.length > 0) {
       const exportedAt = new Date().toISOString();
       await supabaseQuery(
         `/shiwake_records?id=in.(${recordIds.join(',')})`,
@@ -563,8 +590,8 @@ async function executeAutoExport(uid, workspaceId) {
       status: finalStatus,
       completed_at: new Date().toISOString(),
       output_destinations: outputDestinations,
-      csv_storage_path: csvStoragePath || null,
-      error_message: anySuccess ? null : JSON.stringify(outputDestinations)
+      csv_storage_path: csvStoragePaths.length > 0 ? csvStoragePaths : null,
+      error_message: allDestsSucceeded ? null : JSON.stringify(outputDestinations)
     });
 
     console.log(`auto-export completed: uid=${uid} ws=${workspaceId} status=${finalStatus} records=${recordCount}`);
@@ -3577,6 +3604,29 @@ const server = http.createServer(async (req, res) => {
       const rows = await supabaseQuery(q);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ exports: Array.isArray(rows) ? rows : [] }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // GET /api/auto-export/download?uid=xxx&export_id=yyy
+  if (req.method === 'GET' && reqPath === '/api/auto-export/download') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    const exportId = params.get('export_id');
+    if (!uid || !exportId) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and export_id required' })); return; }
+    try {
+      const rows = await supabaseQuery(`/shiwake_exports?id=eq.${exportId}&uid=eq.${uid}&select=id,uid,csv_storage_path`);
+      const row = rows?.[0];
+      if (!row) { res.writeHead(404); res.end(JSON.stringify({ error: 'export not found' })); return; }
+      const paths = Array.isArray(row.csv_storage_path) ? row.csv_storage_path : [];
+      if (paths.length === 0) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ files: [] })); return; }
+      const files = await Promise.all(paths.map(async (storagePath) => {
+        const filename = storagePath.split('/').pop();
+        const url = await supabaseStorageSignedUrl('auto-exports', storagePath, 600);
+        return { filename, url };
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ files }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
   }
