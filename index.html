@@ -202,6 +202,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-compat-items{display:flex;flex-direction:column;gap:0;padding:0 6px;}
 .compat-item{display:flex;align-items:center;gap:5px;padding:2px 8px;font-size:10px;color:#888;}
 .compat-dot{width:4px;height:4px;border-radius:50%;background:#888;flex-shrink:0;}
+/* サイドバーグループ化 (v2.4.8) */
+.sb-group{margin-bottom:1px;}
+.sb-group-header{display:flex;align-items:center;width:100%;background:none;border:none;padding:5px 10px;cursor:pointer;border-radius:6px;text-align:left;gap:5px;line-height:1;}
+.sb-group-header:hover{background:#e0dfd8;}
+.sb-group-label{flex:1;font-size:10px;font-weight:700;color:#999;letter-spacing:0.06em;text-transform:uppercase;}
+.sb-group-chevron{font-size:9px;color:#bbb;transition:transform 0.2s;display:inline-block;line-height:1;}
+.sb-group-header[aria-expanded="true"] .sb-group-chevron{transform:rotate(90deg);}
+.sb-group-body{overflow:hidden;max-height:0;transition:max-height 0.25s ease;}
+.sb-group-body.open{max-height:600px;}
+.sb-group-body .sidebar-nav-item{padding-left:18px;}
 
 /* メインエリア */
 .main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow-y:scroll;min-height:0;}
@@ -1775,70 +1785,106 @@ function updateFabBadge() {
         <div id="wsDropdown" class="ws-dropdown"></div>
       </div>
     </div>
-    <div class="sidebar-section-label" style="margin-top:8px;">メニュー</div>
-    <div class="sidebar-nav-item active" onclick="switchTab('siwake')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="11" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="8" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
-      仕訳処理
+    <!-- v2.4.8: データの流れ 4グループ化 -->
+    <!-- Group 1: 取り込む -->
+    <div class="sb-group" data-group="1">
+      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+        <span class="sb-group-label">1. 取り込む</span>
+        <span class="sb-group-chevron">▶</span>
+      </button>
+      <div class="sb-group-body">
+        <!-- v2.3.0: 自動インポートメニュー -->
+        <div class="sidebar-nav-item" id="navAutoIntake" style="display:none;" onclick="switchTab('auto-intake')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          自動インポート
+        </div>
+        <!-- v2.3.5: 未振り分けトレイ -->
+        <div class="sidebar-nav-item" id="navUnassignedTray" style="display:none;" onclick="switchTab('unassigned-tray')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 9h3.5l1 1.5h3l1-1.5h3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+          未振り分け
+          <span class="unassigned-sidebar-badge" id="unassignedSidebarBadge" style="display:none;"></span>
+        </div>
+        <div class="sidebar-nav-item sp-only" id="navScan" onclick="switchTab('scan')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>
+          スキャン
+        </div>
+      </div>
     </div>
-    <div class="sidebar-nav-item sp-only" onclick="switchTab('scan')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v2M10 2h2a1 1 0 011 1v2M5 13H3a1 1 0 01-1-1v-2M10 13h2a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="7.5" r="2.5" stroke="currentColor" stroke-width="1.2"/></svg>
-      スキャン
+    <!-- Group 2: 仕訳する -->
+    <div class="sb-group" data-group="2">
+      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+        <span class="sb-group-label">2. 仕訳する</span>
+        <span class="sb-group-chevron">▶</span>
+      </button>
+      <div class="sb-group-body">
+        <div class="sidebar-nav-item active" id="navSiwake" onclick="switchTab('siwake')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="11" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="11" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="8" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+          仕訳処理
+        </div>
+        <div class="sidebar-nav-item" id="navMaster" onclick="switchTab('master')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          仕訳ルール学習
+          <span class="sidebar-master-count" id="masterCount">0</span>
+        </div>
+        <!-- Agent版メニュー (edition: agent / elite) -->
+        <div class="sidebar-nav-item" id="navAgentDashboard" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+          ダッシュボード<span class="nav-badge-coming">準備中</span>
+        </div>
+        <div class="sidebar-nav-item" id="navAgentTemplate" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="5" y1="5.5" x2="10" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="9.5" x2="8" y2="9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+          業種テンプレート<span class="nav-badge-coming">準備中</span>
+        </div>
+        <div class="sidebar-nav-item" id="navMyTemplate" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="4.5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M3 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="10" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="11.5" y1="5.5" x2="11.5" y2="8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Myテンプレート<span class="nav-badge-coming">準備中</span>
+        </div>
+        <!-- Eliteメニュー (edition: elite のみ) -->
+        <div class="sidebar-nav-item" id="navEliteChat" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M2 3h11a1 1 0 011 1v6a1 1 0 01-1 1H8l-3 2v-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
+          対話モード設定<span class="nav-badge-coming">準備中</span>
+        </div>
+      </div>
     </div>
-    <div class="sidebar-nav-item" onclick="switchTab('master')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      仕訳ルール学習
-      <span class="sidebar-master-count" id="masterCount">0</span>
+    <!-- Group 3: 出力する -->
+    <div class="sb-group" data-group="3">
+      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+        <span class="sb-group-label">3. 出力する</span>
+        <span class="sb-group-chevron">▶</span>
+      </button>
+      <div class="sb-group-body">
+        <div class="sidebar-nav-item" id="navCsvmerge" onclick="switchTab('csvmerge')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="5.5" x2="13" y2="5.5" stroke="currentColor" stroke-width="1"/><line x1="5.5" y1="2" x2="5.5" y2="13" stroke="currentColor" stroke-width="1"/></svg>
+          CSV統合・変換
+        </div>
+      </div>
     </div>
-    <div class="sidebar-nav-item" onclick="switchTab('csvmerge')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="5.5" x2="13" y2="5.5" stroke="currentColor" stroke-width="1"/><line x1="5.5" y1="2" x2="5.5" y2="13" stroke="currentColor" stroke-width="1"/></svg>
-      CSV統合・変換
-    </div>
-    <div class="sidebar-nav-item" id="navStaff" style="display:none;" onclick="switchTab('staff')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 13c0-3 2.5-4.5 5.5-4.5S13 10 13 13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      スタッフ管理
-    </div>
-    <!-- Agent版メニュー (edition: agent / elite) -->
-    <div class="sidebar-nav-item" id="navAgentDashboard" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
-      ダッシュボード<span class="nav-badge-coming">準備中</span>
-    </div>
-    <div class="sidebar-nav-item" id="navAgentTemplate" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="5" y1="5.5" x2="10" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="5" y1="9.5" x2="8" y2="9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
-      業種テンプレート<span class="nav-badge-coming">準備中</span>
-    </div>
-    <div class="sidebar-nav-item" id="navMyTemplate" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="4.5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M3 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="10" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="11.5" y1="5.5" x2="11.5" y2="8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      Myテンプレート<span class="nav-badge-coming">準備中</span>
-    </div>
-    <!-- Eliteメニュー (edition: elite のみ) -->
-    <div class="sidebar-nav-item" id="navEliteChat" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M2 3h11a1 1 0 011 1v6a1 1 0 01-1 1H8l-3 2v-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
-      対話モード設定<span class="nav-badge-coming">準備中</span>
-    </div>
-    <!-- v2.3.0: 自動インポートメニュー -->
-    <div class="sidebar-nav-item" id="navAutoIntake" style="display:none;" onclick="switchTab('auto-intake')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      自動インポート
-    </div>
-    <!-- v2.3.5: 未振り分けトレイ -->
-    <div class="sidebar-nav-item" id="navUnassignedTray" style="display:none;" onclick="switchTab('unassigned-tray')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 9h3.5l1 1.5h3l1-1.5h3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-      未振り分け
-      <span class="unassigned-sidebar-badge" id="unassignedSidebarBadge" style="display:none;"></span>
-    </div>
-    <!-- v2.4.x: アンロック機能一覧 -->
-    <div class="sidebar-nav-item" id="navUnlockFeatures" onclick="switchTab('unlock-features')">
-      <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="3.5" y="7" width="8" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 7V5a2 2 0 014 0v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="10" r="1" fill="currentColor"/></svg>
-      アンロック機能
-    </div>
-    <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
-      👁 インセンティブ表示に切替
-    </div>
-    <div class="sidebar-nav-item" id="adminCacheStats" style="display:none;color:#888;font-size:11px;" onclick="showCacheStats()">
-      📊 キャッシュ統計
+    <!-- Group 設定 -->
+    <div class="sb-group" data-group="settings">
+      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+        <span class="sb-group-label">設定</span>
+        <span class="sb-group-chevron">▶</span>
+      </button>
+      <div class="sb-group-body">
+        <div class="sidebar-nav-item" id="navStaff" style="display:none;" onclick="switchTab('staff')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M2 13c0-3 2.5-4.5 5.5-4.5S13 10 13 13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          スタッフ管理
+        </div>
+        <!-- v2.4.x: アンロック機能一覧 -->
+        <div class="sidebar-nav-item" id="navUnlockFeatures" onclick="switchTab('unlock-features')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="3.5" y="7" width="8" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 7V5a2 2 0 014 0v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="10" r="1" fill="currentColor"/></svg>
+          アンロック機能
+        </div>
+        <div class="sidebar-nav-item" id="adminViewToggle" style="display:none;color:#888;font-size:11px;" onclick="toggleAdminView()">
+          👁 インセンティブ表示に切替
+        </div>
+        <div class="sidebar-nav-item" id="adminCacheStats" style="display:none;color:#888;font-size:11px;" onclick="showCacheStats()">
+          📊 キャッシュ統計
+        </div>
+      </div>
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.4.7 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.4.8 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2770,18 +2816,22 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('mDebit').innerHTML+=`<option>${a}</option>`;
     document.getElementById('mCredit').innerHTML+=`<option>${a}</option>`;
   });
+  // v2.4.8: サイドバーグループ初期化
+  initSbGroups();
 });
 
 function switchTab(tab){
   document.querySelectorAll('.sidebar-nav-item').forEach(el=>el.classList.remove('active'));
   const pricingBtn=document.querySelector('.pricing-nav-btn');
   if(pricingBtn)pricingBtn.classList.remove('active');
-  const items=document.querySelectorAll('.sidebar-nav-item');
-  if(tab==='siwake')items[0].classList.add('active');
-  if(tab==='scan')items[1].classList.add('active');
-  if(tab==='master')items[2].classList.add('active');
-  if(tab==='csvmerge')items[3].classList.add('active');
-  if(tab==='staff')items[4]?.classList.add('active');
+  // v2.4.8: ID ベースのアクティブ制御(グループ化によるDOM順変更に対応)
+  const tabNavMap={
+    'siwake':'navSiwake','scan':'navScan','master':'navMaster','csvmerge':'navCsvmerge',
+    'staff':'navStaff','auto-intake':'navAutoIntake','unassigned-tray':'navUnassignedTray',
+    'unlock-features':'navUnlockFeatures'
+  };
+  const navId=tabNavMap[tab];
+  if(navId)document.getElementById(navId)?.classList.add('active');
   if(tab==='pricing'&&pricingBtn)pricingBtn.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.className='panel');
   document.getElementById('panel-'+tab).className='panel active';
@@ -2800,6 +2850,31 @@ function toggleSidebar(){
 function closeSidebar(){
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
+// ===== サイドバーグループ開閉 (v2.4.8) =====
+function toggleSbGroup(btn) {
+  const isOpen = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', String(!isOpen));
+  btn.nextElementSibling.classList.toggle('open', !isOpen);
+  const groupId = btn.closest('.sb-group').dataset.group;
+  const state = JSON.parse(localStorage.getItem('sb_group_state') || '{}');
+  state[groupId] = !isOpen;
+  localStorage.setItem('sb_group_state', JSON.stringify(state));
+}
+
+function initSbGroups() {
+  const defaults = { '1': false, '2': true, '3': false, 'settings': false };
+  const saved = JSON.parse(localStorage.getItem('sb_group_state') || '{}');
+  const state = Object.assign({}, defaults, saved);
+  document.querySelectorAll('.sb-group').forEach(group => {
+    const id = group.dataset.group;
+    const open = !!state[id];
+    const btn = group.querySelector('.sb-group-header');
+    const body = group.querySelector('.sb-group-body');
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+    if (body) body.classList.toggle('open', open);
+  });
 }
 
 // ========== スキャン編集 ==========
