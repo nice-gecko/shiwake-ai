@@ -3791,47 +3791,20 @@ const server = http.createServer(async (req, res) => {
         trust_denominator: wsAuto.trust_denominator || 30
       };
 
-      if (!m) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          workspace_id: wsId,
-          total_approved: 0,
-          trust_score_status: 'insufficient_data',
-          remaining_to_threshold: 30,
-          message: '信頼度を表示するには、あと30件の承認が必要です。',
-          maturity_level: 'rookie',
-          ...autoApproveFields
-        }));
-        return;
-      }
-
-      if (m.total_approved < 30) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          workspace_id: wsId,
-          total_approved: m.total_approved,
-          trust_score_status: 'insufficient_data',
-          remaining_to_threshold: 30 - m.total_approved,
-          message: `信頼度を表示するには、あと${30 - m.total_approved}件の承認が必要です。`,
-          maturity_level: m.maturity_level,
-          ...autoApproveFields
-        }));
-        return;
-      }
+      const totalApproved = m?.total_approved || 0;
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         workspace_id: wsId,
-        total_approved: m.total_approved,
-        total_modified: m.total_modified,
-        trust_score_all: m.trust_score_all,
-        trust_score_recent: m.trust_score_recent,
-        field_accuracy_recent: m.field_accuracy_recent,
-        modification_trend_recent: m.modification_trend_recent,
-        master_count: m.master_count,
-        master_hit_rate: m.master_hit_rate,
-        maturity_level: m.maturity_level,
-        last_calculated_at: m.last_calculated_at,
+        total_approved: totalApproved,
+        total_modified: m?.total_modified || 0,
+        trust_score_all: m?.trust_score_all ?? null,
+        trust_score_recent: m?.trust_score_recent ?? null,
+        field_accuracy_recent: m?.field_accuracy_recent ?? null,
+        modification_trend_recent: m?.modification_trend_recent ?? null,
+        master_count: m?.master_count ?? null,
+        master_hit_rate: m?.master_hit_rate ?? null,
+        last_calculated_at: m?.last_calculated_at ?? null,
         ...autoApproveFields
       }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
