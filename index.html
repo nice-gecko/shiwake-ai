@@ -4794,6 +4794,15 @@ function renderTrustDashboard(m){
           <div class="trust-stat-value">${scoreDisp}<span class="trust-stat-unit">%</span></div>
         </div>
       </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0;">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">信頼度の分母</div>
+        <select id="trustDenominatorSelect" onchange="changeTrustDenominator(this.value)" style="font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid #ddd;">
+          <option value="30" ${(m.trust_denominator||30)===30?'selected':''}>30件（デフォルト）</option>
+          <option value="50" ${(m.trust_denominator||30)===50?'selected':''}>50件</option>
+          <option value="100" ${(m.trust_denominator||30)===100?'selected':''}>100件</option>
+        </select>
+        <div style="font-size:10px;color:#aaa;margin-top:2px;">信頼度を測る母数です。大きいほど慎重な評価になります。変更すると信頼度(%)が即座に再計算されます。</div>
+      </div>
       <div style="text-align:right;margin-top:8px;">
         <button class="trust-reset-btn" onclick="resetAutoApprove()">リセット</button>
       </div>
@@ -4864,6 +4873,24 @@ async function resetAutoApprove(){
   } catch(e){
     console.warn('resetAutoApprove error:',e);
     showToast('リセットに失敗しました',2000);
+  }
+}
+
+async function changeTrustDenominator(val){
+  const uid=window._firebaseUser?.uid;
+  const wsId=window._currentWorkspaceId;
+  if(!uid||!wsId) return;
+  const denom=parseInt(val,10);
+  try {
+    const r=await fetch('/api/workspaces/'+wsId,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,trust_denominator:denom})});
+    const d=await r.json();
+    if(!d.id) throw new Error(d.error||'保存に失敗');
+    setTimeout(()=>loadTrustMetrics(),700);
+  } catch(e){
+    console.warn('changeTrustDenominator error:',e);
+    showToast('⚠️ 分母の保存に失敗しました',2000);
   }
 }
 
@@ -7635,18 +7662,6 @@ function renderWsEditBody(ws, ae = {}) {
         <label><input type="radio" name="autoRuleStrictness" value="loose" ${(ws.auto_rule_strictness||'balanced')==='loose'?'checked':''}> 緩め — 矛盾は2件以上で判定、修正率50%超でフラグ</label>
       </div>
     </div>`;})()}
-    <div class="ws-rule-section">
-      <div class="ws-rule-section-title">信頼度の設定</div>
-      <div class="ws-form-row">
-        <label>信頼度の分母</label>
-        <select id="wsEditTrustDenominator">
-          <option value="30" ${(ws.trust_denominator||30)===30?'selected':''}>30件（デフォルト）</option>
-          <option value="50" ${(ws.trust_denominator||30)===50?'selected':''}>50件</option>
-          <option value="100" ${(ws.trust_denominator||30)===100?'selected':''}>100件</option>
-        </select>
-        <div style="font-size:10px;color:#aaa;margin-top:2px;">信頼度を測る母数です。大きいほど慎重な評価になります。変更すると信頼度(%)が即座に再計算されます。</div>
-      </div>
-    </div>
     <div class="ws-form-btns">
       <button class="ws-form-btn-cancel" onclick="closeWsEdit()">キャンセル</button>
       <button class="ws-form-btn-submit" id="wsEditSubmitBtn" onclick="submitWsEdit()">保存</button>
@@ -7847,7 +7862,6 @@ async function submitWsEdit() {
   try {
     const autoRuleLearningEnabled = document.getElementById('autoRuleLearningEnabled')?.checked ?? undefined;
     const autoRuleStrictness = document.querySelector('input[name="autoRuleStrictness"]:checked')?.value || undefined;
-    const trustDenominator = parseInt(document.getElementById('wsEditTrustDenominator')?.value || '30', 10);
     const r = await fetch('/api/workspaces/' + _wsEditId, {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ uid, name, slug, color, icon,
@@ -7855,8 +7869,7 @@ async function submitWsEdit() {
         client_email_domains:   [..._wsEditDomains],
         subject_keywords:       [..._wsEditKeywords],
         ...(autoRuleLearningEnabled !== undefined ? {auto_rule_learning_enabled: autoRuleLearningEnabled} : {}),
-        ...(autoRuleStrictness ? {auto_rule_strictness: autoRuleStrictness} : {}),
-        trust_denominator: trustDenominator
+        ...(autoRuleStrictness ? {auto_rule_strictness: autoRuleStrictness} : {})
       })
     });
     const d = await r.json();

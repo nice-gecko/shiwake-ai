@@ -788,7 +788,7 @@ async function recalculateTrustMetrics(workspaceId) {
     const trust_denominator = wsData.trust_denominator || 30;
 
     const [recent, all] = await Promise.all([
-      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'recent', p_denominator: trust_denominator }),
+      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'recent', p_reset_at: trust_reset_at || null, p_denominator: trust_denominator }),
       supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'all', p_reset_at: trust_reset_at || null, p_denominator: trust_denominator })
     ]);
 
