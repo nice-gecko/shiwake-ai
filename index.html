@@ -1881,10 +1881,15 @@ function updateFabBadge() {
         <div class="sidebar-nav-item" id="adminCacheStats" style="display:none;color:#888;font-size:11px;" onclick="showCacheStats()">
           📊 キャッシュ統計
         </div>
+        <!-- v2.4.9: 料金プラン -->
+        <div class="sidebar-nav-item" id="navPlanInSettings" onclick="switchTab('pricing')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="1.5" y1="6" x2="13.5" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="9" x2="7" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+          料金プラン
+        </div>
       </div>
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.4.8 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.4.9 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -1900,7 +1905,7 @@ function updateFabBadge() {
       <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7.5" cy="10" r="0.8" fill="currentColor"/></svg>
       はじめてガイド
     </button>
-    <button onclick="switchTab('pricing')" class="pricing-nav-btn">
+    <button id="navPlanFooter" onclick="switchTab('pricing')" class="pricing-nav-btn">
       <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="3" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="1.5" y1="6" x2="13.5" y2="6" stroke="currentColor" stroke-width="1"/><line x1="4" y1="9" x2="7" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
       料金プラン
     </button>
@@ -2828,10 +2833,12 @@ function switchTab(tab){
   const tabNavMap={
     'siwake':'navSiwake','scan':'navScan','master':'navMaster','csvmerge':'navCsvmerge',
     'staff':'navStaff','auto-intake':'navAutoIntake','unassigned-tray':'navUnassignedTray',
-    'unlock-features':'navUnlockFeatures'
+    'unlock-features':'navUnlockFeatures','pricing':'navPlanInSettings'
   };
   const navId=tabNavMap[tab];
   if(navId)document.getElementById(navId)?.classList.add('active');
+  // v2.4.9: 料金プランのフッターボタン active 連動
+  document.getElementById('navPlanFooter')?.classList.toggle('active', tab === 'pricing');
   if(tab==='pricing'&&pricingBtn)pricingBtn.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.className='panel');
   document.getElementById('panel-'+tab).className='panel active';
