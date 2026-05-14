@@ -195,6 +195,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sidebar-nav-item.active .nav-icon{opacity:1;}
 .sidebar-master-count{margin-left:auto;background:#e0dfd8;color:#777;font-size:10px;padding:1px 6px;border-radius:8px;}
 .sidebar-nav-item.active .sidebar-master-count{background:#E6F1FB;color:#185FA5;}
+/* v2.5.0: 自動ルール学習UI */
+.sidebar-anomaly-badge{margin-left:4px;background:#dc2626;color:#fff;font-size:9px;padding:1px 5px;border-radius:5px;font-weight:600;line-height:1.4;}
+.learned-rule-status-bar{display:flex;gap:12px;align-items:center;margin-bottom:12px;padding:8px 12px;background:#F5F4F0;border-radius:8px;font-size:12px;color:#555;flex-wrap:wrap;}
+.lr-on{background:#1D9E75;color:#fff;font-size:10px;padding:2px 8px;border-radius:6px;font-weight:600;}
+.lr-off{background:#ddd;color:#777;font-size:10px;padding:2px 8px;border-radius:6px;font-weight:600;}
+.learned-rule-row{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;background:#fff;font-size:13px;}
+.learned-rule-row.anomaly{background:#FFF8F0;border-color:#FBBF24;}
+.learned-rule-row.inactive{opacity:0.55;}
+.learned-rule-main{flex:1;min-width:0;}
+.learned-rule-title{font-weight:500;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.learned-rule-meta{font-size:11px;color:#888;margin-top:2px;}
+.lr-anomaly-tag{background:#F59E0B;color:#fff;font-size:10px;padding:1px 6px;border-radius:5px;flex-shrink:0;font-weight:600;}
+.lr-btn{padding:3px 9px;font-size:11px;border-radius:5px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#555;white-space:nowrap;}
+.lr-btn:hover{background:#f5f5f5;}
+.lr-btn-danger{border-color:#f87171;color:#dc2626;}
+.lr-btn-danger:hover{background:#fef2f2;}
+.lr-empty{text-align:center;padding:32px;color:#aaa;font-size:12px;line-height:1.7;}
+.lr-upgrade-hint{padding:12px 14px;background:#EBF4FD;border:1px solid #b8d4f0;border-radius:8px;font-size:12px;color:#185FA5;text-align:center;margin-top:6px;}
+.auto-rule-section-title{font-size:10px;font-weight:700;color:#888;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px;}
+.auto-rule-toggle-row{display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;margin-bottom:10px;}
+.auto-rule-toggle-row input[type=checkbox]{width:16px;height:16px;accent-color:#185FA5;cursor:pointer;flex-shrink:0;}
+.auto-rule-strictness{margin-top:2px;}
+.auto-rule-strictness p{font-size:11px;color:#888;margin:0 0 6px;}
+.auto-rule-strictness label{display:block;font-size:12px;color:#444;margin-bottom:5px;cursor:pointer;}
+.auto-rule-strictness input[type=radio]{accent-color:#185FA5;}
 .nav-badge-coming{font-size:9px;background:#e0dfd8;color:#999;border-radius:4px;padding:1px 5px;margin-left:auto;font-weight:500;white-space:nowrap;}
 .sidebar-nav-item.active .nav-badge-coming{background:#E6F1FB;color:#185FA5;}
 .sidebar-compatible{padding:8px 8px 10px;border-top:1px solid #e0dfd8;}
@@ -1825,6 +1850,7 @@ function updateFabBadge() {
           <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><line x1="7.5" y1="5" x2="7.5" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="5" y1="7.5" x2="10" y2="7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           仕訳ルール学習
           <span class="sidebar-master-count" id="masterCount">0</span>
+          <span class="sidebar-anomaly-badge" id="learnedRuleAnomalyBadge" style="display:none;"></span>
         </div>
         <!-- Agent版メニュー (edition: agent / elite) -->
         <div class="sidebar-nav-item" id="navAgentDashboard" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
@@ -1889,7 +1915,7 @@ function updateFabBadge() {
       </div>
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.4.9 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.5.0 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2201,6 +2227,7 @@ function updateFabBadge() {
     <div class="master-tabs">
       <button class="master-tab active" id="mtab-vendor" onclick="switchMasterTab('vendor')">取引先マスタ</button>
       <button class="master-tab" id="mtab-category" onclick="switchMasterTab('category')">カテゴリルール</button>
+      <button class="master-tab" id="mtab-learned" onclick="switchMasterTab('learned')">自動学習ルール</button>
     </div>
     <div id="master-pane-vendor">
       <div class="cat-rule-desc">仕訳を承認すると取引先ごとの勘定科目・税区分が登録されます。次回から同じ取引先に自動適用されます。</div>
@@ -2215,6 +2242,12 @@ function updateFabBadge() {
         <thead><tr><th>ルール名</th><th>条件</th><th>借方</th><th>税区分</th><th></th></tr></thead>
         <tbody id="catRuleTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。</td></tr></tbody>
       </table>
+    </div>
+    <div id="master-pane-learned" style="display:none;">
+      <div id="learnedRuleStatusBar" class="learned-rule-status-bar">
+        <span>読み込み中...</span>
+      </div>
+      <div id="learnedRuleList"><div class="lr-empty">読み込み中...</div></div>
     </div>
   </div>
 
@@ -2842,7 +2875,7 @@ function switchTab(tab){
   if(tab==='pricing'&&pricingBtn)pricingBtn.classList.add('active');
   document.querySelectorAll('.panel').forEach(p=>p.className='panel');
   document.getElementById('panel-'+tab).className='panel active';
-  if(tab==='master')loadMasterFromServer();
+  if(tab==='master'){loadMasterFromServer();updateLearnedRuleAnomalyBadge();}
   if(tab==='staff')loadStaffList();
   // スマホ：タブ切替でサイドバーを閉じる
   closeSidebar();
@@ -3622,11 +3655,119 @@ function switchMasterTab(tab){
   _masterTab=tab;
   document.getElementById('mtab-vendor').classList.toggle('active',tab==='vendor');
   document.getElementById('mtab-category').classList.toggle('active',tab==='category');
+  document.getElementById('mtab-learned').classList.toggle('active',tab==='learned');
   document.getElementById('master-pane-vendor').style.display=tab==='vendor'?'':'none';
   document.getElementById('master-pane-category').style.display=tab==='category'?'':'none';
+  document.getElementById('master-pane-learned').style.display=tab==='learned'?'':'none';
+  if(tab==='learned') loadLearnedRules();
 }
 function onAddRuleClick(){
   if(_masterTab==='category'){openCatRuleModal();}else{openModal();}
+}
+
+// ===== 自動学習ルール (v2.5.0) =====
+async function loadLearnedRules(){
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  const statusEl=document.getElementById('learnedRuleStatusBar');
+  const listEl=document.getElementById('learnedRuleList');
+  if(!statusEl||!listEl) return;
+  if(!uid||!wsId){
+    listEl.innerHTML='<div class="lr-empty">ワークスペースが選択されていません</div>';
+    return;
+  }
+  try{
+    const ws=(window._workspaces||[]).find(w=>w.id===wsId);
+    const r=await fetch(`/api/learned-rules?ws_id=${encodeURIComponent(wsId)}&uid=${encodeURIComponent(uid)}`);
+    const d=await r.json();
+    const rules=d.rules||[];
+    _renderLearnedRuleStatusBar(statusEl,rules,ws);
+    _renderLearnedRuleList(listEl,rules);
+    _updateLearnedRuleAnomalyBadge(rules);
+  }catch(e){
+    listEl.innerHTML='<div class="lr-empty">読み込みに失敗しました</div>';
+  }
+}
+
+function _renderLearnedRuleStatusBar(el,rules,ws){
+  const total=rules.length;
+  const anomaly=rules.filter(r=>r.anomaly_flag).length;
+  const isOn=ws?.auto_rule_learning_enabled;
+  el.innerHTML=`
+    <span class="${isOn?'lr-on':'lr-off'}">${isOn?'ON':'OFF'}</span>
+    <span>学習件数: <strong>${total}</strong>件</span>
+    ${anomaly>0?`<span style="color:#dc2626;">⚠ 異常: <strong>${anomaly}</strong>件</span>`:''}`;
+}
+
+function _renderLearnedRuleList(el,rules){
+  if(rules.length===0){
+    el.innerHTML='<div class="lr-empty">まだ学習されたルールはありません。<br>仕訳を承認するたびに学習が進みます。</div>';
+    return;
+  }
+  el.innerHTML=rules.map(rule=>{
+    const cond=rule.conditions||{};
+    const res=rule.result||{};
+    const title=[cond.partner_name,res.debit_account].filter(Boolean).join(' → ')||'(条件なし)';
+    const meta=`適用${rule.applied_count||0}回・修正${rule.modified_after_apply_count||0}回`;
+    const anomalyTag=rule.anomaly_flag?'<span class="lr-anomaly-tag">⚠ 修正率高</span>':'';
+    const inactiveLabel=!rule.is_active?'<span style="font-size:10px;color:#aaa;margin-left:4px;">[無効]</span>':'';
+    const disableBtn=rule.is_active
+      ?`<button class="lr-btn" onclick="disableLearnedRule('${rule.id}')">無効化</button>`
+      :'';
+    return`<div class="learned-rule-row${rule.anomaly_flag?' anomaly':''}${!rule.is_active?' inactive':''}">
+      <div class="learned-rule-main">
+        <div class="learned-rule-title">${escapeHtml(title)}${inactiveLabel}</div>
+        <div class="learned-rule-meta">${escapeHtml(meta)}</div>
+      </div>
+      ${anomalyTag}
+      ${disableBtn}
+      <button class="lr-btn lr-btn-danger" onclick="deleteLearnedRule('${rule.id}')">削除</button>
+    </div>`;
+  }).join('');
+}
+
+async function disableLearnedRule(id){
+  const uid=window._firebaseUser?.uid;
+  if(!uid) return;
+  try{
+    await fetch(`/api/learned-rules/${encodeURIComponent(id)}`,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,is_active:false})
+    });
+    await loadLearnedRules();
+  }catch(e){showToast('⚠ 無効化に失敗しました',2500);}
+}
+
+async function deleteLearnedRule(id){
+  if(!confirm('このルールを削除しますか？')) return;
+  const uid=window._firebaseUser?.uid;
+  if(!uid) return;
+  try{
+    await fetch(`/api/learned-rules/${encodeURIComponent(id)}`,{
+      method:'DELETE',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid})
+    });
+    await loadLearnedRules();
+  }catch(e){showToast('⚠ 削除に失敗しました',2500);}
+}
+
+function _updateLearnedRuleAnomalyBadge(rules){
+  const badge=document.getElementById('learnedRuleAnomalyBadge');
+  if(!badge) return;
+  const n=(rules||[]).filter(r=>r.anomaly_flag&&r.is_active!==false).length;
+  if(n>0){badge.textContent='異常 '+n;badge.style.display='';}
+  else{badge.style.display='none';}
+}
+
+async function updateLearnedRuleAnomalyBadge(){
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  if(!uid||!wsId) return;
+  try{
+    const r=await fetch(`/api/learned-rules?ws_id=${encodeURIComponent(wsId)}&uid=${encodeURIComponent(uid)}`);
+    const d=await r.json();
+    _updateLearnedRuleAnomalyBadge(d.rules||[]);
+  }catch(e){}
 }
 
 // ===== カテゴリルール =====
@@ -4514,6 +4655,7 @@ async function approveGroup(indices){
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             uid:_uid,workspace_id:_wsId,session_id:SESSION_ID,
+            rule_id:(r._source==='learned_rule'?r._rule_id:null)||null,
             record:{
               shiwake_date:r.date,partner_name:r.title,
               debit_account:r.debit,credit_account:r.credit,
@@ -4605,6 +4747,7 @@ async function approve(i){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           uid,workspace_id:window._currentWorkspaceId||null,session_id:SESSION_ID,
+          rule_id:(results[i]._source==='learned_rule'?results[i]._rule_id:null)||null,
           record:{
             shiwake_date:results[i].date,partner_name:results[i].title,
             debit_account:results[i].debit,credit_account:results[i].credit,
@@ -6985,6 +7128,22 @@ function renderWsEditBody(ws, ae = {}) {
       <div class="ws-rule-section-title">最近のエクスポート履歴（直近30日）</div>
       <div id="aeHistBody"><span style="color:#bbb;font-size:12px;">読み込み中...</span></div>
     </div>
+    ${(()=>{const isAgent=['agent','elite'].includes(window._userEdition||'saas');
+    if(!isAgent)return`<div class="ws-rule-section" id="auto-rule-learning-section"><div class="ws-rule-section-title">自動ルール学習</div><div class="lr-upgrade-hint">Agent ライト以上のプランで利用できます。<br><button style="margin-top:6px;padding:4px 14px;border-radius:6px;border:none;background:#185FA5;color:#fff;font-size:12px;cursor:pointer;" onclick="closeWsEdit();switchTab('pricing')">プランを確認する</button></div></div>`;
+    return`<div class="ws-rule-section" id="auto-rule-learning-section">
+      <div class="ws-rule-section-title">自動ルール学習</div>
+      <p style="font-size:11px;color:#888;margin:0 0 10px;line-height:1.6;">過去の修正履歴から自動でルールを学習し、AI判定をスキップしてコストを削減します</p>
+      <label class="auto-rule-toggle-row">
+        <input type="checkbox" id="autoRuleLearningEnabled" ${ws.auto_rule_learning_enabled?'checked':''} onchange="document.getElementById('autoRuleStrictnessGroup').classList.toggle('ae-disabled',!this.checked)">
+        自動ルール学習を有効にする
+      </label>
+      <div id="autoRuleStrictnessGroup" class="auto-rule-strictness${ws.auto_rule_learning_enabled?'':' ae-disabled'}">
+        <p>学習の厳しさ</p>
+        <label><input type="radio" name="autoRuleStrictness" value="strict" ${(ws.auto_rule_strictness||'balanced')==='strict'?'checked':''}> 厳しめ — 矛盾は即無効化、修正率20%超でフラグ</label>
+        <label><input type="radio" name="autoRuleStrictness" value="balanced" ${(ws.auto_rule_strictness||'balanced')==='balanced'?'checked':''}> 標準 — 矛盾は即フラグ、修正率30%超でフラグ（推奨）</label>
+        <label><input type="radio" name="autoRuleStrictness" value="loose" ${(ws.auto_rule_strictness||'balanced')==='loose'?'checked':''}> 緩め — 矛盾は2件以上で判定、修正率50%超でフラグ</label>
+      </div>
+    </div>`;})()}
     <div class="ws-form-btns">
       <button class="ws-form-btn-cancel" onclick="closeWsEdit()">キャンセル</button>
       <button class="ws-form-btn-submit" id="wsEditSubmitBtn" onclick="submitWsEdit()">保存</button>
@@ -7183,12 +7342,16 @@ async function submitWsEdit() {
   const btn = document.getElementById('wsEditSubmitBtn');
   if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
   try {
+    const autoRuleLearningEnabled = document.getElementById('autoRuleLearningEnabled')?.checked ?? undefined;
+    const autoRuleStrictness = document.querySelector('input[name="autoRuleStrictness"]:checked')?.value || undefined;
     const r = await fetch('/api/workspaces/' + _wsEditId, {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ uid, name, slug, color, icon,
         client_email_addresses: [..._wsEditEmails],
         client_email_domains:   [..._wsEditDomains],
-        subject_keywords:       [..._wsEditKeywords]
+        subject_keywords:       [..._wsEditKeywords],
+        ...(autoRuleLearningEnabled !== undefined ? {auto_rule_learning_enabled: autoRuleLearningEnabled} : {}),
+        ...(autoRuleStrictness ? {auto_rule_strictness: autoRuleStrictness} : {})
       })
     });
     const d = await r.json();
