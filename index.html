@@ -131,6 +131,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ae-step-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
 .ae-step-badge{background:#185FA5;color:#fff;font-size:11px;font-weight:500;padding:3px 8px;border-radius:4px;letter-spacing:0.5px;white-space:nowrap;}
 .ae-step-title{font-size:14px;font-weight:500;color:#1a1a1a;}
+/* エクスポート履歴 */
+.ae-hist-table{width:100%;border-collapse:collapse;font-size:12px;}
+.ae-hist-table th{text-align:left;font-size:10px;font-weight:700;color:#888;letter-spacing:0.04em;padding:4px 6px;border-bottom:1px solid #e8e8e8;}
+.ae-hist-table td{padding:5px 6px;border-bottom:1px solid #f3f3f3;color:#444;vertical-align:middle;}
+.ae-hist-table tr:last-child td{border-bottom:none;}
+.ae-hist-dl-wrap{position:relative;display:inline-block;}
+.ae-hist-dl-btn{padding:3px 9px;font-size:11px;background:#185FA5;color:#fff;border:none;border-radius:4px;cursor:pointer;}
+.ae-hist-dl-btn:hover{background:#1450a3;}.ae-hist-dl-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.ae-hist-dropdown{position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.12);padding:4px 0;min-width:144px;}
+.ae-hist-dropdown-item{display:block;width:100%;padding:7px 14px;font-size:12px;text-align:left;border:none;background:none;cursor:pointer;color:#333;white-space:nowrap;}
+.ae-hist-dropdown-item:hover{background:#f5f5f5;}
 /* WS使用状況バー */
 .ws-usage-bar-wrap{margin-bottom:16px;padding:12px 14px;background:#faf9f6;border:1px solid #e8e7e0;border-radius:10px;}
 .ws-usage-bar-label{font-size:12px;color:#555;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;}
@@ -1827,7 +1838,7 @@ function updateFabBadge() {
       📊 キャッシュ統計
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.3.5 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.4.7 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -6669,6 +6680,7 @@ async function openWsEdit(wsId) {
     const title = document.getElementById('wsEditTitle');
     if (title) title.textContent = `「${ws.name}」を編集`;
     renderWsEditBody(ws, ae);
+    loadAeHistory(wsId, uid);
   } catch(e) {
     body.innerHTML = '<div style="color:#e55;padding:20px;">読み込みに失敗しました</div>';
   }
@@ -6887,6 +6899,10 @@ function renderWsEditBody(ws, ae = {}) {
         </div>
       </div>
     </div>
+    <div class="ws-rule-section" id="ae-hist-section">
+      <div class="ws-rule-section-title">最近のエクスポート履歴（直近30日）</div>
+      <div id="aeHistBody"><span style="color:#bbb;font-size:12px;">読み込み中...</span></div>
+    </div>
     <div class="ws-form-btns">
       <button class="ws-form-btn-cancel" onclick="closeWsEdit()">キャンセル</button>
       <button class="ws-form-btn-submit" id="wsEditSubmitBtn" onclick="submitWsEdit()">保存</button>
@@ -6908,6 +6924,117 @@ function wsAeFormatChange(format) {
   const row = document.getElementById('wsAeYayoiSplitRow');
   if (row) row.style.display = format === 'yayoi' ? '' : 'none';
 }
+
+// ===== エクスポート履歴UI (v2.4.7) =====
+async function loadAeHistory(wsId, uid) {
+  const el = document.getElementById('aeHistBody');
+  if (!el) return;
+  try {
+    const r = await fetch(`/api/auto-export/history?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}`);
+    const d = await r.json();
+    const rows = d.exports || [];
+    if (rows.length === 0) {
+      el.innerHTML = '<div style="text-align:center;color:#bbb;font-size:12px;padding:12px 0;">まだエクスポート履歴はありません</div>';
+      return;
+    }
+    const destMap = { email: 'メール', cloud: 'クラウド', local: 'ローカル' };
+    const rowsHtml = rows.map(ex => {
+      const dt = new Date(ex.created_at);
+      const mm = String(dt.getMonth()+1).padStart(2,'0');
+      const dd = String(dt.getDate()).padStart(2,'0');
+      const hh = String(dt.getHours()).padStart(2,'0');
+      const mi = String(dt.getMinutes()).padStart(2,'0');
+      const dateStr = `${mm}-${dd} ${hh}:${mi}`;
+      const count = ex.record_count ?? '—';
+      const dests = ex.output_destinations;
+      const destStr = (dests && typeof dests === 'object')
+        ? Object.entries(dests).filter(([,v]) => v === 'success' || (typeof v === 'string' && v.startsWith('partial'))).map(([k]) => destMap[k] || k).join('/') || '—'
+        : '—';
+      const paths = Array.isArray(ex.csv_storage_path) ? ex.csv_storage_path : [];
+      const splitStr = paths.length > 0 ? String(paths.length) : '—';
+      const dlBtn = paths.length > 0
+        ? `<div class="ae-hist-dl-wrap"><button class="ae-hist-dl-btn" onclick="aeHistDl('${ex.id}',this)">DL</button></div>`
+        : `<button class="ae-hist-dl-btn" disabled>DL</button>`;
+      return `<tr><td>${dateStr}</td><td>${count}</td><td>${destStr}</td><td>${splitStr}</td><td>${dlBtn}</td></tr>`;
+    }).join('');
+    el.innerHTML = `<table class="ae-hist-table"><thead><tr><th>日時</th><th>件数</th><th>出力先</th><th>分割</th><th>DL</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  } catch(e) {
+    if (el) el.innerHTML = '<div style="color:#e55;font-size:12px;">履歴の読み込みに失敗しました</div>';
+  }
+}
+
+async function aeHistDl(exportId, btnEl) {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  btnEl.disabled = true;
+  try {
+    const r = await fetch(`/api/auto-export/download?uid=${encodeURIComponent(uid)}&export_id=${encodeURIComponent(exportId)}`);
+    const d = await r.json();
+    const files = d.files || [];
+    if (files.length === 0) { alert('ダウンロードできるファイルがありません'); btnEl.disabled = false; return; }
+    if (files.length === 1) { window.open(files[0].url, '_blank'); btnEl.disabled = false; return; }
+    window._aeHistFiles = window._aeHistFiles || {};
+    window._aeHistFiles[exportId] = files;
+    _aeHistShowDropdown(exportId, btnEl);
+  } catch(e) {
+    alert('ダウンロードリンクの取得に失敗しました');
+  }
+  btnEl.disabled = false;
+}
+
+function _aeHistShowDropdown(exportId, btnEl) {
+  document.querySelectorAll('.ae-hist-dropdown').forEach(d => d.remove());
+  const dd = document.createElement('div');
+  dd.className = 'ae-hist-dropdown';
+  dd.innerHTML =
+    `<button class="ae-hist-dropdown-item" onclick="_aeHistZipDl('${exportId}');this.closest('.ae-hist-dropdown').remove()">ZIPまとめてDL</button>` +
+    `<button class="ae-hist-dropdown-item" onclick="_aeHistIndivDl('${exportId}');this.closest('.ae-hist-dropdown').remove()">個別DL</button>`;
+  const wrap = btnEl.closest('.ae-hist-dl-wrap');
+  if (wrap) wrap.appendChild(dd);
+  setTimeout(() => {
+    document.addEventListener('click', function h(e) {
+      if (!dd.contains(e.target) && e.target !== btnEl) { dd.remove(); document.removeEventListener('click', h); }
+    });
+  }, 0);
+}
+
+async function _aeHistZipDl(exportId) {
+  const files = window._aeHistFiles?.[exportId];
+  if (!files || files.length === 0) return;
+  if (!window.JSZip) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  try {
+    const zip = new JSZip();
+    for (const { filename, url } of files) {
+      const blob = await fetch(url).then(r => r.blob());
+      zip.file(filename, blob);
+    }
+    const content = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(content);
+    a.download = `${exportId}_bundle.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  } catch(e) { alert('ZIPの作成に失敗しました: ' + e.message); }
+}
+
+async function _aeHistIndivDl(exportId) {
+  const files = window._aeHistFiles?.[exportId];
+  if (!files || files.length === 0) return;
+  for (const { url, filename } of files) {
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.target = '_blank';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+// ===== /エクスポート履歴UI =====
 
 function selectWsEditIcon(emoji) {
   document.getElementById('wsEditIcon').value = emoji;

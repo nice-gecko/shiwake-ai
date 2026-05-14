@@ -3588,18 +3588,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/auto-export/history?uid=xxx&workspace_id=yyy&limit=20
+  // GET /api/auto-export/history?uid=xxx&workspace_id=yyy
   if (req.method === 'GET' && reqPath === '/api/auto-export/history') {
     const params = new URL(req.url, 'http://localhost').searchParams;
     const uid = params.get('uid');
     const workspaceId = params.get('workspace_id');
-    const limit = Math.min(parseInt(params.get('limit') || '20', 10), 100);
+    const limit = 100;
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
-      let q = `/shiwake_exports?uid=eq.${uid}&order=created_at.desc&limit=${limit}&select=*`;
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const fields = 'id,created_at,record_count,status,output_destinations,csv_storage_path';
+      let q = `/shiwake_exports?uid=eq.${uid}&created_at=gte.${thirtyDaysAgo}&order=created_at.desc&limit=${limit}&select=${fields}`;
       if (workspaceId) {
         try { await resolveWorkspaceId(uid, workspaceId); } catch(e) { handleWsError(e, res); return; }
-        q = `/shiwake_exports?uid=eq.${uid}&workspace_id=eq.${workspaceId}&order=created_at.desc&limit=${limit}&select=*`;
+        q = `/shiwake_exports?uid=eq.${uid}&workspace_id=eq.${workspaceId}&created_at=gte.${thirtyDaysAgo}&order=created_at.desc&limit=${limit}&select=${fields}`;
       }
       const rows = await supabaseQuery(q);
       res.writeHead(200, { 'Content-Type': 'application/json' });
