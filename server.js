@@ -1683,6 +1683,7 @@ async function detectAndStoreRules(workspaceId, strictness) {
     const topDebit  = Object.entries(data.debit).sort(([,a],[,b])=>b-a)[0];
     const topCredit = Object.entries(data.credit).sort(([,a],[,b])=>b-a)[0];
     if (!topDebit || topDebit[1] < 3) continue;
+    if (!data.keyword) continue;
     candidates.push({
       conditions: { partner_name: data.partner_name, description_keywords: data.keyword ? [data.keyword] : [] },
       result:     { debit_account: topDebit[0], credit_account: topCredit?.[0] || null }
