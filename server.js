@@ -726,12 +726,69 @@ async function classifyIncomingEmail(uid, fromAddress, subject) {
   return null;
 }
 
+// 自動承認一時停止をメールで通知
+async function notifyAutoApprovePaused(ownerUid, workspaceId, currentScore, requiredScore) {
+  try {
+    const userRows = await supabaseQuery(`/users?id=eq.${ownerUid}&select=email`);
+    const toEmail = userRows?.[0]?.email;
+    if (!toEmail) return;
+    const subject = '【shiwake-ai】自動承認が一時停止されました';
+    const html = `
+<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
+  <h2 style="color:#d97706;">自動承認が一時停止されました</h2>
+  <p>信頼度スコアが閾値（${requiredScore}%）を下回ったため、自動承認を一時停止しました。</p>
+  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr><td style="padding:6px 0;color:#666;">現在の信頼度</td><td><strong>${Math.round(currentScore)}%</strong></td></tr>
+    <tr><td style="padding:6px 0;color:#666;">必要な信頼度</td><td><strong>${requiredScore}%以上</strong></td></tr>
+  </table>
+  <p style="margin-top:16px;font-size:13px;color:#666;">管理画面から手動で再開してください。</p>
+  <hr style="margin:16px 0;">
+  <p style="font-size:12px;color:#888;">証憑仕訳AI / shiwake-ai.com</p>
+</div>`;
+    await sendEmail(toEmail, subject, html);
+  } catch(e) {
+    console.warn('notifyAutoApprovePaused error:', e.message);
+  }
+}
+
+// 自動承認フラグを items に付与（analyze-chunk のハッシュパス・通常パス共通）
+function applyAutoApproveFlags(items, wsSettings) {
+  if (!wsSettings || wsSettings.auto_approve_paused_at) return items;
+  const allEnabled = wsSettings.auto_approve_all_enabled;
+  const learnedEnabled = wsSettings.auto_approve_learned_enabled;
+  if (!allEnabled && !learnedEnabled) return items;
+  return items.map(item => {
+    if (allEnabled) {
+      return { ...item, _autoApprove: true, _autoApproveType: 'all' };
+    }
+    if (item.masterApplied || item.learnedRuleApplied) {
+      return { ...item, _autoApprove: true, _autoApproveType: 'learned', _appliedLearnedRuleId: item.learnedRuleId || null };
+    }
+    return item;
+  });
+}
+
 // 信頼度メトリクスを再計算して workspace_trust_metrics を upsert
 async function recalculateTrustMetrics(workspaceId) {
   try {
+    // 自動承認設定・trust_reset_at を取得
+    const wsRows = await supabaseQuery(
+      `/workspaces?id=eq.${workspaceId}&select=owner_uid,trust_reset_at,auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_learned_unlocked_at,auto_approve_all_unlocked_at,auto_approve_paused_at`
+    );
+    const wsData = wsRows?.[0] || {};
+    const {
+      owner_uid,
+      trust_reset_at,
+      auto_approve_learned_enabled,
+      auto_approve_all_enabled,
+      auto_approve_learned_unlocked_at,
+      auto_approve_all_unlocked_at,
+      auto_approve_paused_at
+    } = wsData;
+
     const [recent, all] = await Promise.all([
       supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'recent' }),
-      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'all' })
+      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'all', p_reset_at: trust_reset_at || null })
     ]);
 
     const masterStat = await supabaseQuery(
@@ -742,7 +799,7 @@ async function recalculateTrustMetrics(workspaceId) {
     const masterHitRate = total > 0 ? (hit * 100 / total) : 0;
 
     const totalApproved = all?.total_approved || 0;
-    const recentTrust = recent?.trust_score || 0;
+    const recentTrust = Math.min(99, recent?.trust_score || 0);  // 99%キャップ
     let maturityLevel = 'rookie';
     if (totalApproved >= 200 && recentTrust >= 95) maturityLevel = 'mature';
     else if (totalApproved >= 50) maturityLevel = 'stable';
@@ -756,13 +813,44 @@ async function recalculateTrustMetrics(workspaceId) {
       modification_trend_all: all?.modification_trend,
       recent_approved: recent?.total_approved || 0,
       recent_modified: recent?.total_modified || 0,
-      trust_score_recent: recent?.trust_score,
+      trust_score_recent: recentTrust,
       field_accuracy_recent: recent?.field_accuracy,
       modification_trend_recent: recent?.modification_trend,
       master_hit_rate: masterHitRate,
       maturity_level: maturityLevel,
       last_calculated_at: new Date().toISOString()
     }, { 'Prefer': 'resolution=merge-duplicates' });
+
+    // ゲート解放チェック（一度解放したら戻さない）
+    const wsUpdates = {};
+    if (recentTrust >= 80 && !auto_approve_learned_unlocked_at) {
+      wsUpdates.auto_approve_learned_unlocked_at = new Date().toISOString();
+    }
+    if (recentTrust >= 95 && !auto_approve_all_unlocked_at) {
+      wsUpdates.auto_approve_all_unlocked_at = new Date().toISOString();
+    }
+
+    // 一時停止チェック（paused_at 未セット時のみ判定して二重通知を防ぐ）
+    let shouldNotifyPaused = false;
+    if (!auto_approve_paused_at) {
+      if (auto_approve_all_enabled && recentTrust < 95) {
+        wsUpdates.auto_approve_paused_at = new Date().toISOString();
+        shouldNotifyPaused = true;
+      } else if (auto_approve_learned_enabled && recentTrust < 80) {
+        wsUpdates.auto_approve_paused_at = new Date().toISOString();
+        shouldNotifyPaused = true;
+      }
+    }
+
+    if (Object.keys(wsUpdates).length > 0) {
+      await supabaseQuery(`/workspaces?id=eq.${workspaceId}`, 'PATCH', wsUpdates);
+    }
+
+    if (shouldNotifyPaused && owner_uid) {
+      const threshold = auto_approve_all_enabled ? 95 : 80;
+      notifyAutoApprovePaused(owner_uid, workspaceId, recentTrust, threshold)
+        .catch(e => console.warn('auto-approve paused notification error:', e.message));
+    }
   } catch(e) {
     console.warn('recalculateTrustMetrics error:', e.message);
   }
@@ -2479,14 +2567,18 @@ const server = http.createServer(async (req, res) => {
         const master = loadMaster(cacheUid, workspace_id);
         const masterKeys = Object.keys(master);
 
-        // ② 学習済みルールのロード（anomaly_flag が設定されていないもののみ）
+        // ② 学習済みルールのロード + 自動承認設定取得（並列）
         let workspaceLearnedRules = [];
+        let wsAutoApproveSettings = null;
         if (workspace_id) {
           try {
-            workspaceLearnedRules = await supabaseQuery(
-              `/learned_rules?workspace_id=eq.${workspace_id}&anomaly_flag=is.null&select=id,conditions,result,applied_count,is_active`
-            ) || [];
-          } catch(e) { /* ルール取得失敗は無視してフォールバック */ }
+            const [rulesRes, wsRes] = await Promise.all([
+              supabaseQuery(`/learned_rules?workspace_id=eq.${workspace_id}&anomaly_flag=is.null&select=id,conditions,result,applied_count,is_active`),
+              supabaseQuery(`/workspaces?id=eq.${workspace_id}&select=auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_paused_at`)
+            ]);
+            workspaceLearnedRules = rulesRes || [];
+            wsAutoApproveSettings = wsRes?.[0] || null;
+          } catch(e) { /* 取得失敗は無視してフォールバック */ }
         }
 
         // ③ ハッシュキャッシュ確認（マスタ・ルールロード後に実施）
@@ -2515,9 +2607,10 @@ const server = http.createServer(async (req, res) => {
             items.filter(it => it.learnedRuleApplied && it.learnedRuleId).forEach(it => {
               incrementRuleApplied(it.learnedRuleId).catch(e => console.warn('incrementRuleApplied error:', e.message));
             });
+            const flaggedItems = applyAutoApproveFlags(items, wsAutoApproveSettings);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
-              items,
+              items: flaggedItems,
               orientation: 'normal',
               line_item_mode: 'total_only',
               cacheHit: 'hash'
@@ -2651,14 +2744,17 @@ const server = http.createServer(async (req, res) => {
         // マスタヒット件数を集計（フロントのヒット率表示用）
         const masterHitCount = items.filter(it => it.masterApplied).length;
 
-        console.log(`チャンク ${chunkIndex+1}/${totalChunks}: ${rawItems.length}件取得 → ${items.length}件（フォーマット:${formatKey}・モード:${line_item_mode}・マスタ${masterKeys.length}件・ヒット${masterHitCount}件）`);
+        // 自動承認フラグ付与
+        const finalItems = applyAutoApproveFlags(items, wsAutoApproveSettings);
+
+        console.log(`チャンク ${chunkIndex+1}/${totalChunks}: ${rawItems.length}件取得 → ${finalItems.length}件（フォーマット:${formatKey}・モード:${line_item_mode}・マスタ${masterKeys.length}件・ヒット${masterHitCount}件）`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
-          items,
+          items: finalItems,
           orientation,
           line_item_mode,
           masterHitCount,
-          totalCount: items.length
+          totalCount: finalItems.length
         }));
       } catch(e) {
         console.error('Error:', e.message);
@@ -3575,7 +3671,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { uid, workspace_id, session_id, record, rule_id } = JSON.parse(body);
+        const { uid, workspace_id, session_id, record, rule_id, auto_approved, auto_approve_type, applied_learned_rule_id } = JSON.parse(body);
         if (!uid || !record) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'uid and record required' }));
@@ -3587,13 +3683,18 @@ const server = http.createServer(async (req, res) => {
 
         // ワークスペース所有者確認
         const [ws] = await supabaseQuery(
-          `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id,auto_rule_learning_enabled,auto_rule_strictness`
+          `/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=id,auto_rule_learning_enabled,auto_rule_strictness,auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_paused_at`
         );
         if (!ws) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'forbidden' }));
           return;
         }
+
+        // paused 中は自動承認フラグを強制 false に（フロント誤送信の安全弁）
+        const effectiveAutoApproved = ws.auto_approve_paused_at ? false : (auto_approved || false);
+        const effectiveAutoApproveType = ws.auto_approve_paused_at ? null : (auto_approve_type || null);
+        const effectiveAppliedLearnedRuleId = (effectiveAutoApproveType === 'learned') ? (applied_learned_rule_id || null) : null;
 
         // 差分計算
         const ai = record.ai_proposed || {};
@@ -3627,6 +3728,9 @@ const server = http.createServer(async (req, res) => {
           master_hit_method: record.master_hit_method || null,
           source_session_id: session_id || null,
           source_file_name: record.source_file_name || null,
+          auto_approved: effectiveAutoApproved,
+          auto_approve_type: effectiveAutoApproveType,
+          applied_learned_rule_id: effectiveAppliedLearnedRuleId,
           approved_at: new Date().toISOString()
         });
 
