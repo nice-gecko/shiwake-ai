@@ -4691,30 +4691,10 @@ function renderTrustDashboard(m){
   const el=document.getElementById('trustDashboard');
   if(!el) return;
 
-  // データ蓄積中: 従来表示を維持
-  if(getDashboardLayout(m)==='rookie_layout'){
-    const total=m.total_approved||0;
-    const threshold=30;
-    const pct=Math.min(100,Math.round(total/threshold*100));
-    const remaining=Math.max(0,threshold-total);
-    el.innerHTML=`<div class="trust-card">
-<div class="incentive-header">
-  <span class="incentive-title">📊 信頼度メーター</span>
-  <span class="incentive-badge">データ蓄積中</span>
-</div>
-<div class="trust-rookie-progress">
-  <div style="font-size:12px;color:#444;">あと<strong>${remaining}件</strong>の承認で精度レポートを表示します</div>
-  <div class="trust-rookie-bar"><div class="trust-rookie-fill" style="width:${pct}%"></div></div>
-  <div class="trust-rookie-label">累計承認 ${total}件 / ${threshold}件</div>
-</div></div>`;
-    el.style.display='';
-    return;
-  }
-
   // アコーディオン描画
   const score=m.trust_score_recent!=null?m.trust_score_recent:0;
   window._lastTrustScore=score;
-  const scoreDisp=m.trust_score_recent!=null?m.trust_score_recent.toFixed(1):'-';
+  const scoreDisp=(m.trust_score_recent??0).toFixed(1);
   const learnedOn=!!m.auto_approve_learned_enabled;
   const allOn=!!m.auto_approve_all_enabled;
   const paused=m.auto_approve_paused_at;
@@ -4829,11 +4809,6 @@ function _toggleTrustAcc(){
   if(a) a.setAttribute('aria-expanded',String(window._trustAccOpen));
 }
 
-function getDashboardLayout(m){
-  if((m.total_approved||0)<30) return 'rookie_layout';
-  if((m.trust_score_recent||0)>=95&&(m.total_approved||0)>=200) return 'mature_layout';
-  return 'stable_layout';
-}
 
 // v2.6.0: 自動承認トグル
 async function toggleAutoApprove(type, enabled){
@@ -5097,6 +5072,7 @@ async function submitReApprove(){
     closeRaModal();
     showToast('再承認しました', 2000);
     loadRevertedTray();
+    loadTrustMetrics();
   } catch(e){
     console.warn('submitReApprove error:', e);
     showToast('再承認に失敗しました', 2500);
@@ -7659,6 +7635,18 @@ function renderWsEditBody(ws, ae = {}) {
         <label><input type="radio" name="autoRuleStrictness" value="loose" ${(ws.auto_rule_strictness||'balanced')==='loose'?'checked':''}> 緩め — 矛盾は2件以上で判定、修正率50%超でフラグ</label>
       </div>
     </div>`;})()}
+    <div class="ws-rule-section">
+      <div class="ws-rule-section-title">信頼度の設定</div>
+      <div class="ws-form-row">
+        <label>信頼度の分母</label>
+        <select id="wsEditTrustDenominator">
+          <option value="30" ${(ws.trust_denominator||30)===30?'selected':''}>30件（デフォルト）</option>
+          <option value="50" ${(ws.trust_denominator||30)===50?'selected':''}>50件</option>
+          <option value="100" ${(ws.trust_denominator||30)===100?'selected':''}>100件</option>
+        </select>
+        <div style="font-size:10px;color:#aaa;margin-top:2px;">信頼度を測る母数です。大きいほど慎重な評価になります。変更すると信頼度(%)が即座に再計算されます。</div>
+      </div>
+    </div>
     <div class="ws-form-btns">
       <button class="ws-form-btn-cancel" onclick="closeWsEdit()">キャンセル</button>
       <button class="ws-form-btn-submit" id="wsEditSubmitBtn" onclick="submitWsEdit()">保存</button>
@@ -7859,6 +7847,7 @@ async function submitWsEdit() {
   try {
     const autoRuleLearningEnabled = document.getElementById('autoRuleLearningEnabled')?.checked ?? undefined;
     const autoRuleStrictness = document.querySelector('input[name="autoRuleStrictness"]:checked')?.value || undefined;
+    const trustDenominator = parseInt(document.getElementById('wsEditTrustDenominator')?.value || '30', 10);
     const r = await fetch('/api/workspaces/' + _wsEditId, {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ uid, name, slug, color, icon,
@@ -7866,7 +7855,8 @@ async function submitWsEdit() {
         client_email_domains:   [..._wsEditDomains],
         subject_keywords:       [..._wsEditKeywords],
         ...(autoRuleLearningEnabled !== undefined ? {auto_rule_learning_enabled: autoRuleLearningEnabled} : {}),
-        ...(autoRuleStrictness ? {auto_rule_strictness: autoRuleStrictness} : {})
+        ...(autoRuleStrictness ? {auto_rule_strictness: autoRuleStrictness} : {}),
+        trust_denominator: trustDenominator
       })
     });
     const d = await r.json();
@@ -7893,6 +7883,7 @@ async function submitWsEdit() {
     }
     showToast('✓ 変更を保存しました', 2000);
     closeWsEdit();
+    setTimeout(() => loadTrustMetrics(), 700);
     await loadWsManageList();
     const u = window._firebaseUser?.uid;
     if (u) window._workspacesReady = fetchWorkspaces(u);
