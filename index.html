@@ -820,6 +820,77 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .trust-mature-compact{font-size:11px;color:#888;display:flex;align-items:center;gap:6px;}
 .trust-mature-score{font-weight:700;color:#185FA5;}
 
+/* 自動承認アコーディオン (v2.6.0) */
+.trust-acc{background:#fff;border-radius:10px;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);overflow:hidden;margin:0 0 12px;}
+.trust-acc-header{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;}
+.trust-acc-header:hover{background:#fafaf8;}
+.trust-acc-title{font-size:13px;font-weight:600;color:#1a1a1a;flex-shrink:0;}
+.trust-acc-badge-on{display:inline-block;font-size:10px;padding:2px 7px;border-radius:8px;font-weight:500;background:#E1F5EE;color:#0F6E56;flex-shrink:0;}
+.trust-acc-meta{font-size:11px;color:#888;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.trust-acc-chevron{font-size:10px;color:#bbb;flex-shrink:0;transition:transform 0.2s;margin-left:auto;}
+.trust-acc[aria-expanded=true] .trust-acc-chevron{transform:rotate(90deg);}
+.trust-acc-body{max-height:0;overflow:hidden;transition:max-height 0.28s ease;}
+.trust-acc[aria-expanded=true] .trust-acc-body{max-height:700px;}
+.trust-acc-inner{padding:0 14px 14px;}
+.trust-acc-header-2line{padding:8px 14px;cursor:pointer;user-select:none;}
+.trust-acc-header-2line:hover{background:#fafaf8;}
+.trust-acc-row1{display:flex;align-items:center;gap:6px;}
+.trust-acc-row2{display:flex;align-items:center;gap:6px;margin-top:3px;}
+.trust-score-badge{font-size:10px;background:#EBF4FD;color:#185FA5;padding:2px 7px;border-radius:8px;font-weight:600;}
+.trust-acc-status-text{font-size:11px;color:#888;}
+/* 信頼度メーター */
+.trust-meter-wrap{position:relative;height:26px;margin:10px 0 22px;}
+.trust-meter-track{height:8px;background:#e8e7e0;border-radius:4px;overflow:visible;position:absolute;top:8px;width:100%;}
+.trust-meter-fill{height:100%;border-radius:4px;transition:width 0.6s ease;background:linear-gradient(90deg,#185FA5,#1D9E75);}
+.trust-meter-marker{position:absolute;width:2px;height:14px;top:-3px;border-radius:1px;background:#d97706;}
+.trust-meter-label{position:absolute;top:15px;font-size:9px;color:#d97706;white-space:nowrap;transform:translateX(-50%);}
+.trust-score-row{display:flex;align-items:baseline;gap:4px;margin-bottom:2px;}
+.trust-score-big2{font-size:30px;font-weight:700;color:#185FA5;line-height:1;}
+.trust-score-pct{font-size:13px;color:#888;}
+.trust-score-cap{font-size:10px;color:#bbb;margin-left:4px;}
+/* ポリシー行 */
+.trust-policy-section{margin-top:14px;}
+.trust-policy-title{font-size:11px;font-weight:600;color:#555;margin-bottom:8px;letter-spacing:0.04em;text-transform:uppercase;}
+.trust-policy-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f4f2ec;}
+.trust-policy-row:last-of-type{border-bottom:none;}
+.trust-policy-label{font-size:12px;color:#333;flex:1;}
+.trust-policy-badge{font-size:10px;padding:1px 6px;border-radius:8px;white-space:nowrap;flex-shrink:0;}
+.trust-policy-badge-unlocked{background:#E1F5EE;color:#0F6E56;}
+.trust-policy-badge-locked{background:#f4f6f9;color:#aaa;}
+.trust-toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;}
+.trust-toggle input{opacity:0;width:0;height:0;}
+.trust-toggle-slider{position:absolute;inset:0;background:#ddd;border-radius:10px;transition:background 0.2s;cursor:pointer;}
+.trust-toggle-slider::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform 0.2s;}
+.trust-toggle input:checked+.trust-toggle-slider{background:#1D9E75;}
+.trust-toggle input:checked+.trust-toggle-slider::before{transform:translateX(16px);}
+.trust-toggle input:disabled+.trust-toggle-slider{opacity:0.5;cursor:default;}
+/* 停止アラート */
+.trust-paused-alert{background:#FFF8EC;border:1px solid #FDE68A;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400E;margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.trust-paused-resume-btn{font-size:11px;padding:3px 10px;border-radius:6px;border:none;background:#d97706;color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+/* 統計カード */
+.trust-stats-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+.trust-stat-card{background:#f9f8f4;border-radius:8px;padding:8px 10px;text-align:center;}
+.trust-stat-label{font-size:10px;color:#888;margin-bottom:2px;}
+.trust-stat-value{font-size:18px;font-weight:700;color:#185FA5;line-height:1.2;}
+.trust-stat-unit{font-size:10px;color:#888;}
+.trust-reset-btn{font-size:11px;color:#dc2626;border:none;background:none;cursor:pointer;padding:0;margin-top:6px;}
+.trust-reset-btn:hover{text-decoration:underline;}
+.trust-info-note{font-size:10px;color:#bbb;margin-top:8px;line-height:1.5;}
+/* 自動承認ログ */
+.aa-log-header{padding:16px 0 10px;border-bottom:1px solid #e0dfd8;margin-bottom:12px;}
+.aa-log-title{font-size:16px;font-weight:600;color:#1a1a1a;}
+.aa-log-sub{font-size:12px;color:#888;margin-top:2px;}
+.aa-log-table{width:100%;border-collapse:collapse;font-size:12px;}
+.aa-log-table th{text-align:left;padding:6px 8px;background:#f4f2ec;color:#555;font-weight:500;font-size:11px;border-bottom:1px solid #e0dfd8;}
+.aa-log-table td{padding:7px 8px;border-bottom:1px solid #f0eee6;vertical-align:top;}
+.aa-log-table tr:last-child td{border-bottom:none;}
+.aa-type-badge{font-size:9px;padding:1px 5px;border-radius:5px;font-weight:600;}
+.aa-type-all{background:#EBF4FD;color:#185FA5;}
+.aa-type-learned{background:#E1F5EE;color:#0F6E56;}
+.aa-revert-btn{font-size:11px;padding:2px 8px;border-radius:5px;border:1px solid #dc2626;color:#dc2626;background:#fff;cursor:pointer;}
+.aa-revert-btn:hover{background:#FEF2F2;}
+.aa-empty{text-align:center;color:#bbb;padding:32px;font-size:13px;}
+
 /* 承認アニメーション */
 @keyframes approveSlide{0%{opacity:1;transform:translateX(0);}60%{opacity:1;transform:translateX(8px);}100%{opacity:0;transform:translateX(0);max-height:0;margin:0;padding:0;border:none;}}
 .card.approving{animation:approveSlide 0.5s ease forwards;}
@@ -1852,6 +1923,11 @@ function updateFabBadge() {
           <span class="sidebar-master-count" id="masterCount">0</span>
           <span class="sidebar-anomaly-badge" id="learnedRuleAnomalyBadge" style="display:none;"></span>
         </div>
+        <!-- v2.6.0: 自動承認ログ -->
+        <div class="sidebar-nav-item" id="navAutoApproveLog" onclick="switchTab('auto-approve-log')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="5.5" x2="9" y2="5.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="8" x2="9" y2="8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4" y1="10.5" x2="7" y2="10.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><circle cx="12" cy="10.5" r="1.8" fill="#1D9E75"/></svg>
+          自動承認ログ
+        </div>
         <!-- Agent版メニュー (edition: agent / elite) -->
         <div class="sidebar-nav-item" id="navAgentDashboard" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
           <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
@@ -1915,7 +1991,7 @@ function updateFabBadge() {
       </div>
     </div>
   </nav>
-  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.5.0 · Sonnet 4.6</div>
+  <div style="text-align:right;padding:4px 12px 8px;font-size:9px;color:#aaa;letter-spacing:0.05em;">v2.6.0 · Sonnet 4.6</div>
   <div class="sidebar-compatible">
     <div class="sidebar-compat-label">対応ソフト</div>
     <div class="sidebar-compat-items">
@@ -2618,6 +2694,15 @@ function updateFabBadge() {
     <div id="unlockCardsWrap"></div>
   </div>
 
+  <!-- v2.6.0: 自動承認ログパネル -->
+  <div class="panel" id="panel-auto-approve-log">
+    <div class="aa-log-header">
+      <div class="aa-log-title">自動承認ログ</div>
+      <div class="aa-log-sub">直近30日の自動承認履歴（最大100件）</div>
+    </div>
+    <div id="autoApproveLogBody"><div class="aa-empty">読み込み中...</div></div>
+  </div>
+
   <!-- スキャンパネル -->
   <div class="panel" id="panel-scan">
     <p class="main-subcopy">スマホのカメラで領収書を撮影し、そのまま仕訳処理へ送れます。</p>
@@ -2866,7 +2951,8 @@ function switchTab(tab){
   const tabNavMap={
     'siwake':'navSiwake','scan':'navScan','master':'navMaster','csvmerge':'navCsvmerge',
     'staff':'navStaff','auto-intake':'navAutoIntake','unassigned-tray':'navUnassignedTray',
-    'unlock-features':'navUnlockFeatures','pricing':'navPlanInSettings'
+    'unlock-features':'navUnlockFeatures','pricing':'navPlanInSettings',
+    'auto-approve-log':'navAutoApproveLog'
   };
   const navId=tabNavMap[tab];
   if(navId)document.getElementById(navId)?.classList.add('active');
@@ -2877,6 +2963,7 @@ function switchTab(tab){
   document.getElementById('panel-'+tab).className='panel active';
   if(tab==='master'){loadMasterFromServer();updateLearnedRuleAnomalyBadge();}
   if(tab==='staff')loadStaffList();
+  if(tab==='auto-approve-log')loadAutoApproveLog();
   // スマホ：タブ切替でサイドバーを閉じる
   closeSidebar();
 }
@@ -4538,7 +4625,9 @@ async function loadTrustMetrics(){
   const uid=window._firebaseUser?.uid;
   if(!uid) return;
   try {
-    const res=await fetch(`/api/trust-metrics?uid=${uid}`);
+    const wsId=window._currentWorkspaceId||'';
+    const qs=wsId?`uid=${uid}&workspace_id=${encodeURIComponent(wsId)}`:`uid=${uid}`;
+    const res=await fetch(`/api/trust-metrics?${qs}`);
     if(!res.ok) return;
     const m=await res.json();
     renderTrustDashboard(m);
@@ -4548,14 +4637,14 @@ async function loadTrustMetrics(){
 function renderTrustDashboard(m){
   const el=document.getElementById('trustDashboard');
   if(!el) return;
-  const layout=getDashboardLayout(m);
-  let html='';
-  if(layout==='rookie_layout'){
+
+  // データ蓄積中: 従来表示を維持
+  if(getDashboardLayout(m)==='rookie_layout'){
     const total=m.total_approved||0;
     const threshold=30;
     const pct=Math.min(100,Math.round(total/threshold*100));
     const remaining=Math.max(0,threshold-total);
-    html=`<div class="trust-card">
+    el.innerHTML=`<div class="trust-card">
 <div class="incentive-header">
   <span class="incentive-title">📊 AI精度</span>
   <span class="incentive-badge">データ蓄積中</span>
@@ -4565,42 +4654,273 @@ function renderTrustDashboard(m){
   <div class="trust-rookie-bar"><div class="trust-rookie-fill" style="width:${pct}%"></div></div>
   <div class="trust-rookie-label">累計承認 ${total}件 / ${threshold}件</div>
 </div></div>`;
-  } else if(layout==='stable_layout'){
-    const score=m.trust_score_recent!=null?m.trust_score_recent.toFixed(1):'-';
-    const fa=m.field_accuracy_recent||{};
-    const fields=[['借方科目',fa.debit_account],['貸方科目',fa.credit_account],['税区分',fa.tax_category],['摘要',fa.memo]];
-    const fieldHtml=fields.filter(([,v])=>v!=null).map(([k,v])=>`<span class="trust-field-item">${k} <strong>${Math.round(v)}%</strong></span>`).join('');
-    html=`<div class="trust-card">
-<div class="incentive-header">
-  <span class="incentive-title">📊 AI精度</span>
-  <span class="incentive-badge" style="background:#E1F5EE;color:#0F6E56;">承認率 ${score}%</span>
-</div>
-<div class="ds-row" style="margin-top:8px;">
-  <div class="ds-main"><div class="ds-main-label">直近30日 承認率</div><div class="trust-score-big">${score}<span>%</span></div></div>
-  <div class="ds-sub"><div class="ds-sub-label">累計承認</div><div class="ds-sub-value">${m.total_approved||0}<span>件</span></div></div>
-</div>
-<span class="trust-detail-toggle" onclick="this.nextElementSibling.classList.toggle('open');this.textContent=this.nextElementSibling.classList.contains('open')?'▲ 詳細を閉じる':'▼ 項目別精度を見る'">▼ 項目別精度を見る</span>
-<div class="trust-detail-panel">
-  <div class="trust-field-row">${fieldHtml}</div>
-</div></div>`;
-  } else {
-    const score=m.trust_score_recent!=null?m.trust_score_recent.toFixed(1):'-';
-    html=`<div class="trust-card" style="padding:8px 14px;">
-<div class="trust-mature-compact">
-  <span>📊 AI精度</span>
-  <span class="trust-mature-score">${score}%</span>
-  <span style="color:#bbb;">|</span>
-  <span>累計 ${m.total_approved||0}件承認</span>
-</div></div>`;
+    el.style.display='';
+    return;
   }
-  el.innerHTML=html;
+
+  // アコーディオン描画
+  const score=m.trust_score_recent!=null?m.trust_score_recent:0;
+  window._lastTrustScore=score;
+  const scoreDisp=m.trust_score_recent!=null?m.trust_score_recent.toFixed(1):'-';
+  const learnedOn=!!m.auto_approve_learned_enabled;
+  const allOn=!!m.auto_approve_all_enabled;
+  const paused=m.auto_approve_paused_at;
+  const anyOn=learnedOn||allOn;
+  const learnedUnlocked=!!m.auto_approve_learned_unlocked_at;
+  const allUnlocked=!!m.auto_approve_all_unlocked_at;
+  const prevOpen=!!window._trustAccOpen;
+
+  // 折りたたみヘッダー: ON時=1行 / OFF時=2行
+  let headerHtml;
+  if(anyOn){
+    const statusText=allOn?'全件を自動承認中':'学習済みパターンを自動承認中';
+    headerHtml=`<div class="trust-acc-header" onclick="_toggleTrustAcc()">
+      <span class="trust-acc-title">自動承認</span>
+      <span class="trust-acc-badge-on">ON・運用中</span>
+      <span class="trust-acc-meta">${statusText}</span>
+      <span class="trust-acc-chevron">▶</span>
+    </div>`;
+  } else {
+    let statusText='';
+    if(score>=95) statusText='学習済み・全件ともに解放済み';
+    else if(score>=80) statusText='学習済み解放済み';
+    else statusText=`あと${Math.ceil(80-score)}%で学習済みが解放`;
+    headerHtml=`<div class="trust-acc-header-2line" onclick="_toggleTrustAcc()">
+      <div class="trust-acc-row1">
+        <span class="trust-acc-title">自動承認</span>
+        <span class="trust-acc-chevron" style="margin-left:auto;">▶</span>
+      </div>
+      <div class="trust-acc-row2">
+        <span class="trust-score-badge">信頼度 ${scoreDisp}%</span>
+        <span class="trust-acc-status-text">${statusText}</span>
+      </div>
+    </div>`;
+  }
+
+  // メーターバー
+  const fillPct=Math.min(99,score);
+  const learnedBadge=learnedUnlocked
+    ?`<span class="trust-policy-badge trust-policy-badge-unlocked">解放済み</span>`
+    :`<span class="trust-policy-badge trust-policy-badge-locked">信頼度80%で解放</span>`;
+  const allBadge=allUnlocked
+    ?`<span class="trust-policy-badge trust-policy-badge-unlocked">解放済み</span>`
+    :`<span class="trust-policy-badge trust-policy-badge-locked">信頼度95%で解放</span>`;
+  const pausedHtml=paused?`<div class="trust-paused-alert">
+    <span>⚠ 自動承認は一旦停止中（精度が低下しました）</span>
+    <button class="trust-paused-resume-btn" onclick="resumeAutoApprove()">再開する</button>
+  </div>`:'';
+
+  el.innerHTML=`<div class="trust-acc" aria-expanded="${prevOpen}" id="trustAccordion">
+  ${headerHtml}
+  <div class="trust-acc-body">
+    <div class="trust-acc-inner">
+      <div style="font-size:11px;color:#888;margin-bottom:2px;">信頼度</div>
+      <div class="trust-score-row">
+        <span class="trust-score-big2">${scoreDisp}</span>
+        <span class="trust-score-pct">%</span>
+        <span class="trust-score-cap">99%がMAX（最終判断はあなた）</span>
+      </div>
+      <div class="trust-meter-wrap">
+        <div class="trust-meter-track">
+          <div class="trust-meter-fill" style="width:${fillPct}%;"></div>
+          <div class="trust-meter-marker" style="left:80%;"></div>
+          <div class="trust-meter-label" style="left:80%;">80%<br>学習済みを解放</div>
+          <div class="trust-meter-marker" style="left:95%;"></div>
+          <div class="trust-meter-label" style="left:95%;">95%<br>全件を解放</div>
+        </div>
+      </div>
+      <div class="trust-policy-section">
+        <div class="trust-policy-title">自動承認ポリシー</div>
+        <div class="trust-policy-row">
+          <span class="trust-policy-label">学習済みパターンを自動承認</span>
+          ${learnedBadge}
+          <label class="trust-toggle">
+            <input type="checkbox" ${learnedOn?'checked':''} onchange="toggleAutoApprove('learned',this.checked)">
+            <span class="trust-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="trust-policy-row">
+          <span class="trust-policy-label">全件を自動承認</span>
+          ${allBadge}
+          <label class="trust-toggle">
+            <input type="checkbox" ${allOn?'checked':''} onchange="toggleAutoApprove('all',this.checked)">
+            <span class="trust-toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      ${pausedHtml}
+      <div class="trust-info-note">解放されても、ONにするのはあなたの判断です。</div>
+      <div class="trust-stats-row">
+        <div class="trust-stat-card">
+          <div class="trust-stat-label">累計承認</div>
+          <div class="trust-stat-value">${m.total_approved||0}<span class="trust-stat-unit">件</span></div>
+        </div>
+        <div class="trust-stat-card">
+          <div class="trust-stat-label">直近30日</div>
+          <div class="trust-stat-value">${scoreDisp}<span class="trust-stat-unit">%</span></div>
+        </div>
+      </div>
+      <div style="text-align:right;margin-top:8px;">
+        <button class="trust-reset-btn" onclick="resetAutoApprove()">リセット</button>
+      </div>
+    </div>
+  </div>
+</div>`;
   el.style.display='';
+}
+
+function _toggleTrustAcc(){
+  window._trustAccOpen=!window._trustAccOpen;
+  const a=document.getElementById('trustAccordion');
+  if(a) a.setAttribute('aria-expanded',String(window._trustAccOpen));
 }
 
 function getDashboardLayout(m){
   if((m.total_approved||0)<50) return 'rookie_layout';
   if((m.trust_score_recent||0)>=95&&(m.total_approved||0)>=200) return 'mature_layout';
   return 'stable_layout';
+}
+
+// v2.6.0: 自動承認トグル
+async function toggleAutoApprove(type, enabled){
+  const uid=window._firebaseUser?.uid;
+  const wsId=window._currentWorkspaceId;
+  if(!uid||!wsId) return;
+
+  if(enabled){
+    // ONにする前に閾値確認ダイアログ
+    const score=window._lastTrustScore||0;
+    const threshold=type==='all'?95:80;
+    const label=type==='all'?'全件':'学習済みパターン';
+    let msg;
+    if(score>=threshold){
+      msg=`${label}を自動承認します。よろしいですか？`;
+    } else {
+      msg=`信頼度がまだ${threshold}%に達していません（現在${score.toFixed(1)}%）。\nAIの精度が安定していない可能性があります。\nそれでも自動承認を有効にしますか？`;
+    }
+    if(!confirm(msg)){
+      // チェックを元に戻す
+      loadTrustMetrics();
+      return;
+    }
+  }
+
+  try {
+    const r=await fetch('/api/auto-approve/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,workspace_id:wsId,type,enabled})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'toggle failed');
+    await loadTrustMetrics();
+    showToast(enabled?`自動承認（${type==='all'?'全件':'学習済み'}）をONにしました`:`自動承認（${type==='all'?'全件':'学習済み'}）をOFFにしました`,2000);
+  } catch(e){
+    console.warn('toggleAutoApprove error:',e);
+    showToast('設定の変更に失敗しました',2000);
+    loadTrustMetrics();
+  }
+}
+
+// v2.6.0: 信頼度リセット
+async function resetAutoApprove(){
+  if(!confirm('信頼度をリセットします。\n・リセット日時以降の承認だけで信頼度を再計算します\n・自動承認のトグルはOFFに戻ります\n・仕訳データは削除されません\nよろしいですか？')) return;
+  const uid=window._firebaseUser?.uid;
+  const wsId=window._currentWorkspaceId;
+  if(!uid||!wsId) return;
+  try {
+    const r=await fetch('/api/auto-approve/reset',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,workspace_id:wsId})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'reset failed');
+    await loadTrustMetrics();
+    showToast('信頼度をリセットしました',2000);
+  } catch(e){
+    console.warn('resetAutoApprove error:',e);
+    showToast('リセットに失敗しました',2000);
+  }
+}
+
+// v2.6.0: 一時停止の再開
+async function resumeAutoApprove(){
+  const uid=window._firebaseUser?.uid;
+  const wsId=window._currentWorkspaceId;
+  if(!uid||!wsId) return;
+  try {
+    const r=await fetch('/api/auto-approve/resume',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,workspace_id:wsId})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'resume failed');
+    await loadTrustMetrics();
+    showToast('自動承認を再開しました',2000);
+  } catch(e){
+    console.warn('resumeAutoApprove error:',e);
+    showToast('再開に失敗しました',2000);
+  }
+}
+
+// v2.6.0: 自動承認ログ読み込み
+async function loadAutoApproveLog(){
+  const uid=window._firebaseUser?.uid;
+  const wsId=window._currentWorkspaceId;
+  const el=document.getElementById('autoApproveLogBody');
+  if(!el) return;
+  if(!uid||!wsId){
+    el.innerHTML='<div class="aa-empty">ワークスペースを選択してください</div>';
+    return;
+  }
+  el.innerHTML='<div class="aa-empty">読み込み中...</div>';
+  try {
+    const r=await fetch(`/api/auto-approve/log?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}`);
+    const d=await r.json();
+    const logs=d.logs||[];
+    if(logs.length===0){
+      el.innerHTML='<div class="aa-empty">まだ自動承認された仕訳はありません</div>';
+      return;
+    }
+    const rows=logs.map(log=>{
+      const dt=new Date(log.approved_at);
+      const dateStr=`${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const typeBadge=log.auto_approve_type==='all'
+        ?`<span class="aa-type-badge aa-type-all">全件</span>`
+        :`<span class="aa-type-badge aa-type-learned">学習済み</span>`;
+      const ruleHtml=log.applied_rule
+        ?`<div style="font-size:10px;color:#888;margin-top:2px;">${escapeHtml(JSON.stringify(log.applied_rule.conditions||{}))} → ${escapeHtml(JSON.stringify(log.applied_rule.result||{}))}</div>`
+        :'';
+      const amount=log.amount!=null?`¥${Number(log.amount).toLocaleString()}`:'—';
+      return `<tr>
+        <td>${escapeHtml(log.partner_name||'—')}</td>
+        <td>${escapeHtml(log.debit_account||'—')} → ${escapeHtml(log.credit_account||'—')}</td>
+        <td>${amount}</td>
+        <td>${typeBadge}${ruleHtml}</td>
+        <td>${dateStr}</td>
+        <td><button class="aa-revert-btn" onclick="revertAutoApproveLog('${escapeHtml(log.id)}')">差し戻し</button></td>
+      </tr>`;
+    }).join('');
+    el.innerHTML=`<table class="aa-log-table">
+      <thead><tr><th>取引先</th><th>借方→貸方</th><th>金額</th><th>承認種別</th><th>日時</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch(e){
+    console.warn('loadAutoApproveLog error:',e);
+    el.innerHTML='<div class="aa-empty">読み込みに失敗しました</div>';
+  }
+}
+
+// v2.6.0: 自動承認差し戻し
+async function revertAutoApproveLog(recordId){
+  if(!confirm('この自動承認を差し戻しますか？\n仕訳記録が削除されます。')) return;
+  const uid=window._firebaseUser?.uid;
+  const wsId=window._currentWorkspaceId;
+  if(!uid||!wsId) return;
+  try {
+    const r=await fetch('/api/auto-approve/revert',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,workspace_id:wsId,record_id:recordId})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'revert failed');
+    showToast('差し戻しました',2000);
+    loadAutoApproveLog();
+  } catch(e){
+    console.warn('revertAutoApproveLog error:',e);
+    showToast('差し戻しに失敗しました（APIは実装中です）',2500);
+  }
 }
 
 function flashMasterCount(n){
