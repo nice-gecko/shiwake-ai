@@ -3818,7 +3818,7 @@ const server = http.createServer(async (req, res) => {
     try {
       await resolveWorkspaceId(uid, wsId);
       const rules = await supabaseQuery(
-        `/learned_rules?workspace_id=eq.${wsId}&order=applied_count.desc&select=id,partner_name,keywords,debit_account,credit_account,applied_count,modified_after_apply_count,anomaly_flag,created_at,updated_at`
+        `/learned_rules?workspace_id=eq.${wsId}&order=applied_count.desc&select=id,conditions,result,is_active,applied_count,modified_after_apply_count,anomaly_flag,created_at,updated_at`
       );
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ rules: rules || [] }));
