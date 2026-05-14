@@ -2456,19 +2456,52 @@ const server = http.createServer(async (req, res) => {
         const apiKey = process.env.ANTHROPIC_API_KEY || '';
         if (!apiKey) throw new Error('APIキーが設定されていません');
 
-        // ===== ステップ0: ハッシュキャッシュ確認（同一画像の再処理を回避） =====
-        // 単一画像チャンクの場合のみキャッシュを使う（複数画像の合成は対象外）
+        // ===== ステップ0: マスタ→ルール→ハッシュ→AI の順で判定（ユーザー検証済みを優先） =====
         const cacheUid = masterUid || uid || null;
+
+        // ① 取引先マスタのロード（最優先・ユーザー検証済み）
+        const master = loadMaster(cacheUid, workspace_id);
+        const masterKeys = Object.keys(master);
+
+        // ② 学習済みルールのロード（anomaly_flag が設定されていないもののみ）
+        let workspaceLearnedRules = [];
+        if (workspace_id) {
+          try {
+            workspaceLearnedRules = await supabaseQuery(
+              `/learned_rules?workspace_id=eq.${workspace_id}&anomaly_flag=is.null&select=id,partner_name,keywords,debit_account,credit_account,applied_count`
+            ) || [];
+          } catch(e) { /* ルール取得失敗は無視してフォールバック */ }
+        }
+
+        // ③ ハッシュキャッシュ確認（マスタ・ルールロード後に実施）
+        // 単一画像チャンクの場合のみキャッシュを使う（複数画像の合成は対象外）
         let imageHash = null;
         if (imageDataList.length === 1 && cacheUid) {
           imageHash = computeHash(imageDataList[0].data);
           console.log(`  🔑 hash: ${imageHash.slice(0,12)}... uid=${cacheUid.slice(0,8)}...`);
           const cachedItems = getHashedResult(cacheUid, workspace_id, imageHash);
           if (cachedItems && cachedItems.length > 0) {
-            console.log(`  ⚡ ハッシュキャッシュヒット: ${cachedItems.length}件（API呼び出しなし）`);
+            console.log(`  ⚡ ハッシュキャッシュヒット: ${cachedItems.length}件（マスタ・ルール再適用）`);
+            const items = cachedItems.map(item => {
+              // マスタヒット判定（最優先）
+              const matchResult = findMasterMatch(item.title, master);
+              if (matchResult.matched_id) {
+                const rule = master[matchResult.matched_id];
+                return { ...item, debit: rule.debit, credit: rule.credit, tax: rule.tax, masterApplied: true, masterKey: matchResult.matched_id, masterMethod: matchResult.method };
+              }
+              // 学習済みルールのヒット判定（次優先）
+              const learnedMatch = findLearnedRuleMatch(item.title, item.memo, workspaceLearnedRules);
+              if (learnedMatch) {
+                return { ...item, debit: learnedMatch.debit_account, credit: learnedMatch.credit_account, masterApplied: false, learnedRuleApplied: true, learnedRuleId: learnedMatch.id };
+              }
+              return item;
+            });
+            items.filter(it => it.learnedRuleApplied && it.learnedRuleId).forEach(it => {
+              incrementRuleApplied(it.learnedRuleId).catch(e => console.warn('incrementRuleApplied error:', e.message));
+            });
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
-              items: cachedItems,
+              items,
               orientation: 'normal',
               line_item_mode: 'total_only',
               cacheHit: 'hash'
@@ -2477,20 +2510,6 @@ const server = http.createServer(async (req, res) => {
           }
         } else {
           console.log(`  ⚠️ ハッシュキャッシュ無効: imageCount=${imageDataList.length} cacheUid=${cacheUid?'有':'無'}`);
-        }
-
-        // マスタを先に読み込む（cacheUid基準）
-        const master = loadMaster(cacheUid, workspace_id);
-        const masterKeys = Object.keys(master);
-
-        // 学習済みルールを取得（anomaly_flag が設定されていないもののみ）
-        let workspaceLearnedRules = [];
-        if (workspace_id) {
-          try {
-            workspaceLearnedRules = await supabaseQuery(
-              `/learned_rules?workspace_id=eq.${workspace_id}&anomaly_flag=is.null&select=id,partner_name,keywords,debit_account,credit_account,applied_count`
-            ) || [];
-          } catch(e) { /* ルール取得失敗は無視してフォールバック */ }
         }
 
         // ===== ステップ1: フォーマット判定（Haiku・高速） =====
@@ -2567,19 +2586,7 @@ const server = http.createServer(async (req, res) => {
             return true;
           })
           .map(item => {
-            // 学習済みルールのヒット判定（マスタより優先）
-            const learnedMatch = findLearnedRuleMatch(item.title, item.memo, workspaceLearnedRules);
-            if (learnedMatch) {
-              return {
-                ...item,
-                debit: learnedMatch.debit_account,
-                credit: learnedMatch.credit_account,
-                masterApplied: false,
-                learnedRuleApplied: true,
-                learnedRuleId: learnedMatch.id
-              };
-            }
-            // マスタヒット判定（部分一致）
+            // ① マスタヒット判定（取引先名一致・最優先）
             const matchResult = findMasterMatch(item.title, master);
             if (matchResult.matched_id) {
               const rule = master[matchResult.matched_id];
@@ -2591,6 +2598,18 @@ const server = http.createServer(async (req, res) => {
                 masterApplied: true,
                 masterKey: matchResult.matched_id,
                 masterMethod: matchResult.method
+              };
+            }
+            // ② 学習済みルールのヒット判定（次優先）
+            const learnedMatch = findLearnedRuleMatch(item.title, item.memo, workspaceLearnedRules);
+            if (learnedMatch) {
+              return {
+                ...item,
+                debit: learnedMatch.debit_account,
+                credit: learnedMatch.credit_account,
+                masterApplied: false,
+                learnedRuleApplied: true,
+                learnedRuleId: learnedMatch.id
               };
             }
             return { ...item, masterApplied: false };
