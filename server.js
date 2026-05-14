@@ -771,9 +771,9 @@ function applyAutoApproveFlags(items, wsSettings) {
 // 信頼度メトリクスを再計算して workspace_trust_metrics を upsert
 async function recalculateTrustMetrics(workspaceId) {
   try {
-    // 自動承認設定・trust_reset_at を取得
+    // 自動承認設定・trust_reset_at・trust_denominator を取得
     const wsRows = await supabaseQuery(
-      `/workspaces?id=eq.${workspaceId}&select=owner_uid,trust_reset_at,auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_learned_unlocked_at,auto_approve_all_unlocked_at,auto_approve_paused_at`
+      `/workspaces?id=eq.${workspaceId}&select=owner_uid,trust_reset_at,trust_denominator,auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_learned_unlocked_at,auto_approve_all_unlocked_at,auto_approve_paused_at`
     );
     const wsData = wsRows?.[0] || {};
     const {
@@ -785,10 +785,11 @@ async function recalculateTrustMetrics(workspaceId) {
       auto_approve_all_unlocked_at,
       auto_approve_paused_at
     } = wsData;
+    const trust_denominator = wsData.trust_denominator || 30;
 
     const [recent, all] = await Promise.all([
-      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'recent' }),
-      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'all', p_reset_at: trust_reset_at || null })
+      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'recent', p_denominator: trust_denominator }),
+      supabaseQuery('/rpc/calc_trust_metrics', 'POST', { p_workspace_id: workspaceId, p_period: 'all', p_reset_at: trust_reset_at || null, p_denominator: trust_denominator })
     ]);
 
     const masterStat = await supabaseQuery(
@@ -3776,7 +3777,7 @@ const server = http.createServer(async (req, res) => {
 
       const [metrics, wsRows] = await Promise.all([
         supabaseQuery(`/workspace_trust_metrics?workspace_id=eq.${wsId}&select=*`),
-        supabaseQuery(`/workspaces?id=eq.${wsId}&select=auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_learned_unlocked_at,auto_approve_all_unlocked_at,auto_approve_paused_at,trust_reset_at`)
+        supabaseQuery(`/workspaces?id=eq.${wsId}&select=auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_learned_unlocked_at,auto_approve_all_unlocked_at,auto_approve_paused_at,trust_reset_at,trust_denominator`)
       ]);
       const m = metrics?.[0];
       const wsAuto = wsRows?.[0] || {};
@@ -3786,7 +3787,8 @@ const server = http.createServer(async (req, res) => {
         auto_approve_learned_unlocked_at: wsAuto.auto_approve_learned_unlocked_at || null,
         auto_approve_all_unlocked_at: wsAuto.auto_approve_all_unlocked_at || null,
         auto_approve_paused_at: wsAuto.auto_approve_paused_at || null,
-        trust_reset_at: wsAuto.trust_reset_at || null
+        trust_reset_at: wsAuto.trust_reset_at || null,
+        trust_denominator: wsAuto.trust_denominator || 30
       };
 
       if (!m) {
@@ -4181,7 +4183,8 @@ const server = http.createServer(async (req, res) => {
       try {
         const { uid, name, slug, color, icon, is_archived,
                 client_email_addresses, client_email_domains, subject_keywords,
-                auto_rule_learning_enabled, auto_rule_strictness } = JSON.parse(body);
+                auto_rule_learning_enabled, auto_rule_strictness,
+                trust_denominator } = JSON.parse(body);
         if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
         const ws = await supabaseQuery(`/workspaces?id=eq.${wsId}&owner_uid=eq.${uid}&select=*`);
         if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
@@ -4227,8 +4230,18 @@ const server = http.createServer(async (req, res) => {
           }
         }
         if (auto_rule_strictness !== undefined) patch.auto_rule_strictness = auto_rule_strictness;
+        if (trust_denominator !== undefined) {
+          const d = Number(trust_denominator);
+          if (!Number.isInteger(d) || d < 1) {
+            res.writeHead(400); res.end(JSON.stringify({ error: 'trust_denominator は1以上の整数で指定してください' })); return;
+          }
+          patch.trust_denominator = d;
+        }
         const updated = await supabaseQuery(`/workspaces?id=eq.${wsId}`, 'PATCH', patch, { 'Prefer': 'return=representation' });
         const w = updated?.[0] || { ...ws[0], ...patch };
+        if (trust_denominator !== undefined) {
+          recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error after denominator change:', e.message));
+        }
         const stats = await buildWorkspaceStats(wsId);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ...w, stats }));
