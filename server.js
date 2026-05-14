@@ -446,14 +446,14 @@ async function executeAutoExport(uid, workspaceId) {
     let wsNameMap = {};
     if (outputUnit === 'merged') {
       records = await supabaseQuery(
-        `/shiwake_records?uid=eq.${uid}&exported_at=is.null&select=*&order=shiwake_date.asc`
+        `/shiwake_records?uid=eq.${uid}&exported_at=is.null&status=neq.reverted&select=*&order=shiwake_date.asc`
       );
       // WS名マップ構築
       const allWs = await supabaseQuery(`/workspaces?owner_uid=eq.${uid}&select=id,name`);
       for (const w of allWs || []) wsNameMap[w.id] = w.name;
     } else {
       records = await supabaseQuery(
-        `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${workspaceId}&exported_at=is.null&select=*&order=shiwake_date.asc`
+        `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${workspaceId}&exported_at=is.null&status=neq.reverted&select=*&order=shiwake_date.asc`
       );
     }
     records = Array.isArray(records) ? records : [];
@@ -620,7 +620,7 @@ async function checkAutoExportTrigger(uid, wsId) {
     return { unexported_count: 0, threshold: ws?.auto_export_threshold ?? 30, should_trigger: false };
   }
   const unexported = await supabaseQuery(
-    `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${wsId}&exported_at=is.null&select=id`
+    `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${wsId}&exported_at=is.null&status=neq.reverted&select=id`
   );
   const unexported_count = Array.isArray(unexported) ? unexported.length : 0;
   const threshold = ws.auto_export_threshold ?? 30;
@@ -3731,7 +3731,8 @@ const server = http.createServer(async (req, res) => {
           auto_approved: effectiveAutoApproved,
           auto_approve_type: effectiveAutoApproveType,
           applied_learned_rule_id: effectiveAppliedLearnedRuleId,
-          approved_at: new Date().toISOString()
+          approved_at: new Date().toISOString(),
+          status: 'approved'
         });
 
         // 信頼度メトリクス再計算（非同期）
@@ -3853,7 +3854,7 @@ const server = http.createServer(async (req, res) => {
       const ws = wsList[0];
       // 未エクスポート件数
       const unexported = await supabaseQuery(
-        `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${wsId}&exported_at=is.null&select=id`
+        `/shiwake_records?uid=eq.${uid}&workspace_id=eq.${wsId}&exported_at=is.null&status=neq.reverted&select=id`
       );
       const unexported_count = Array.isArray(unexported) ? unexported.length : 0;
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -4734,7 +4735,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const fields = 'id,approved_at,partner_name,debit_account,credit_account,amount,auto_approve_type,applied_learned_rule_id';
+      const fields = 'id,approved_at,partner_name,debit_account,credit_account,amount,auto_approve_type,applied_learned_rule_id,status';
       const rows = await supabaseQuery(
         `/shiwake_records?workspace_id=eq.${workspaceId}&auto_approved=eq.true&approved_at=gte.${thirtyDaysAgo}&order=approved_at.desc&limit=100&select=${fields}`
       ) || [];
@@ -4801,12 +4802,12 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
-        // approved_at をクリアして承認前状態に戻す
-        // auto_approved / auto_approve_type / applied_learned_rule_id は履歴として保持
+        // status を 'reverted' に更新。approved_at は信頼度計算・ログ参照のため履歴として保持
+        // auto_approved / auto_approve_type / applied_learned_rule_id も保持
         await supabaseQuery(
           `/shiwake_records?id=eq.${record_id}`,
           'PATCH',
-          { approved_at: null }
+          { status: 'reverted' }
         );
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
