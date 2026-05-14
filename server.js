@@ -4554,6 +4554,202 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.6.0: 自動承認 API =====
+
+  // POST /api/auto-approve/toggle
+  if (req.method === 'POST' && reqPath === '/api/auto-approve/toggle') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, type, enabled } = JSON.parse(body);
+        if (!uid || !workspace_id || !type || enabled === undefined) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'uid, workspace_id, type, enabled required' }));
+          return;
+        }
+        if (type !== 'learned' && type !== 'all') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'type must be "learned" or "all"' }));
+          return;
+        }
+
+        const [ws] = await supabaseQuery(
+          `/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id,auto_approve_paused_at`
+        );
+        if (!ws) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'forbidden' }));
+          return;
+        }
+
+        // enabled=true 時: 現在スコアを確認して閾値未達フラグを返す（止めない）
+        let belowThreshold = false;
+        let currentScore = null;
+        if (enabled) {
+          const metrics = await supabaseQuery(
+            `/workspace_trust_metrics?workspace_id=eq.${workspace_id}&select=trust_score_recent`
+          );
+          currentScore = metrics?.[0]?.trust_score_recent ?? null;
+          const threshold = type === 'all' ? 95 : 80;
+          belowThreshold = (currentScore === null || currentScore < threshold);
+        }
+
+        const col = type === 'learned' ? 'auto_approve_learned_enabled' : 'auto_approve_all_enabled';
+        await supabaseQuery(`/workspaces?id=eq.${workspace_id}`, 'PATCH', { [col]: enabled });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          ok: true,
+          type,
+          enabled,
+          below_threshold: belowThreshold,
+          current_score: currentScore,
+          paused: ws.auto_approve_paused_at ? true : false
+        }));
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/auto-approve/reset
+  if (req.method === 'POST' && reqPath === '/api/auto-approve/reset') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id } = JSON.parse(body);
+        if (!uid || !workspace_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'uid and workspace_id required' }));
+          return;
+        }
+
+        const [ws] = await supabaseQuery(
+          `/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`
+        );
+        if (!ws) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'forbidden' }));
+          return;
+        }
+
+        const resetAt = new Date().toISOString();
+        await supabaseQuery(`/workspaces?id=eq.${workspace_id}`, 'PATCH', {
+          trust_reset_at: resetAt,
+          auto_approve_learned_enabled: false,
+          auto_approve_all_enabled: false,
+          auto_approve_learned_unlocked_at: null,
+          auto_approve_all_unlocked_at: null,
+          auto_approve_paused_at: null
+        });
+
+        // reset 後の信頼度を即再計算（非同期）
+        recalculateTrustMetrics(workspace_id).catch(e => console.warn('recalculate after reset error:', e.message));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, trust_reset_at: resetAt }));
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/auto-approve/resume
+  if (req.method === 'POST' && reqPath === '/api/auto-approve/resume') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id } = JSON.parse(body);
+        if (!uid || !workspace_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'uid and workspace_id required' }));
+          return;
+        }
+
+        const [ws] = await supabaseQuery(
+          `/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`
+        );
+        if (!ws) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'forbidden' }));
+          return;
+        }
+
+        // paused_at を NULL に戻す（トグル enabled 系は変更しない）
+        await supabaseQuery(`/workspaces?id=eq.${workspace_id}`, 'PATCH', { auto_approve_paused_at: null });
+
+        const metrics = await supabaseQuery(
+          `/workspace_trust_metrics?workspace_id=eq.${workspace_id}&select=trust_score_recent`
+        );
+        const currentScore = metrics?.[0]?.trust_score_recent ?? null;
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, current_score: currentScore }));
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/auto-approve/log?uid=xxx&workspace_id=yyy
+  if (req.method === 'GET' && reqPath === '/api/auto-approve/log') {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    const workspaceId = params.get('workspace_id');
+    if (!uid || !workspaceId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'uid and workspace_id required' }));
+      return;
+    }
+    try {
+      const [ws] = await supabaseQuery(
+        `/workspaces?id=eq.${workspaceId}&owner_uid=eq.${uid}&select=id`
+      );
+      if (!ws) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'forbidden' }));
+        return;
+      }
+
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const fields = 'id,approved_at,partner_name,debit_account,credit_account,amount,auto_approve_type,applied_learned_rule_id';
+      const rows = await supabaseQuery(
+        `/shiwake_records?workspace_id=eq.${workspaceId}&auto_approved=eq.true&approved_at=gte.${thirtyDaysAgo}&order=approved_at.desc&limit=100&select=${fields}`
+      ) || [];
+
+      // applied_learned_rule_id 付きレコードの learned_rules 情報を追加取得
+      const ruleIds = [...new Set(rows.filter(r => r.applied_learned_rule_id).map(r => r.applied_learned_rule_id))];
+      let rulesMap = {};
+      if (ruleIds.length > 0) {
+        const ruleRows = await supabaseQuery(
+          `/learned_rules?id=in.(${ruleIds.join(',')})&select=id,conditions,result`
+        ) || [];
+        for (const r of ruleRows) rulesMap[r.id] = r;
+      }
+
+      const logs = rows.map(r => ({
+        ...r,
+        applied_rule: r.applied_learned_rule_id ? (rulesMap[r.applied_learned_rule_id] || null) : null
+      }));
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ logs }));
+    } catch(e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   res.writeHead(404); res.end();
 });
 
