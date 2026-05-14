@@ -838,6 +838,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .trust-acc-row2{display:flex;align-items:center;gap:6px;margin-top:3px;}
 .trust-score-badge{font-size:10px;background:#EBF4FD;color:#185FA5;padding:2px 7px;border-radius:8px;font-weight:600;}
 .trust-acc-status-text{font-size:11px;color:#888;}
+.trust-acc-mini-bar{height:5px;background:#e8e7e0;border-radius:3px;margin-top:5px;overflow:hidden;}
+.trust-acc-mini-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#185FA5,#1D9E75);transition:width 0.6s ease;}
 /* 信頼度メーター */
 .trust-meter-wrap{position:relative;height:26px;margin:10px 0 22px;}
 .trust-meter-track{height:8px;background:#e8e7e0;border-radius:4px;overflow:visible;position:absolute;top:8px;width:100%;}
@@ -4695,7 +4697,7 @@ function renderTrustDashboard(m){
     const remaining=Math.max(0,threshold-total);
     el.innerHTML=`<div class="trust-card">
 <div class="incentive-header">
-  <span class="incentive-title">📊 AI精度</span>
+  <span class="incentive-title">📊 信頼度メーター</span>
   <span class="incentive-badge">データ蓄積中</span>
 </div>
 <div class="trust-rookie-progress">
@@ -4724,7 +4726,7 @@ function renderTrustDashboard(m){
   if(anyOn){
     const statusText=allOn?'全件を自動承認中':'学習済みパターンを自動承認中';
     headerHtml=`<div class="trust-acc-header" onclick="_toggleTrustAcc()">
-      <span class="trust-acc-title">自動承認</span>
+      <span class="trust-acc-title">信頼度メーター</span>
       <span class="trust-acc-badge-on">ON・運用中</span>
       <span class="trust-acc-meta">${statusText}</span>
       <span class="trust-acc-chevron">▶</span>
@@ -4736,12 +4738,12 @@ function renderTrustDashboard(m){
     else statusText=`あと${Math.ceil(80-score)}%で学習済みが解放`;
     headerHtml=`<div class="trust-acc-header-2line" onclick="_toggleTrustAcc()">
       <div class="trust-acc-row1">
-        <span class="trust-acc-title">自動承認</span>
+        <span class="trust-acc-title">信頼度メーター</span>
+        <span class="trust-score-badge" style="margin-left:8px;">信頼度 ${scoreDisp}%</span>
         <span class="trust-acc-chevron" style="margin-left:auto;">▶</span>
       </div>
-      <div class="trust-acc-row2">
-        <span class="trust-score-badge">信頼度 ${scoreDisp}%</span>
-        <span class="trust-acc-status-text">${statusText}</span>
+      <div class="trust-acc-mini-bar">
+        <div class="trust-acc-mini-fill" style="width:${Math.min(99,score)}%;"></div>
       </div>
     </div>`;
   }
@@ -4779,9 +4781,9 @@ function renderTrustDashboard(m){
         </div>
       </div>
       <div class="trust-policy-section">
-        <div class="trust-policy-title">自動承認ポリシー</div>
+        <div class="trust-policy-title">自動承認の設定</div>
         <div class="trust-policy-row">
-          <span class="trust-policy-label">学習済みパターンを自動承認</span>
+          <span class="trust-policy-label"><i class="ti ti-shield-check" style="font-size:16px;vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>学習済みパターンを自動承認</span>
           ${learnedBadge}
           <label class="trust-toggle">
             <input type="checkbox" ${learnedOn?'checked':''} onchange="toggleAutoApprove('learned',this.checked)">
@@ -4789,7 +4791,7 @@ function renderTrustDashboard(m){
           </label>
         </div>
         <div class="trust-policy-row">
-          <span class="trust-policy-label">全件を自動承認</span>
+          <span class="trust-policy-label"><i class="ti ti-rocket" style="font-size:16px;vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>全件を自動承認</span>
           ${allBadge}
           <label class="trust-toggle">
             <input type="checkbox" ${allOn?'checked':''} onchange="toggleAutoApprove('all',this.checked)">
