@@ -2508,7 +2508,7 @@ const server = http.createServer(async (req, res) => {
               // 学習済みルールのヒット判定（次優先）
               const learnedMatch = findLearnedRuleMatch(item.title, item.memo, workspaceLearnedRules);
               if (learnedMatch) {
-                return { ...item, debit: learnedMatch.debit_account, credit: learnedMatch.credit_account, masterApplied: false, learnedRuleApplied: true, learnedRuleId: learnedMatch.id };
+                return { ...item, debit: learnedMatch.result?.debit_account, credit: learnedMatch.result?.credit_account, masterApplied: false, learnedRuleApplied: true, learnedRuleId: learnedMatch.id };
               }
               return item;
             });
@@ -2621,8 +2621,8 @@ const server = http.createServer(async (req, res) => {
             if (learnedMatch) {
               return {
                 ...item,
-                debit: learnedMatch.debit_account,
-                credit: learnedMatch.credit_account,
+                debit: learnedMatch.result?.debit_account,
+                credit: learnedMatch.result?.credit_account,
                 masterApplied: false,
                 learnedRuleApplied: true,
                 learnedRuleId: learnedMatch.id
