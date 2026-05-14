@@ -1651,7 +1651,12 @@ async function autoRuleAnomalyCheck(ruleId, strictness) {
   await supabaseQuery(`/learned_rules?id=eq.${ruleId}`, 'PATCH', patch);
 }
 
+const _autoRuleRunning = new Set();
+
 async function detectAndStoreRules(workspaceId, strictness) {
+  if (_autoRuleRunning.has(workspaceId)) return;
+  _autoRuleRunning.add(workspaceId);
+  try {
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const records = await supabaseQuery(
     `/shiwake_records?workspace_id=eq.${workspaceId}&approved_at=gte.${ninetyDaysAgo}&was_modified=eq.false&select=partner_name,memo,debit_account,credit_account&limit=1000`
@@ -1710,6 +1715,9 @@ async function detectAndStoreRules(workspaceId, strictness) {
     }
   }
   console.log(`[auto_rule] detectAndStoreRules ws=${workspaceId} candidates=${candidates.length}`);
+  } finally {
+    _autoRuleRunning.delete(workspaceId);
+  }
 }
 // ===== /v2.5.0: 自動ルール学習 =====
 
@@ -4128,6 +4136,7 @@ const server = http.createServer(async (req, res) => {
         client_email_addresses: w.client_email_addresses || [],
         client_email_domains:   w.client_email_domains   || [],
         subject_keywords:       w.subject_keywords       || [],
+        auto_rule_learning_enabled: w.auto_rule_learning_enabled || false,
         stats: statsMap[w.id]
       }));
 
