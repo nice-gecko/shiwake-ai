@@ -4376,7 +4376,7 @@ async function processOneFile(f){
       const resp=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64,mediaType:imgMediaType}],fileNames:[f.name],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
       const data=await resp.json();
       if(data.error){showErr(data.error);return;}
-      addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();notifyResultFeedback(data);
+      addItems(data.items, data.line_item_mode, b64, imgMediaType);appendNewCards();notifyResultFeedback(data);await autoApproveNewItems();
 
       // Haikuが判定したorientationに従って追加解析
       const detectedOrientation = data.orientation || 'normal';
@@ -4386,20 +4386,20 @@ async function processOneFile(f){
         const {b64:b64r90,mediaType:mt90}=await compressB64IfNeeded(b64r90raw,'image/jpeg');
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90,mediaType:mt90}],fileNames:[f.name+'(90°)'],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data2=await resp2.json();
-        if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90, mt90);notifyResultFeedback(data2);}appendNewCards();
+        if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90, mt90);notifyResultFeedback(data2);}appendNewCards();await autoApproveNewItems();
         setProgress(85,'270°回転で追加解析中...',f.name);
         const b64r270raw=await rotateImageB64(b64,imgMediaType,270);
         const {b64:b64r270,mediaType:mt270}=await compressB64IfNeeded(b64r270raw,'image/jpeg');
         const resp3=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r270,mediaType:mt270}],fileNames:[f.name+'(270°)'],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data3=await resp3.json();
-        if(!data3.error){addItems(data3.items, data3.line_item_mode, b64r270, mt270);notifyResultFeedback(data3);}appendNewCards();
+        if(!data3.error){addItems(data3.items, data3.line_item_mode, b64r270, mt270);notifyResultFeedback(data3);}appendNewCards();await autoApproveNewItems();
       } else if(detectedOrientation==='rotate'){
         setProgress(65,'回転補正で再解析中...',f.name);
         const b64r90raw2=await rotateImageB64(b64,imgMediaType,90);
         const {b64:b64r90c,mediaType:mt90c}=await compressB64IfNeeded(b64r90raw2,'image/jpeg');
         const resp2=await fetch('/api/analyze-chunk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataList:[{data:b64r90c,mediaType:mt90c}],fileNames:[f.name+'(補正)'],chunkIndex:0,totalChunks:1,uid:(window._firebaseUser?.uid||null),masterUid:(getMasterUid()||null),workspace_id:(window._currentWorkspaceId||null),catRules:((typeof catRules!=="undefined"&&catRules.length>0)?catRules:null)}),signal});
         const data2=await resp2.json();
-        if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);notifyResultFeedback(data2);}appendNewCards();
+        if(!data2.error){addItems(data2.items, data2.line_item_mode, b64r90c, mt90c);notifyResultFeedback(data2);}appendNewCards();await autoApproveNewItems();
       }
       addMonthlyCount(1);
     } catch(e) {
@@ -5125,7 +5125,17 @@ function flashMasterCount(n){
   if(window._isPillVisible && window._isPillVisible()) window._animatePillRight?.(n);
 }
 
-async function approveGroup(indices){
+async function autoApproveNewItems(){
+  const groups=buildGroups();
+  for(const g of groups){
+    const indices=g.indices;
+    if(indices.some(i=>approved.has(i)||deleted.has(i)))continue;
+    const firstItem=results[indices[0]];
+    if(!firstItem?._autoApprove)continue;
+    await approveGroup(indices,{auto_approved:true,auto_approve_type:firstItem._autoApproveType||'all'});
+  }
+}
+async function approveGroup(indices, autoApproveInfo){
   // 承認状態を更新
   indices.forEach(i=>{if(!deleted.has(i))approved.add(i);});
   // 各仕訳をマスタに学習（同じtitleは1回だけ・新規のみ）
@@ -5158,6 +5168,9 @@ async function approveGroup(indices){
           body:JSON.stringify({
             uid:_uid,workspace_id:_wsId,session_id:SESSION_ID,
             rule_id:(r._source==='learned_rule'?r._rule_id:null)||null,
+            auto_approved:autoApproveInfo?.auto_approved||false,
+            auto_approve_type:autoApproveInfo?.auto_approve_type||null,
+            applied_learned_rule_id:(autoApproveInfo?.auto_approve_type==='learned')?(r._appliedLearnedRuleId||null):null,
             record:{
               shiwake_date:r.date,partner_name:r.title,
               debit_account:r.debit,credit_account:r.credit,
