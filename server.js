@@ -1060,6 +1060,99 @@ function parseMultipartFormData(req) {
   });
 }
 
+// ===== v2.7.0 突合機能: ヘルパー関数 =====
+
+// カタカナ→ひらがな変換
+function kanaToHira(str) {
+  return (str || '').replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+
+// 全角英数記号→半角 + 小文字正規化（取引先名の比較用）
+function normalizeForMatch(str) {
+  if (!str) return '';
+  return kanaToHira(str)
+    .replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/　/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
+// generic CSV（日付,摘要,入金,出金）パーサー
+function parseGenericCsv(buffer) {
+  const text = buffer.toString('utf8').replace(/^﻿/, ''); // BOM除去
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const entries = [];
+  // 先頭行が日付でなければヘッダーとみなしてスキップ
+  let start = 0;
+  if (lines.length > 0 && !/^\d{4}[-\/]/.test(lines[0].split(',')[0].replace(/"/g, '').trim())) {
+    start = 1;
+  }
+  for (let i = start; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+    if (cols.length < 4) continue;
+    const rawDate    = cols[0];
+    const description = cols[1] || null;
+    const credit = parseInt((cols[2] || '').replace(/,/g, ''), 10) || 0;
+    const debit  = parseInt((cols[3] || '').replace(/,/g, ''), 10) || 0;
+    if (!rawDate || (credit === 0 && debit === 0)) continue;
+    const dateParsed = rawDate.replace(/\//g, '-');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParsed)) continue;
+    entries.push({
+      entry_date: dateParsed,
+      description,
+      amount: credit > 0 ? credit : debit,
+      direction: credit > 0 ? 'credit' : 'debit',
+    });
+  }
+  return entries;
+}
+
+// マッチングロジック（Lv1/Lv2/Lv3）
+function runReconciliationMatch(entries, records, aliases) {
+  // エイリアス→正式名マップ
+  const aliasMap = {};
+  for (const a of aliases) {
+    aliasMap[normalizeForMatch(a.alias)] = a.canonical_name;
+  }
+
+  const results = [];
+  for (const entry of entries) {
+    const entryDate   = new Date(entry.entry_date);
+    const entryAmount = Number(entry.amount);
+    const entryDesc   = normalizeForMatch(entry.description);
+    const resolvedName = aliasMap[entryDesc] ? normalizeForMatch(aliasMap[entryDesc]) : null;
+    const compareName  = resolvedName || entryDesc;
+
+    let lv1Match = null;
+    let lv2Match = null;
+
+    for (const rec of records) {
+      if (Number(rec.amount) !== entryAmount) continue;
+      const dayDiff = Math.abs((entryDate - new Date(rec.shiwake_date)) / 86400000);
+      if (dayDiff > 7) continue;
+
+      const recName  = normalizeForMatch(rec.partner_name || rec.memo || '');
+      const nameMatch = compareName && recName &&
+        (compareName.includes(recName) || recName.includes(compareName));
+
+      if (!lv1Match && dayDiff <= 3 && nameMatch) {
+        lv1Match = rec;
+      } else if (!lv2Match) {
+        lv2Match = rec; // Lv2: 日付±7 で金額一致（名前不問）
+      }
+    }
+
+    if (lv1Match) {
+      results.push({ id: entry.id, match_status: 'matched',   matched_record_id: lv1Match.id });
+    } else if (lv2Match) {
+      results.push({ id: entry.id, match_status: 'candidate', matched_record_id: lv2Match.id });
+    } else {
+      results.push({ id: entry.id, match_status: 'unmatched', matched_record_id: null });
+    }
+  }
+  return results;
+}
+
 // Google Drive サービスアカウントクライアント
 function getDriveClient() {
   if (!googleApis) throw new Error('googleapis package not installed');
@@ -4875,6 +4968,144 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message }));
       }
+    });
+    return;
+  }
+
+  // ===== v2.7.0: 突合機能 Phase B（CSVアップロード＋自動マッチング） =====
+
+  // POST /api/reconciliation/upload-csv → CSVアップロード＋明細一括登録
+  if (req.method === 'POST' && reqPath === '/api/reconciliation/upload-csv') {
+    try {
+      const { fields, files } = await parseMultipartFormData(req);
+      const uid          = fields.uid;
+      const workspace_id = fields.workspace_id;
+      const source_type  = fields.source_type;
+      const institution_name = fields.institution_name || null;
+      const account_info     = fields.account_info || null;
+      const period_year  = fields.period_year  ? parseInt(fields.period_year,  10) : null;
+      const period_month = fields.period_month ? parseInt(fields.period_month, 10) : null;
+      const format_type  = fields.format_type || 'generic';
+
+      if (!uid || !workspace_id || !source_type) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, source_type required' })); return;
+      }
+      const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+
+      const csvFile = files[0];
+      if (!csvFile) { res.writeHead(400); res.end(JSON.stringify({ error: 'csv file required' })); return; }
+
+      let parsedEntries;
+      if (format_type === 'generic') {
+        parsedEntries = parseGenericCsv(csvFile.buffer);
+      } else {
+        res.writeHead(400); res.end(JSON.stringify({ error: `unsupported format_type: ${format_type}` })); return;
+      }
+      if (parsedEntries.length === 0) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'no valid entries found in CSV' })); return;
+      }
+
+      // ソース登録
+      const created = await supabaseQuery('/reconciliation_sources', 'POST', {
+        workspace_id, source_type, institution_name, account_info, period_year, period_month,
+      }, { 'Prefer': 'return=representation' });
+      const source = created?.[0];
+      if (!source) throw new Error('failed to create source');
+
+      // 明細を一括INSERT
+      const entryRows = parsedEntries.map(e => ({
+        source_id: source.id, workspace_id,
+        entry_date: e.entry_date, description: e.description,
+        amount: e.amount, direction: e.direction, match_status: 'unmatched',
+      }));
+      await supabaseQuery('/reconciliation_entries', 'POST', entryRows, { 'Prefer': 'return=minimal' });
+
+      // total_entries 更新
+      await supabaseQuery(`/reconciliation_sources?id=eq.${source.id}`, 'PATCH', {
+        total_entries: parsedEntries.length, updated_at: new Date().toISOString(),
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ source_id: source.id, total_entries: parsedEntries.length }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // POST /api/reconciliation/match → 自動マッチング実行
+  if (req.method === 'POST' && reqPath === '/api/reconciliation/match') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, source_id, workspace_id } = JSON.parse(body);
+        if (!uid || !source_id || !workspace_id) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid, source_id, workspace_id required' })); return;
+        }
+        const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+        if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+        const [entries, records, aliases] = await Promise.all([
+          supabaseQuery(`/reconciliation_entries?source_id=eq.${source_id}&match_status=eq.unmatched&select=*`),
+          supabaseQuery(`/shiwake_records?workspace_id=eq.${workspace_id}&shiwake_date=gte.${ninetyDaysAgo}&select=id,shiwake_date,amount,partner_name,memo`),
+          supabaseQuery(`/partner_aliases?workspace_id=eq.${workspace_id}&select=*`),
+        ]);
+
+        const matchResults = runReconciliationMatch(entries || [], records || [], aliases || []);
+
+        let matched = 0, candidate = 0, unmatched = 0;
+        for (const r of matchResults) {
+          if (r.match_status === 'matched')        matched++;
+          else if (r.match_status === 'candidate') candidate++;
+          else                                     unmatched++;
+          if (r.match_status !== 'unmatched') {
+            await supabaseQuery(
+              `/reconciliation_entries?id=eq.${r.id}`, 'PATCH',
+              { match_status: r.match_status, matched_record_id: r.matched_record_id }
+            );
+          }
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ matched, candidate, unmatched, total: matchResults.length }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // PATCH /api/reconciliation/entries/:id → 手動照合確定・差額解決
+  if (req.method === 'PATCH' && /^\/api\/reconciliation\/entries\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
+    const entryId = reqPath.slice('/api/reconciliation/entries/'.length);
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, match_status, matched_record_id, resolution_type, resolution_note, amount_difference } = JSON.parse(body);
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        if (match_status === 'resolved' && !resolution_type) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'resolution_type required when match_status is resolved' })); return;
+        }
+
+        // エントリ → ソース → ワークスペースの所有確認
+        const entryRows = await supabaseQuery(`/reconciliation_entries?id=eq.${entryId}&select=id,source_id`);
+        if (!entryRows || entryRows.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'entry not found' })); return; }
+        const srcRows = await supabaseQuery(`/reconciliation_sources?id=eq.${entryRows[0].source_id}&select=id,workspace_id`);
+        if (!srcRows || srcRows.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'source not found' })); return; }
+        const wsRows = await supabaseQuery(`/workspaces?id=eq.${srcRows[0].workspace_id}&owner_uid=eq.${uid}&select=id`);
+        if (!wsRows || wsRows.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+
+        const patch = {};
+        if (match_status       !== undefined) patch.match_status       = match_status;
+        if (matched_record_id  !== undefined) patch.matched_record_id  = matched_record_id;
+        if (resolution_type    !== undefined) patch.resolution_type    = resolution_type;
+        if (resolution_note    !== undefined) patch.resolution_note    = resolution_note;
+        if (amount_difference  !== undefined) patch.amount_difference  = amount_difference;
+
+        await supabaseQuery(`/reconciliation_entries?id=eq.${entryId}`, 'PATCH', patch);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
   }
