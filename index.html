@@ -5006,6 +5006,7 @@ async function revertAutoApproveLog(recordId){
     if(!d.ok) throw new Error(d.error||'revert failed');
     showToast('差し戻しました',2000);
     loadAutoApproveLog();
+    updateRevertedBadge();
   } catch(e){
     console.warn('revertAutoApproveLog error:',e);
     showToast('差し戻しに失敗しました（APIは実装中です）',2500);
