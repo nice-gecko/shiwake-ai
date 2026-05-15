@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>機能マップ — 証憑仕訳AI</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;background:#F5F4F0;color:#1a1a1a;min-height:100vh;}
+.header{background:#fff;border-bottom:1px solid #e0dfd8;padding:14px 24px 0;position:sticky;top:0;z-index:100;}
+.header-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.logo-icon{width:26px;height:26px;background:#185FA5;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0;letter-spacing:-0.5px;}
+.header-title{font-size:16px;font-weight:700;color:#1a1a1a;flex:1;}
+.header-desc{font-size:11px;color:#999;margin-left:4px;}
+.collapse-btn{display:flex;align-items:center;gap:5px;padding:6px 12px;border:1px solid #e0dfd8;border-radius:7px;background:#f0efe9;color:#555;font-size:12px;cursor:pointer;transition:background 0.15s;flex-shrink:0;}
+.collapse-btn:hover{background:#e0dfd8;}
+.chevron{display:inline-block;font-style:normal;font-size:9px;transition:transform 0.25s;}
+.collapse-btn[aria-expanded="false"] .chevron{transform:rotate(180deg);}
+.plan-tabs{display:flex;gap:0;border-bottom:none;}
+.plan-tab{padding:9px 24px;border:none;background:transparent;color:#888;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2.5px solid transparent;transition:color 0.15s;line-height:1;white-space:nowrap;}
+.plan-tab:hover{color:#333;}
+.plan-tab.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:700;}
+.plan-tab[data-plan="elite"].active{color:#7c3aed;border-bottom-color:#7c3aed;}
+.plan-desc-bar{margin:0 -24px;padding:8px 32px 10px 24px;border-top:1px solid #f0efe9;display:flex;align-items:baseline;gap:16px;}
+.plan-desc-text{font-size:12px;color:#555;flex:1;line-height:1.5;}
+.plan-desc-price{font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;}
+.legend-bar{display:flex;align-items:center;gap:20px;padding:9px 24px;background:#faf9f6;border-bottom:1px solid #e0dfd8;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:#555;}
+.swatch{width:22px;height:13px;border-radius:3px;border:1.5px solid transparent;flex-shrink:0;}
+.sw-active{background:#185FA5;border-color:#185FA5;}
+.sw-simple{background:#EBF4FD;border-color:#b8d4f0;}
+.sw-dimmed{background:repeating-linear-gradient(-45deg,#f0efe9,#f0efe9 3px,#ccc 3px,#ccc 6px);border-color:#ccc;}
+.sw-elite{background:linear-gradient(135deg,#7c3aed,#4f56d9);border-color:#7c3aed;}
+.map-wrapper{overflow:hidden;transition:max-height 0.45s cubic-bezier(0.4,0,0.2,1);max-height:3000px;}
+.map-wrapper.collapsed{max-height:0;}
+.map-container{padding:36px 24px 64px;max-width:1100px;margin:0 auto;}
+
+/* MAP OUTER: relative for SVG overlay */
+.map-outer{position:relative;}
+
+/* SVG arrow overlay */
+.arrow-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;}
+.arrow-path{opacity:0;transition:opacity 2.5s ease;}
+.map-outer:hover .arrow-path{opacity:0.85;}
+.arrow-label{opacity:0;transition:opacity 1.5s ease 1s;}
+.map-outer:hover .arrow-label{opacity:1;}
+
+.feature-map{flex:1;display:flex;flex-direction:column;gap:0;position:relative;}
+.map-row{display:grid;grid-template-columns:1fr 260px 1fr;align-items:center;min-height:80px;}
+.map-left{display:flex;justify-content:flex-end;align-items:center;padding-right:48px;}
+.map-center-col{display:flex;flex-direction:column;align-items:center;}
+.map-right{display:flex;justify-content:flex-start;align-items:center;padding-left:14px;}
+.spine-join{display:grid;grid-template-columns:1fr 260px 1fr;height:24px;}
+.spine-join-empty{display:block;}
+.spine-join-line{display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.join-line-inner{width:2px;height:100%;background:linear-gradient(to bottom,rgba(47,186,216,0.3),rgba(124,58,237,0.3));flex:1;}
+.spine-node{width:100%;border:none;border-radius:11px;padding:13px 14px;text-align:center;cursor:pointer;position:relative;transition:transform 0.15s,box-shadow 0.15s;display:block;}
+.spine-node:hover{transform:scale(1.04);}
+.spine-node-label{font-size:14px;font-weight:700;color:#fff;line-height:1.3;}
+.spine-node-sub{font-size:10px;color:rgba(255,255,255,0.82);margin-top:4px;line-height:1.5;}
+.spine-node-plan-tag{display:inline-block;font-size:9px;font-weight:700;background:rgba(255,255,255,0.2);color:#fff;border-radius:4px;padding:1px 6px;margin-top:5px;letter-spacing:0.05em;}
+.spine-badge{position:absolute;top:-9px;right:-4px;background:#7c3aed;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;letter-spacing:0.04em;}
+.lv1{background:#2FBAD8;}.lv1:hover{box-shadow:0 6px 20px rgba(47,186,216,0.35);}
+.lv2{background:#18A4C2;}.lv2:hover{box-shadow:0 6px 20px rgba(24,164,194,0.35);}
+.lv3{background:#1876a8;}.lv3:hover{box-shadow:0 6px 20px rgba(24,118,168,0.35);}
+.lv4{background:#185FA5;}.lv4:hover{box-shadow:0 6px 20px rgba(24,95,165,0.35);}
+.lv5{background:#1a4e96;}.lv5:hover{box-shadow:0 6px 20px rgba(26,78,150,0.35);}
+.lv6{background:linear-gradient(135deg,#7c3aed 0%,#4f56d9 100%);}.lv6:hover{box-shadow:0 6px 20px rgba(124,58,237,0.4);}
+.spine-node.dimmed{background:repeating-linear-gradient(-45deg,#ebebea,#ebebea 4px,#dddcd6 4px,#dddcd6 8px) !important;cursor:default;}
+.spine-node.dimmed:hover{transform:none;box-shadow:none;}
+.spine-node.dimmed .spine-node-label,.spine-node.dimmed .spine-node-sub,.spine-node.dimmed .spine-node-plan-tag{color:#aaa;}
+.spine-node.dimmed .spine-badge{background:#bbb;}
+.fn{position:relative;cursor:pointer;width:185px;max-width:100%;}
+.fn-inner{background:#fff;border:1.5px solid #185FA5;border-radius:9px;padding:9px 12px;transition:transform 0.15s,box-shadow 0.15s;position:relative;overflow:hidden;}
+.fn:hover .fn-inner{transform:scale(1.04);box-shadow:0 4px 14px rgba(24,95,165,0.2);}
+.fn-label{font-size:13px;font-weight:600;color:#185FA5;line-height:1.3;}
+.fn-hint{font-size:10px;color:#999;margin-top:2px;line-height:1.4;}
+.map-left .fn::after{content:'';position:absolute;top:50%;right:-48px;width:48px;height:0;border-top:1.5px dashed #b8d4f0;}
+.map-right .fn{margin-left:14px;}
+.map-right .fn::before{content:'';position:absolute;top:50%;left:-14px;width:14px;height:0;border-top:1.5px dashed #b8d4f0;}
+.fn.dimmed .fn-inner{background:repeating-linear-gradient(-45deg,#f5f4f0,#f5f4f0 4px,#e2e1d8 4px,#e2e1d8 8px);border-color:#c8c7c0;}
+.fn.dimmed .fn-label{color:#bbb;}
+.fn.dimmed .fn-hint{color:#ccc;}
+.fn.dimmed{cursor:default;}
+.fn.dimmed .fn-inner::after{content:'未対応';position:absolute;top:4px;right:7px;font-size:9px;color:#bbb;}
+.fn.dimmed:hover .fn-inner{transform:none;box-shadow:none;}
+.fn.dimmed::after,.fn.dimmed::before{border-color:#d8d8d0 !important;}
+.fn.simple .fn-inner{background:#EBF4FD;border-color:#b8d4f0;}
+.fn.simple .fn-label{color:#185FA5;}
+.fn.simple .fn-inner::after{content:'簡易';position:absolute;top:4px;right:7px;font-size:9px;color:#185FA5;background:rgba(24,95,165,0.12);border-radius:3px;padding:0 5px;}
+.fn.hidden{visibility:hidden;pointer-events:none;}
+.fn-special .fn-inner{background:#FFFBF0;border:2px solid #D4A017;}
+.fn-special .fn-label{color:#8B6400;}
+.fn-special:hover .fn-inner{box-shadow:0 4px 16px rgba(212,160,23,0.30);}
+.fn-special::before{border-color:#D4A017 !important;}
+@keyframes incentivePulse{0%,100%{transform:translate(30%,-50%) scale(1);}50%{transform:translate(30%,-50%) scale(1.28);}}
+.fn-special-badge{position:absolute;top:0;right:0;transform:translate(30%,-50%);font-size:9px;font-weight:700;background:#D4A017;color:#fff;border-radius:4px;padding:2px 7px;z-index:10;white-space:nowrap;animation:incentivePulse 0.6s ease-in-out 0.5s 3;}
+.popup-backdrop{display:none;position:fixed;inset:0;z-index:200;pointer-events:none;}
+.popup-backdrop.show{display:block;}
+.popup-box{position:fixed;background:#fff;border:1px solid #e0dfd8;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.15);padding:16px 18px 14px;max-width:280px;min-width:200px;z-index:201;animation:popIn 0.15s ease;}
+@keyframes popIn{from{opacity:0;transform:scale(0.93);}to{opacity:1;transform:scale(1);}}
+.popup-plan-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 8px;border-radius:4px;margin-bottom:7px;}
+.badge-saas{background:#EBF4FD;color:#185FA5;}
+.badge-agent{background:#e4f6fb;color:#1094B0;}
+.badge-elite{background:#f5f0ff;color:#7c3aed;}
+.badge-all{background:#f5f4f0;color:#555;}
+.popup-title{font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:6px;padding-right:20px;}
+.popup-desc{font-size:13px;color:#555;line-height:1.65;}
+.popup-close{position:absolute;top:9px;right:12px;background:none;border:none;font-size:18px;color:#bbb;cursor:pointer;line-height:1;padding:2px 4px;}
+.popup-close:hover{color:#555;}
+.price-popup-wrap{position:fixed;z-index:500;display:none;}
+.price-popup-wrap.show{display:block;}
+.price-popup{background:#fff;border:1.5px solid #e0dfd8;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);padding:14px 16px 12px;width:520px;max-width:calc(100vw - 16px);animation:popIn 0.15s ease;}
+.pp-tier-row{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;}
+.pp-tier-btn{padding:3px 11px;border:1.5px solid #e0dfd8;background:#fff;border-radius:20px;font-size:11px;font-weight:600;color:#999;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.pp-tier-pct{font-size:10px;margin-left:2px;font-weight:500;}
+.pp-tier-btn[data-tier="normal"].active,.pp-tier-btn[data-tier="normal"]:hover{border-color:#555;color:#333;background:#f0efe9;}
+.pp-tier-btn[data-tier="bronze"].active,.pp-tier-btn[data-tier="bronze"]:hover{border-color:#b45309;color:#b45309;background:#fef9ee;}
+.pp-tier-btn[data-tier="silver"].active,.pp-tier-btn[data-tier="silver"]:hover{border-color:#6b7280;color:#4b5563;background:#f3f4f6;}
+.pp-tier-btn[data-tier="gold"].active,.pp-tier-btn[data-tier="gold"]:hover{border-color:#d97706;color:#b45309;background:#fffbeb;}
+.pp-table-wrap{overflow-x:auto;}
+.pp-table{width:100%;border-collapse:collapse;font-size:12px;}
+.pp-table th{text-align:left;padding:5px 10px;font-size:11px;font-weight:600;color:#888;border-bottom:1.5px solid #e8e8e0;white-space:nowrap;}
+.pp-table td{padding:6px 10px;border-bottom:1px solid #f0efe9;color:#333;white-space:nowrap;}
+.pp-table tbody tr:last-child td{border-bottom:none;}
+.pp-table tbody tr:hover td{background:#faf9f6;}
+.pp-table td:first-child{font-weight:600;color:#1a1a1a;}
+.pp-table .pp-price-col{font-weight:700;}
+@media(max-width:768px){
+  .header{padding:12px 16px 0;}.header-desc{display:none;}
+  .legend-bar{padding:8px 16px;gap:12px;}
+  .map-container{padding:20px 12px 48px;}
+  .arrow-svg{display:none;}
+  .map-row{grid-template-columns:1fr 1fr;grid-template-rows:auto auto;gap:6px 8px;}
+  .map-left{grid-column:1;grid-row:2;justify-content:flex-end;padding-right:4px;padding-top:0;min-height:auto;}
+  .map-center-col{grid-column:1/-1;grid-row:1;}
+  .map-right{grid-column:2;grid-row:2;justify-content:flex-start;padding-left:4px;min-height:auto;}
+  .fn{width:100%;max-width:100%;margin:0!important;}
+  .fn::before,.fn::after{display:none!important;}
+  .fn-inner{padding:8px 10px;}
+  .fn-label{font-size:12px;}
+  .spine-node{padding:11px 12px;}
+  .spine-node-label{font-size:13px;}
+  .plan-tab{padding:8px 14px;font-size:12px;}
+  .plan-desc-bar{margin:0 -16px;padding:6px 16px 8px;gap:10px;}
+  .plan-desc-text{font-size:11px;}
+  .spine-join{grid-template-columns:1fr 1fr;height:16px;}
+  .spine-join-empty{display:none;}
+  .spine-join-line{grid-column:1/-1;}
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-top">
+    <div class="logo-icon">仕訳</div>
+    <div class="header-title">機能マップ<span class="header-desc"> — プラン別機能対応表</span></div>
+    <button class="collapse-btn" id="collapseBtn" aria-expanded="true" aria-controls="mapWrapper">
+      <i class="chevron">▼</i>
+      <span id="collapseBtnLabel">折りたたむ</span>
+    </button>
+  </div>
+  <div class="plan-tabs" role="tablist">
+    <button class="plan-tab active" data-plan="saas" role="tab" aria-selected="true">AI SaaS</button>
+    <button class="plan-tab" data-plan="agent" role="tab" aria-selected="false">Agent</button>
+    <button class="plan-tab" data-plan="elite" role="tab" aria-selected="false">Elite</button>
+  </div>
+  <div class="plan-desc-bar">
+    <div class="plan-desc-text" id="planDescText"></div>
+    <div class="plan-desc-price" id="planDescPrice"></div>
+  </div>
+</div>
+<div class="price-popup-wrap" id="pricePopupWrap">
+  <div class="price-popup" id="pricePopup">
+    <div class="pp-tier-row">
+      <button class="pp-tier-btn active" data-tier="normal">通常価格</button>
+      <button class="pp-tier-btn" data-tier="bronze">Bronze <span class="pp-tier-pct">70%</span></button>
+      <button class="pp-tier-btn" data-tier="silver">Silver <span class="pp-tier-pct">65%</span></button>
+      <button class="pp-tier-btn" data-tier="gold">Gold <span class="pp-tier-pct">60%</span></button>
+    </div>
+    <div class="pp-table-wrap"><table class="pp-table" id="ppTable"></table></div>
+  </div>
+</div>
+<div class="legend-bar">
+  <div class="legend-item"><div class="swatch sw-active"></div>使える</div>
+  <div class="legend-item"><div class="swatch sw-simple"></div>使える（簡易）</div>
+  <div class="legend-item"><div class="swatch sw-dimmed"></div>使えない（上位プランで利用可）</div>
+  <div class="legend-item"><div class="swatch sw-elite"></div>Elite限定</div>
+</div>
+<div class="map-wrapper" id="mapWrapper">
+  <div class="map-container">
+    <div class="map-outer" id="mapOuter">
+
+      <!-- SVG tapered arrow overlay -->
+      <svg class="arrow-svg" id="arrowSvg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="arrowGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7F77DD"/>
+            <stop offset="50%" stop-color="#2563a8"/>
+            <stop offset="100%" stop-color="#2FBAD8"/>
+          </linearGradient>
+        </defs>
+        <!-- tapered body: narrow top (rounded), wide bottom, then arrowhead -->
+        <path class="arrow-path" id="arrowPoly" fill="url(#arrowGrad)" opacity="0.82" d=""/>
+        <!-- label -->
+        <text class="arrow-label" id="arrowLabel" fill="white" font-size="14" font-weight="700" letter-spacing="3" text-anchor="middle" writing-mode="tb" dominant-baseline="central"></text>
+      </svg>
+
+      <div class="feature-map" id="featureMap">
+        <!-- ROW 1 -->
+        <div class="map-row">
+          <div class="map-left">
+            <div class="fn" id="fn-staff" data-key="staff" data-saas="active" data-agent="hidden" data-elite="hidden" data-label="スタッフ管理" data-badge-saas="AI SaaS" data-badge-agent="—" data-badge-elite="—" data-desc="チームメンバーの招待・権限設定・担当範囲の管理を行います。代理店が複数スタッフで顧客対応を分担するための機能で、AI SaaSプラン（代理店向け）専用の機能です。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">スタッフ管理</div><div class="fn-hint">権限・担当を代理店向けに管理</div></div>
+            </div>
+          </div>
+          <div class="map-center-col">
+            <button class="spine-node lv1" data-key="import" data-saas="dimmed" data-agent="active" data-elite="active" data-label="証憑の自動取り込み" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="メール添付・Dropbox・Google Drive などのクラウドストレージと連携し、証憑ファイルを自動収集します。">
+              <div class="spine-node-label">証憑の自動取り込み</div>
+              <div class="spine-node-sub">メール・クラウドから証憑を自動収集</div>
+              <div class="spine-node-plan-tag">Agent / Elite</div>
+            </button>
+          </div>
+          <div class="map-right"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
+        </div>
+        <div class="spine-join" aria-hidden="true"><div class="spine-join-empty"></div><div class="spine-join-line"><div class="join-line-inner"></div></div><div class="spine-join-empty"></div></div>
+        <!-- ROW 2 -->
+        <div class="map-row">
+          <div class="map-left"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
+          <div class="map-center-col">
+            <button class="spine-node lv2" data-key="foundation" data-saas="active" data-agent="active" data-elite="active" data-label="AI仕訳" data-badge-saas="全プラン共通" data-badge-agent="全プラン共通" data-badge-elite="全プラン共通" data-desc="AIが領収書・請求書・レシートを読み取り、勘定科目と摘要を自動提案します。修正を重ねるごとにマスタが成長し、提案精度が向上します。すべてのプランに含まれる基盤機能です。">
+              <div class="spine-node-label">AI仕訳</div>
+              <div class="spine-node-sub">仕訳生成・マスタ学習・CSV出力</div>
+              <div class="spine-node-plan-tag">全プラン共通</div>
+            </button>
+          </div>
+          <div class="map-right">
+            <div class="fn fn-special" data-key="incentive" data-saas="active" data-agent="hidden" data-elite="hidden" data-label="スタッフインセンティブ" data-badge-saas="AI SaaS オプション" data-badge-agent="—" data-badge-elite="—" data-desc="スタッフの仕訳精度に連動して報酬が上がる、業界初のインセンティブ設計。モチベーションと品質を同時に上げる。追加料金：+¥5,000〜¥20,000/月" role="button" tabindex="0">
+              <span class="fn-special-badge">オプション</span>
+              <div class="fn-inner"><div class="fn-label">スタッフインセンティブ</div><div class="fn-hint">スタッフ報酬を仕訳精度に連動</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="spine-join" aria-hidden="true"><div class="spine-join-empty"></div><div class="spine-join-line"><div class="join-line-inner"></div></div><div class="spine-join-empty"></div></div>
+        <!-- ROW 3 -->
+        <div class="map-row">
+          <div class="map-left">
+            <div class="fn" data-key="mytemplate" data-saas="dimmed" data-agent="active" data-elite="active" data-label="Myテンプレート" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="自社独自の勘定科目ルール・摘要パターンをテンプレートとして保存・共有できます。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">Myテンプレート</div><div class="fn-hint">自社ルールを保存・チーム共有</div></div>
+            </div>
+          </div>
+          <div class="map-center-col">
+            <button class="spine-node lv3" data-key="learning" data-saas="dimmed" data-agent="active" data-elite="active" data-label="ルールを自分で育てる" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="担当者の修正パターンを自動的に学習し、次回から提案精度を向上させます。学習したルールはワークスペース内で共有され、チーム全体の精度が底上げされます。">
+              <div class="spine-node-label">ルールを自分で育てる</div>
+              <div class="spine-node-sub">修正パターンを蓄積・精度向上</div>
+              <div class="spine-node-plan-tag">Agent / Elite</div>
+            </button>
+          </div>
+          <div class="map-right">
+            <div class="fn" data-key="workspace" data-saas="dimmed" data-agent="active" data-elite="active" data-label="ワークスペース" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="複数クライアント・事業所を1画面で切り替え管理できます。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">ワークスペース</div><div class="fn-hint">複数クライアントを一元管理</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="spine-join" aria-hidden="true"><div class="spine-join-empty"></div><div class="spine-join-line"><div class="join-line-inner"></div></div><div class="spine-join-empty"></div></div>
+        <!-- ROW 4 -->
+        <div class="map-row">
+          <div class="map-left"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
+          <div class="map-center-col">
+            <button class="spine-node lv4" data-key="approval" data-saas="dimmed" data-agent="active" data-elite="active" data-label="仕訳を自動で承認" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="信頼度スコアが閾値を超えた仕訳を自動承認します。ヒューマンレビューの工数を大幅に削減し、処理スループットを向上させます。">
+              <div class="spine-node-label">仕訳を自動で承認</div>
+              <div class="spine-node-sub">信頼度の高い仕訳を自動で確定</div>
+              <div class="spine-node-plan-tag">Agent / Elite</div>
+            </button>
+          </div>
+          <div class="map-right">
+            <div class="fn" data-key="metrics" data-saas="dimmed" data-agent="active" data-elite="active" data-label="信頼度メトリクス" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="各仕訳に対するAIの確信度をスコア（0〜100）で表示します。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">信頼度メトリクス</div><div class="fn-hint">AI確信度スコアで検証を効率化</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="spine-join" aria-hidden="true"><div class="spine-join-empty"></div><div class="spine-join-line"><div class="join-line-inner"></div></div><div class="spine-join-empty"></div></div>
+        <!-- ROW 5 -->
+        <div class="map-row">
+          <div class="map-left">
+            <div class="fn" data-key="industry" data-saas="dimmed" data-agent="active" data-elite="active" data-label="業種テンプレート" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="飲食・建設・小売・医療など業種別の勘定科目マッピングを一括適用できます。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">業種テンプレート</div><div class="fn-hint">業種別の科目マッピングを一括適用</div></div>
+            </div>
+          </div>
+          <div class="map-center-col">
+            <button class="spine-node lv5" data-key="export" data-saas="dimmed" data-agent="active" data-elite="active" data-label="仕訳データを自動エクスポート" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="承認済み仕訳を会計ソフト対応のCSVへスケジュール出力します。freee・弥生・MFクラウドなど主要フォーマットに対応。">
+              <div class="spine-node-label">仕訳データを自動エクスポート</div>
+              <div class="spine-node-sub">会計ソフト向けCSVをスケジュール出力</div>
+              <div class="spine-node-plan-tag">Agent / Elite</div>
+            </button>
+          </div>
+          <div class="map-right"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
+        </div>
+        <div class="spine-join" aria-hidden="true"><div class="spine-join-empty"></div><div class="spine-join-line"><div class="join-line-inner"></div></div><div class="spine-join-empty"></div></div>
+        <!-- ROW 6 -->
+        <div class="map-row">
+          <div class="map-left">
+            <div class="fn" data-key="anomaly" data-saas="simple" data-agent="active" data-elite="active" data-label="異常検知" data-badge-saas="AI SaaS（簡易）" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="金額・勘定科目の統計的外れ値をリアルタイムで検知・警告します。Agent以上では機械学習による高精度な異常スコアリングが利用できます。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">異常検知</div><div class="fn-hint">外れ値・不整合をリアルタイム警告</div></div>
+            </div>
+          </div>
+          <div class="map-center-col">
+            <button class="spine-node lv6" data-key="autonomy" data-saas="dimmed" data-agent="dimmed" data-elite="active" data-label="Slack/LINEで対話・自走" data-badge-saas="Elite限定" data-badge-agent="Elite限定" data-badge-elite="Elite" data-desc="AIが不明点を自ら問い合わせ、仕訳〜レビュー〜出力までをほぼ完全自動で実行します。">
+              <span class="spine-badge">Elite</span>
+              <div class="spine-node-label">Slack/LINEで対話・自走</div>
+              <div class="spine-node-sub">AIが能動的に問い合わせ・完全自動処理</div>
+              <div class="spine-node-plan-tag">Elite限定</div>
+            </button>
+          </div>
+          <div class="map-right">
+            <div class="fn" data-key="dashboard" data-saas="simple" data-agent="active" data-elite="active" data-label="ダッシュボード" data-badge-saas="AI SaaS（簡易）" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="仕訳件数・コスト傾向・AI精度をグラフで可視化します。Agent以上では詳細トレンド・カテゴリ別分析・エクスポートが利用できます。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">ダッシュボード</div><div class="fn-hint">仕訳状況・コスト傾向を可視化</div></div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /feature-map -->
+    </div><!-- /map-outer -->
+  </div>
+</div>
+
+<div class="popup-backdrop" id="popupBackdrop" role="dialog" aria-modal="true">
+  <div class="popup-box" id="popupBox">
+    <div class="popup-plan-badge" id="popupBadge"></div>
+    <div class="popup-title" id="popupTitle"></div>
+    <div class="popup-desc" id="popupDesc"></div>
+    <button class="popup-close" id="popupClose" aria-label="閉じる">×</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var currentPlan='saas';
+var planDescs={
+  saas:{text:'自分で操作して仕訳を確認・修正するプラン',price:'¥980〜¥100,000/月',color:'#185FA5'},
+  agent:{text:'AIが自走し、仕訳・取り込み・エクスポートまで自動化するプラン',price:'¥30,000〜¥150,000/月',color:'#1094B0'},
+  elite:{text:'Slack/LINEで対話しながら、AIが締めまで自走するプラン',price:'¥250,000/月',color:'#7c3aed'}
+};
+var planDescText=document.getElementById('planDescText');
+var planDescPrice=document.getElementById('planDescPrice');
+function updatePlanDesc(){var d=planDescs[currentPlan];planDescText.textContent=d.text;planDescPrice.textContent=d.price;planDescPrice.style.color=d.color;}
+
+var tabs=document.querySelectorAll('.plan-tab');
+tabs.forEach(function(tab){
+  tab.addEventListener('click',function(){
+    currentPlan=this.dataset.plan;
+    tabs.forEach(function(t){t.classList.toggle('active',t.dataset.plan===currentPlan);t.setAttribute('aria-selected',t.dataset.plan===currentPlan?'true':'false');});
+    applyPlan();updatePlanDesc();
+  });
+});
+
+function applyPlan(){
+  document.querySelectorAll('.spine-node').forEach(function(node){
+    var state=node.dataset[currentPlan]||'active';
+    node.classList.remove('dimmed');
+    if(state==='dimmed')node.classList.add('dimmed');
+  });
+  document.querySelectorAll('.fn:not([aria-hidden="true"])').forEach(function(fn){
+    var state=fn.dataset[currentPlan]||'active';
+    fn.classList.remove('active','simple','dimmed','hidden');
+    fn.classList.add(state);
+    if(state==='hidden'){fn.setAttribute('aria-hidden','true');fn.removeAttribute('tabindex');}
+    else{fn.removeAttribute('aria-hidden');fn.setAttribute('tabindex','0');}
+  });
+}
+applyPlan();updatePlanDesc();
+
+/* COLLAPSE */
+var collapseBtn=document.getElementById('collapseBtn');
+var mapWrapper=document.getElementById('mapWrapper');
+var collapseBtnLabel=document.getElementById('collapseBtnLabel');
+collapseBtn.addEventListener('click',function(){
+  var exp=this.getAttribute('aria-expanded')==='true';
+  this.setAttribute('aria-expanded',exp?'false':'true');
+  mapWrapper.classList.toggle('collapsed',exp);
+  collapseBtnLabel.textContent=exp?'展開する':'折りたたむ';
+});
+
+/* ===== TAPERED SVG ARROW ===== */
+var mapOuter=document.getElementById('mapOuter');
+var arrowPoly=document.getElementById('arrowPoly');
+var arrowLabel=document.getElementById('arrowLabel');
+
+function buildArrow(){
+  var outerRect=mapOuter.getBoundingClientRect();
+  var fm=document.getElementById('featureMap');
+  var fmRect=fm.getBoundingClientRect();
+
+  /* Find the gap between left fn column and center spine column */
+  var firstSpine=fm.querySelector('.map-center-col .spine-node');
+  var firstFnLeft=fm.querySelector('.map-left .fn:not([aria-hidden="true"])');
+
+  var spineRect=firstSpine.getBoundingClientRect();
+  /* X position: midpoint of gap between left cards and spine */
+  /* gap center = between right edge of left col and left edge of spine */
+  var gapRight=spineRect.left-outerRect.left; /* left edge of spine in svg coords */
+  /* arrow center x: just to the left of spine center, in the gap */
+  var cx=gapRight-22; /* 22px left of spine left edge */
+
+  var topY=fmRect.top-outerRect.top+8;
+  var lastSpine=fm.querySelectorAll('.map-center-col .spine-node');
+  var lastSpineEl=lastSpine[lastSpine.length-1];
+  var lastRect=lastSpineEl.getBoundingClientRect();
+  /* Arrow tip overlaps into the last card significantly */
+  var bottomY=lastRect.bottom-outerRect.top-8;
+  var totalH=bottomY-topY;
+
+  /* Tapered shape: narrow at top (w1), wide at bottom before tip (w2) */
+  var w1=3;   /* half-width at top - very thin */
+  var w2=24;  /* half-width at bottom body - wider */
+  var tipH=36; /* arrowhead height - larger */
+  var bodyBottom=bottomY-tipH;
+
+  var pts=[
+    (cx-w1)+','+topY,
+    (cx+w1)+','+topY,
+    (cx+w2)+','+bodyBottom,
+    (cx+w2+14)+','+bodyBottom,  /* arrowhead base right - wider head */
+    cx+','+bottomY,              /* arrowhead tip */
+    (cx-w2-14)+','+bodyBottom,  /* arrowhead base left */
+    (cx-w2)+','+bodyBottom,
+  ].join(' ');
+
+  /* Build rounded-top path */
+  var r=w1; /* corner radius = half top width */
+  var pathD=[
+    'M',cx,topY,                        /* top center start for arc */
+    'M',(cx-w1+r)+','+topY,
+    'Q',(cx-w1)+','+topY,(cx-w1)+','+(topY+r),  /* top-left rounded */
+    'L',(cx-w2)+','+bodyBottom,
+    'L',(cx-w2-14)+','+bodyBottom,
+    'L',cx+','+bottomY,
+    'L',(cx+w2+14)+','+bodyBottom,
+    'L',(cx+w2)+','+bodyBottom,
+    'L',(cx+w1)+','+(topY+r),
+    'Q',(cx+w1)+','+topY,(cx+w1-r)+','+topY,
+    'Z'
+  ].join(' ');
+  arrowPoly.setAttribute('d', pathD);
+
+  /* Label: white text, positioned lower - around auto-export card level */
+  var labelY=topY+(totalH*0.80);
+  arrowLabel.setAttribute('x',cx);
+  arrowLabel.setAttribute('y',labelY);
+  arrowLabel.textContent='自走・自律化へ';
+}
+
+/* Build on load and resize */
+window.addEventListener('load',buildArrow);
+window.addEventListener('resize',buildArrow);
+setTimeout(buildArrow,100);
+
+/* Hover: re-trigger animation by toggling class */
+mapOuter.addEventListener('mouseenter',function(){
+  arrowPoly.style.animation='none';
+  arrowPoly.offsetHeight; /* reflow */
+  arrowPoly.style.animation='';
+  buildArrow();
+});
+
+/* POPUP */
+var backdrop=document.getElementById('popupBackdrop');
+var popupBox=document.getElementById('popupBox');
+var popupBadge=document.getElementById('popupBadge');
+var popupTitle=document.getElementById('popupTitle');
+var popupDesc=document.getElementById('popupDesc');
+var popupClose=document.getElementById('popupClose');
+var badgeClassMap={saas:'badge-saas',agent:'badge-agent',elite:'badge-elite'};
+
+function showPopup(el){
+  var state=el.dataset[currentPlan];if(state==='hidden')return;
+  var key='badge'+currentPlan.charAt(0).toUpperCase()+currentPlan.slice(1);
+  popupBadge.textContent=el.dataset[key]||'';
+  popupBadge.className='popup-plan-badge '+(badgeClassMap[currentPlan]||'badge-all');
+  popupTitle.textContent=el.dataset.label||'';
+  popupDesc.textContent=el.dataset.desc||'（説明は準備中です）';
+  var rect=el.getBoundingClientRect();var pw=280;var vw=window.innerWidth;var vh=window.innerHeight;
+  var left=rect.right+12;if(left+pw+8>vw)left=rect.left-pw-12;if(left<8)left=8;
+  var top=rect.top;if(top+200>vh)top=vh-210;if(top<8)top=8;
+  popupBox.style.left=left+'px';popupBox.style.top=top+'px';
+  backdrop.classList.add('show');
+}
+function hidePopup(){backdrop.classList.remove('show');}
+document.querySelectorAll('.fn:not([aria-hidden="true"])').forEach(function(fn){
+  fn.addEventListener('mouseenter',function(){showPopup(this);});
+  fn.addEventListener('mouseleave',hidePopup);
+});
+document.querySelectorAll('.spine-node').forEach(function(node){
+  node.addEventListener('mouseenter',function(){showPopup(this);});
+  node.addEventListener('mouseleave',hidePopup);
+});
+popupClose.addEventListener('click',hidePopup);
+
+/* PRICE POPUP */
+var ppData={
+  saas:{rows:[{grade:'ライト',qty:'100件・1ID',feature:'個人向け基本プラン',price:980},{grade:'アンリミテッド',qty:'無制限・1ID',feature:'件数上限なし',price:5800},{grade:'チームライト',qty:'無制限・5ID',feature:'複数スタッフ対応',price:20000},{grade:'チームスタンダード',qty:'無制限・15ID',feature:'中規模事務所向け',price:50000},{grade:'チームプレミアム',qty:'無制限・30ID',feature:'大規模事務所向け',price:100000}]},
+  agent:{rows:[{grade:'ライト',qty:'200件',feature:'超過¥20/件',price:30000},{grade:'スタンダード',qty:'500件',feature:'超過¥20/件',price:80000},{grade:'プレミアム',qty:'1,500件',feature:'超過¥20/件',price:150000}]},
+  elite:{rows:[{grade:'Elite',qty:'3,000件',feature:'超過¥20/件・対話モード付き',price:250000}]}
+};
+var ppCurrentTier='normal';
+var ppTierRates={normal:1,bronze:0.70,silver:0.65,gold:0.60};
+var ppTierLabels={normal:'金額',bronze:'Bronze価格',silver:'Silver価格',gold:'Gold価格'};
+var ppWrap=document.getElementById('pricePopupWrap');
+var ppPopup=document.getElementById('pricePopup');
+var ppTable=document.getElementById('ppTable');
+var ppHideTimer=null;
+var ppPlanColors={saas:'#185FA5',agent:'#1094B0',elite:'#7c3aed'};
+function fmtMoney(n){return '¥'+n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')+'/月';}
+function renderPricePopup(){
+  var data=ppData[currentPlan];var rate=ppTierRates[ppCurrentTier];var col4=ppTierLabels[ppCurrentTier];
+  var col2=currentPlan==='saas'?'件数/ID':'含む件数';
+  ppPopup.style.borderColor=ppPlanColors[currentPlan];
+  var h='<thead><tr><th>グレード</th><th>'+col2+'</th><th>主な特徴</th><th>'+col4+'</th></tr></thead><tbody>';
+  data.rows.forEach(function(r){h+='<tr><td>'+r.grade+'</td><td>'+r.qty+'</td><td>'+r.feature+'</td><td class="pp-price-col" style="color:'+ppPlanColors[currentPlan]+'">'+fmtMoney(Math.round(r.price*rate))+'</td></tr>';});
+  ppTable.innerHTML=h+'</tbody>';
+}
+document.querySelectorAll('.pp-tier-btn').forEach(function(btn){
+  btn.addEventListener('mouseenter',function(){
+    ppCurrentTier=this.dataset.tier;
+    document.querySelectorAll('.pp-tier-btn').forEach(function(b){b.classList.remove('active');});
+    this.classList.add('active');renderPricePopup();
+  });
+});
+function showPricePopup(){
+  if(ppHideTimer){clearTimeout(ppHideTimer);ppHideTimer=null;}
+  renderPricePopup();
+  var rect=planDescPrice.getBoundingClientRect();var pw=520;var vw=window.innerWidth;
+  var left=rect.right-pw;if(left<8)left=8;if(left+pw>vw-8)left=vw-pw-8;
+  ppWrap.style.left=left+'px';ppWrap.style.top=(rect.bottom+6)+'px';ppWrap.classList.add('show');
+}
+function hidePricePopup(){if(ppHideTimer){clearTimeout(ppHideTimer);ppHideTimer=null;}ppWrap.classList.remove('show');}
+planDescPrice.addEventListener('mouseenter',showPricePopup);
+planDescPrice.addEventListener('mouseleave',function(){ppHideTimer=setTimeout(hidePricePopup,120);});
+ppPopup.addEventListener('mouseenter',function(){if(ppHideTimer){clearTimeout(ppHideTimer);ppHideTimer=null;}});
+ppPopup.addEventListener('mouseleave',hidePricePopup);
+})();
+</script>
+</body>
+</html>
