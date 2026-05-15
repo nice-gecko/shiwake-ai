@@ -1216,9 +1216,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f0eee6;font-size:12px;min-height:37px;box-sizing:border-box;}
 .recon-row:last-child{border-bottom:none;}
 .recon-row.row-unmatched{background:#FFFBEB;}
-.recon-row-date{color:#999;white-space:nowrap;font-size:11px;width:50px;flex-shrink:0;}
-.recon-row-desc{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.recon-row-amt{white-space:nowrap;font-weight:600;flex-shrink:0;}
+.recon-row-date{color:#999;white-space:nowrap;font-size:11px;width:36px;flex-shrink:0;margin-right:6px;}
+.recon-row-desc{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:6px;}
+.recon-row-amt{white-space:nowrap;font-weight:600;flex-shrink:0;min-width:72px;text-align:right;}
 .recon-row-amt.credit{color:#16a34a;}
 .recon-row-amt.debit{color:#dc2626;}
 .recon-alias-btn{font-size:10px;padding:1px 6px;border-radius:5px;border:1px solid #f59e0b;color:#b45309;background:#fef3c7;cursor:pointer;flex-shrink:0;}
@@ -2900,16 +2900,16 @@ function updateFabBadge() {
     </div>
   </div>
 
-<!-- v2.7.0: エイリアス登録モーダル -->
+<!-- v2.7.0: 取引先登録モーダル -->
 <div class="recon-modal-overlay" id="modal-recon-alias" onclick="if(event.target===this)closeAliasModal()">
   <div class="recon-modal">
-    <h3>取引先エイリアスを登録</h3>
+    <h3>取引先登録</h3>
     <div class="recon-modal-row">
-      <label>通帳の表記（エイリアス）</label>
+      <label>通帳での表記</label>
       <input type="text" id="alias-input-alias" readonly>
     </div>
     <div class="recon-modal-row">
-      <label>正式名称（取引先マスタ）</label>
+      <label>正式な取引先名</label>
       <input type="text" id="alias-input-canonical" placeholder="例：株式会社ゴディバジャパン">
     </div>
     <div class="recon-modal-btns">
@@ -8972,11 +8972,11 @@ function _renderReconLeftCol(entries, aliases) {
     const norm    = (e.description||'').trim();
     const hasAlias= norm && aliasMap[norm];
     const aliasBtn= (!hasAlias && e.match_status !== 'matched' && e.match_status !== 'resolved')
-      ? `<button class="recon-alias-btn" data-alias="${escapeHtml(norm)}" onclick="openAliasModal(this.dataset.alias)">エイリアス登録</button>` : '';
+      ? `<button class="recon-alias-btn" data-alias="${escapeHtml(norm)}" onclick="openAliasModal(this.dataset.alias)">取引先登録</button>` : '';
     const rowCls  = e.match_status === 'unmatched' ? ' row-unmatched' : '';
     return `<div class="recon-row${rowCls}" data-id="${escapeHtml(e.id)}">` +
       `<span class="recon-status-icon ${icnCls}">${icon}</span>` +
-      `<span class="recon-row-date">${escapeHtml(e.entry_date)}</span>` +
+      `<span class="recon-row-date">${escapeHtml(e.entry_date.replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`))}</span>` +
       `<span class="recon-row-desc">${desc}</span>` +
       `<span class="recon-row-amt ${amtCls}">${amt}</span>` +
       `${aliasBtn}</div>`;
