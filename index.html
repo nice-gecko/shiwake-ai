@@ -235,6 +235,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sb-group-header:hover{background:#e0dfd8;}
 .sb-group-label{flex:1;font-size:10px;font-weight:700;color:#999;letter-spacing:0.06em;text-transform:uppercase;}
 .sb-group-chevron{font-size:9px;color:#bbb;transition:transform 0.2s;display:inline-block;line-height:1;}
+.sb-group-agg-badge{font-size:9px;background:#FEE2E2;color:#dc2626;font-weight:700;padding:1px 5px;border-radius:8px;line-height:1.4;flex-shrink:0;}
 .sb-group-header[aria-expanded="true"] .sb-group-chevron{transform:rotate(90deg);}
 .sb-group-body{overflow:hidden;max-height:0;transition:max-height 0.25s ease;}
 .sb-group-body.open{max-height:600px;}
@@ -1906,6 +1907,7 @@ function updateFabBadge() {
     <div class="sb-group" data-group="1">
       <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">1. 取り込む</span>
+        <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
       </button>
       <div class="sb-group-body">
@@ -1930,6 +1932,7 @@ function updateFabBadge() {
     <div class="sb-group" data-group="2">
       <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">2. 仕訳する</span>
+        <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
       </button>
       <div class="sb-group-body">
@@ -1978,6 +1981,7 @@ function updateFabBadge() {
     <div class="sb-group" data-group="3">
       <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">3. 出力する</span>
+        <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
       </button>
       <div class="sb-group-body">
@@ -1991,6 +1995,7 @@ function updateFabBadge() {
     <div class="sb-group" data-group="settings">
       <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">設定</span>
+        <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
       </button>
       <div class="sb-group-body">
@@ -3043,6 +3048,7 @@ function toggleSbGroup(btn) {
   const state = JSON.parse(localStorage.getItem('sb_group_state') || '{}');
   state[groupId] = !isOpen;
   localStorage.setItem('sb_group_state', JSON.stringify(state));
+  updateGroupBadges();
 }
 
 function initSbGroups() {
@@ -3056,6 +3062,29 @@ function initSbGroups() {
     const body = group.querySelector('.sb-group-body');
     if (btn) btn.setAttribute('aria-expanded', String(open));
     if (body) body.classList.toggle('open', open);
+  });
+  updateGroupBadges();
+}
+
+function updateGroupBadges() {
+  const BADGE_SELS = ['.unassigned-sidebar-badge', '.reverted-sidebar-badge', '.sidebar-anomaly-badge'];
+  document.querySelectorAll('.sb-group').forEach(group => {
+    const btn = group.querySelector('.sb-group-header');
+    const aggBadge = btn && btn.querySelector('.sb-group-agg-badge');
+    if (!aggBadge) return;
+    if (btn.getAttribute('aria-expanded') === 'true') { aggBadge.style.display = 'none'; return; }
+    let total = 0;
+    BADGE_SELS.forEach(sel => {
+      group.querySelectorAll('.sb-group-body ' + sel).forEach(badge => {
+        if (badge.style.display === 'none') return;
+        const item = badge.closest('.sidebar-nav-item');
+        if (item && item.style.display === 'none') return;
+        const m = badge.textContent.trim().match(/\d+/);
+        if (m) total += parseInt(m[0]);
+      });
+    });
+    if (total > 0) { aggBadge.textContent = total; aggBadge.style.display = ''; }
+    else { aggBadge.style.display = 'none'; }
   });
 }
 
@@ -3899,6 +3928,7 @@ function _updateLearnedRuleAnomalyBadge(rules){
   const n=(rules||[]).filter(r=>r.anomaly_flag&&r.is_active!==false).length;
   if(n>0){badge.textContent='異常 '+n;badge.style.display='';}
   else{badge.style.display='none';}
+  updateGroupBadges();
 }
 
 async function updateLearnedRuleAnomalyBadge(){
@@ -5051,6 +5081,7 @@ function _updateRevertedSidebarBadge(count){
   if(!badge) return;
   if(count>0){ badge.textContent=count; badge.style.display=''; }
   else { badge.style.display='none'; }
+  updateGroupBadges();
 }
 
 function openRaModal(recordId, partnerName, amount, debit, credit, tax, memo){
@@ -6933,6 +6964,7 @@ function _updateUnassignedSidebarBadge(count) {
   } else {
     badge.style.display = 'none';
   }
+  updateGroupBadges();
 }
 
 function startUnassignedTrayPolling() {
