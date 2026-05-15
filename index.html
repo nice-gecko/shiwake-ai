@@ -1194,6 +1194,60 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .unlock-toggle:hover{opacity:0.85;}
 .unlock-toggle-thumb{position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:transform 0.2s;left:2px;pointer-events:none;}
 .unlock-toggle.on .unlock-toggle-thumb{transform:translateX(18px);}
+/* ===== v2.7.0: 突合ダッシュボード ===== */
+.recon-header{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.recon-source-wrap{display:flex;align-items:center;gap:6px;flex:1;min-width:0;}
+.recon-source-select{padding:6px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;background:#fff;cursor:pointer;max-width:240px;}
+.recon-period-badge{font-size:11px;background:#EBF4FD;color:#185FA5;font-weight:600;padding:2px 8px;border-radius:8px;white-space:nowrap;}
+.btn-recon-upload{padding:6px 14px;border-radius:7px;border:none;background:#185FA5;color:#fff;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;}
+.btn-recon-upload:hover{background:#144e8c;}
+.btn-recon-upload:disabled{background:#b0c4d8;cursor:not-allowed;}
+.recon-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+@media(max-width:600px){.recon-summary{grid-template-columns:repeat(2,1fr);}}
+.recon-stat-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+.recon-stat-label{font-size:10px;color:#999;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:4px;}
+.recon-stat-value{font-size:22px;font-weight:700;color:#1a1a1a;line-height:1;}
+.recon-stat-value.green{color:#16a34a;}
+.recon-stat-value.red{color:#dc2626;}
+.recon-tabs{display:flex;gap:2px;margin-bottom:10px;border-bottom:2px solid #e0dfd8;}
+.recon-tab{padding:6px 14px;font-size:12px;font-weight:500;color:#888;border:none;background:none;cursor:pointer;border-radius:6px 6px 0 0;transition:all 0.15s;}
+.recon-tab:hover{background:#f4f2ec;color:#1a1a1a;}
+.recon-tab.active{color:#185FA5;background:#EBF4FD;font-weight:600;}
+.recon-table-wrap{overflow-x:auto;}
+.recon-table{width:100%;border-collapse:collapse;font-size:12px;}
+.recon-table th{text-align:left;padding:6px 8px;background:#f4f2ec;color:#555;font-weight:500;font-size:11px;border-bottom:1px solid #e0dfd8;}
+.recon-table td{padding:7px 8px;border-bottom:1px solid #f0eee6;vertical-align:middle;}
+.recon-table tr:last-child td{border-bottom:none;}
+.recon-table tr.row-unmatched{background:#FFFBEB;}
+.recon-table tr.row-candidate{background:#EFF6FF;}
+.recon-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;white-space:nowrap;}
+.recon-badge.matched{background:#DCFCE7;color:#15803d;}
+.recon-badge.candidate{background:#DBEAFE;color:#1d4ed8;}
+.recon-badge.unmatched{background:#FEF9C3;color:#854d0e;}
+.recon-badge.resolved{background:#EDE9FE;color:#5b21b6;}
+.recon-action-btn{font-size:11px;padding:2px 8px;border-radius:5px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#555;}
+.recon-action-btn:hover{background:#f4f2ec;}
+.recon-footer{margin-top:14px;padding:10px 14px;background:#f4f2ec;border-radius:8px;display:flex;gap:20px;font-size:12px;flex-wrap:wrap;}
+.recon-footer-item{display:flex;flex-direction:column;gap:2px;}
+.recon-footer-label{font-size:10px;color:#999;font-weight:600;}
+.recon-footer-value{font-size:14px;font-weight:700;color:#1a1a1a;}
+.recon-footer-value.diff-nonzero{color:#dc2626;}
+.recon-empty{text-align:center;color:#bbb;padding:32px;font-size:13px;}
+.recon-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;}
+.recon-modal-overlay.show{display:flex;}
+.recon-modal{background:#fff;border-radius:12px;padding:20px 22px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
+.recon-modal h3{font-size:15px;font-weight:700;margin:0 0 14px;}
+.recon-modal-row{margin-bottom:10px;}
+.recon-modal-row label{display:block;font-size:12px;color:#666;margin-bottom:4px;}
+.recon-modal-row input,.recon-modal-row select{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;box-sizing:border-box;}
+.recon-modal-row-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.recon-modal-row-2col label{display:block;font-size:12px;color:#666;margin-bottom:4px;}
+.recon-modal-row-2col input{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;box-sizing:border-box;}
+.recon-modal-btns{display:flex;gap:8px;margin-top:14px;}
+.btn-recon-modal-cancel{flex:1;padding:8px;border-radius:7px;border:1px solid #ddd;background:#fff;font-size:13px;cursor:pointer;color:#555;}
+.btn-recon-modal-ok{flex:2;padding:8px;border-radius:7px;border:none;background:#185FA5;color:#fff;font-size:13px;font-weight:500;cursor:pointer;}
+.btn-recon-modal-ok:hover{background:#144e8c;}
+.btn-recon-modal-ok:disabled{background:#b0c4d8;cursor:not-allowed;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -2786,9 +2840,73 @@ function updateFabBadge() {
 
   <!-- v2.7.0: 突合ダッシュボード -->
   <div class="panel" id="panel-reconciliation">
-    <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px;">突合（照合）</h2>
-    <p style="font-size:13px;color:#888;margin:0;">銀行明細・カード明細・請求書と仕訳データを自動照合します。</p>
+    <!-- ヘッダー行 -->
+    <div class="recon-header">
+      <div class="recon-source-wrap">
+        <select id="recon-source-select" class="recon-source-select" onchange="onReconSourceChange()">
+          <option value="">-- ソースを選択 --</option>
+        </select>
+        <span id="recon-period-badge" class="recon-period-badge" style="display:none;"></span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-recon-upload" id="btn-recon-match" onclick="runReconMatch()" style="display:none;background:#1D9E75;">照合実行</button>
+        <button class="btn-recon-upload" id="btn-recon-upload" onclick="openReconUploadModal()">CSV取り込み</button>
+      </div>
+    </div>
+    <!-- サマリーカード -->
+    <div class="recon-summary" id="recon-summary">
+      <div class="recon-stat-card"><div class="recon-stat-label">明細件数</div><div class="recon-stat-value" id="recon-total">—</div></div>
+      <div class="recon-stat-card"><div class="recon-stat-label">照合済み</div><div class="recon-stat-value green" id="recon-matched">—</div></div>
+      <div class="recon-stat-card"><div class="recon-stat-label">要確認</div><div class="recon-stat-value red" id="recon-unmatched">—</div></div>
+      <div class="recon-stat-card"><div class="recon-stat-label">照合率</div><div class="recon-stat-value" id="recon-rate">—</div></div>
+    </div>
+    <!-- タブ -->
+    <div class="recon-tabs" id="recon-tabs">
+      <button class="recon-tab active" onclick="switchReconTab('all')">すべて</button>
+      <button class="recon-tab" onclick="switchReconTab('unmatched')">要確認</button>
+      <button class="recon-tab" onclick="switchReconTab('matched')">一致済み</button>
+    </div>
+    <!-- テーブル -->
+    <div class="recon-table-wrap">
+      <table class="recon-table" id="recon-table">
+        <thead><tr>
+          <th>日付</th><th>摘要</th><th>金額</th><th>状態</th><th>照合先証憑</th><th></th>
+        </tr></thead>
+        <tbody id="recon-tbody"><tr><td colspan="6" class="recon-empty">ソースを選択してください</td></tr></tbody>
+      </table>
+    </div>
+    <!-- フッター -->
+    <div class="recon-footer" id="recon-footer" style="display:none;">
+      <div class="recon-footer-item"><span class="recon-footer-label">入金合計</span><span class="recon-footer-value" id="recon-bank-balance">—</span></div>
+      <div class="recon-footer-item"><span class="recon-footer-label">出金合計</span><span class="recon-footer-value" id="recon-book-balance">—</span></div>
+      <div class="recon-footer-item"><span class="recon-footer-label">差引</span><span class="recon-footer-value" id="recon-diff">—</span></div>
+    </div>
   </div>
+
+<!-- v2.7.0: 突合CSVアップロードモーダル -->
+<div class="recon-modal-overlay" id="modal-recon-upload" onclick="if(event.target===this)closeReconUploadModal()">
+  <div class="recon-modal">
+    <h3>CSV取り込み</h3>
+    <div class="recon-modal-row"><label>ファイル（CSV）</label><input type="file" id="recon-csv-file" accept=".csv,text/csv"></div>
+    <div class="recon-modal-row"><label>ソース種別</label>
+      <select id="recon-source-type">
+        <option value="bank">銀行明細</option>
+        <option value="card">カード明細</option>
+        <option value="invoice">請求書</option>
+      </select>
+    </div>
+    <div class="recon-modal-row"><label>金融機関名（任意）</label><input type="text" id="recon-institution" placeholder="例：三井住友銀行"></div>
+    <div class="recon-modal-row"><label>口座情報（任意）</label><input type="text" id="recon-account-info" placeholder="例：普通 1234567"></div>
+    <div class="recon-modal-row-2col">
+      <div><label>年</label><input type="number" id="recon-period-year" placeholder="2026"></div>
+      <div><label>月</label><input type="number" id="recon-period-month" placeholder="5" min="1" max="12"></div>
+    </div>
+    <div class="recon-modal-btns">
+      <button class="btn-recon-modal-cancel" onclick="closeReconUploadModal()">キャンセル</button>
+      <button class="btn-recon-modal-ok" id="btn-recon-upload-submit" onclick="submitReconUpload()">アップロード</button>
+    </div>
+  </div>
+</div>
 
 <!-- スキャン編集モーダル -->
 <div class="scan-modal-overlay" id="scanModalOverlay">
@@ -8683,6 +8801,208 @@ window.switchTab = function(tab) {
     document.getElementById('navUnlockFeatures')?.classList.add('active');
     loadUnlockFeatures();
   }
+};
+
+// ===== v2.7.0: 突合ダッシュボード =====
+let _reconEntries = [];
+let _reconFilter = 'all';
+
+async function loadReconciliation() {
+  const uid = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  if (!uid || !wsId) {
+    document.getElementById('recon-tbody').innerHTML = '<tr><td colspan="6" class="recon-empty">ワークスペースを選択してください</td></tr>';
+    return;
+  }
+  try {
+    const r = await fetch(`/api/reconciliation/sources?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}`);
+    const sources = await r.json();
+    _buildReconSourceDropdown(sources);
+    const sel = document.getElementById('recon-source-select');
+    if (sel.value) {
+      await _loadReconSource(sel.value);
+    } else {
+      document.getElementById('recon-tbody').innerHTML = '<tr><td colspan="6" class="recon-empty">CSV取り込みでソースを追加してください</td></tr>';
+    }
+  } catch(e) { console.warn('loadReconciliation error:', e); }
+}
+
+function _buildReconSourceDropdown(sources) {
+  const sel = document.getElementById('recon-source-select');
+  const prevVal = sel.value;
+  sel.innerHTML = '<option value="">-- ソースを選択 --</option>';
+  (sources || []).forEach(s => {
+    const period = (s.period_year && s.period_month) ? `${s.period_year}/${s.period_month}` : null;
+    const label = [s.institution_name, period].filter(Boolean).join(' ') || s.source_type;
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+  if (prevVal && sel.querySelector(`option[value="${CSS.escape(prevVal)}"]`)) {
+    sel.value = prevVal;
+  } else if (sources && sources.length > 0) {
+    sel.value = sources[0].id;
+  }
+}
+
+async function onReconSourceChange() {
+  const sourceId = document.getElementById('recon-source-select').value;
+  if (sourceId) await _loadReconSource(sourceId);
+}
+
+async function _loadReconSource(sourceId) {
+  const uid = window._firebaseUser?.uid;
+  document.getElementById('recon-tbody').innerHTML = '<tr><td colspan="6" class="recon-empty">読み込み中...</td></tr>';
+  const sel = document.getElementById('recon-source-select');
+  const opt = sel.querySelector(`option[value="${CSS.escape(sourceId)}"]`);
+  const badge = document.getElementById('recon-period-badge');
+  if (opt) { badge.textContent = opt.textContent; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
+  document.getElementById('btn-recon-match').style.display = '';
+  window._reconCurrentSourceId = sourceId;
+  try {
+    const [er, sr] = await Promise.all([
+      fetch(`/api/reconciliation/entries/${encodeURIComponent(sourceId)}?uid=${encodeURIComponent(uid)}`),
+      fetch(`/api/reconciliation/summary/${encodeURIComponent(sourceId)}?uid=${encodeURIComponent(uid)}`)
+    ]);
+    _reconEntries = await er.json();
+    _renderReconSummary(await sr.json());
+    _renderReconTable(_reconEntries, _reconFilter);
+    _renderReconFooter(_reconEntries);
+  } catch(e) {
+    console.warn('_loadReconSource error:', e);
+    document.getElementById('recon-tbody').innerHTML = '<tr><td colspan="6" class="recon-empty">読み込みに失敗しました</td></tr>';
+  }
+}
+
+function _renderReconSummary(s) {
+  document.getElementById('recon-total').textContent    = s.total_entries ?? '—';
+  document.getElementById('recon-matched').textContent  = ((s.matched_count||0) + (s.resolved_count||0));
+  document.getElementById('recon-unmatched').textContent= ((s.unmatched_count||0) + (s.candidate_count||0));
+  document.getElementById('recon-rate').textContent     = s.reconciliation_rate != null ? s.reconciliation_rate + '%' : '—';
+}
+
+function _renderReconTable(entries, filter) {
+  const tbody = document.getElementById('recon-tbody');
+  let rows = entries || [];
+  if (filter === 'unmatched') rows = rows.filter(r => r.match_status === 'unmatched' || r.match_status === 'candidate');
+  if (filter === 'matched')   rows = rows.filter(r => r.match_status === 'matched'   || r.match_status === 'resolved');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="recon-empty">表示する明細がありません</td></tr>'; return; }
+  const BADGE_CLS = { matched:'matched', candidate:'candidate', unmatched:'unmatched', resolved:'resolved' };
+  const BADGE_LBL = { matched:'一致', candidate:'候補あり', unmatched:'未照合', resolved:'解決済み' };
+  const ROW_CLS   = { unmatched:'row-unmatched', candidate:'row-candidate' };
+  tbody.innerHTML = rows.map(e => {
+    const amt  = `¥${Number(e.amount).toLocaleString()}`;
+    const dir  = e.direction === 'credit' ? '<span style="color:#16a34a;font-size:10px;">入金</span>' : '<span style="color:#dc2626;font-size:10px;">出金</span>';
+    const badge= `<span class="recon-badge ${BADGE_CLS[e.match_status]||'unmatched'}">${BADGE_LBL[e.match_status]||'未照合'}</span>`;
+    const rowCls = ROW_CLS[e.match_status] ? ` class="${ROW_CLS[e.match_status]}"` : '';
+    const proof  = e.matched_record_id ? '<span style="font-size:11px;color:#555;">証憑あり</span>' : '<span style="color:#ccc;font-size:11px;">—</span>';
+    const actBtn = (e.match_status === 'unmatched' || e.match_status === 'candidate')
+      ? `<button class="recon-action-btn" onclick="resolveReconEntry('${escapeHtml(e.id)}')">解決</button>` : '';
+    return `<tr${rowCls}><td style="white-space:nowrap;">${escapeHtml(e.entry_date)}</td><td>${escapeHtml(e.description||'—')}</td><td style="white-space:nowrap;">${amt} ${dir}</td><td>${badge}</td><td>${proof}</td><td>${actBtn}</td></tr>`;
+  }).join('');
+}
+
+function _renderReconFooter(entries) {
+  const rows = entries || [];
+  const creditTotal = rows.filter(r=>r.direction==='credit').reduce((s,r)=>s+Number(r.amount),0);
+  const debitTotal  = rows.filter(r=>r.direction==='debit' ).reduce((s,r)=>s+Number(r.amount),0);
+  const diff = creditTotal - debitTotal;
+  document.getElementById('recon-bank-balance').textContent = `¥${creditTotal.toLocaleString()}`;
+  document.getElementById('recon-book-balance').textContent = `¥${debitTotal.toLocaleString()}`;
+  const diffEl = document.getElementById('recon-diff');
+  diffEl.textContent = (diff >= 0 ? '+' : '') + `¥${diff.toLocaleString()}`;
+  diffEl.className = 'recon-footer-value' + (diff !== 0 ? ' diff-nonzero' : '');
+  document.getElementById('recon-footer').style.display = rows.length > 0 ? '' : 'none';
+}
+
+function switchReconTab(filter) {
+  _reconFilter = filter;
+  document.querySelectorAll('.recon-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick') === `switchReconTab('${filter}')`);
+  });
+  _renderReconTable(_reconEntries, filter);
+}
+
+function openReconUploadModal() {
+  document.getElementById('modal-recon-upload').classList.add('show');
+  document.getElementById('recon-csv-file').value = '';
+  document.getElementById('btn-recon-upload-submit').disabled = false;
+  document.getElementById('btn-recon-upload-submit').textContent = 'アップロード';
+  const now = new Date();
+  document.getElementById('recon-period-year').value  = now.getFullYear();
+  document.getElementById('recon-period-month').value = now.getMonth() + 1;
+}
+function closeReconUploadModal() {
+  document.getElementById('modal-recon-upload').classList.remove('show');
+}
+
+async function submitReconUpload() {
+  const uid  = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  if (!uid || !wsId) { showToast('ワークスペースを選択してください'); return; }
+  const fileInput = document.getElementById('recon-csv-file');
+  if (!fileInput.files[0]) { showToast('CSVファイルを選択してください'); return; }
+  const btn = document.getElementById('btn-recon-upload-submit');
+  btn.disabled = true; btn.textContent = 'アップロード中...';
+  const fd = new FormData();
+  fd.append('uid', uid);
+  fd.append('workspace_id', wsId);
+  fd.append('source_type',      document.getElementById('recon-source-type').value);
+  fd.append('institution_name', document.getElementById('recon-institution').value);
+  fd.append('account_info',     document.getElementById('recon-account-info').value);
+  fd.append('period_year',      document.getElementById('recon-period-year').value);
+  fd.append('period_month',     document.getElementById('recon-period-month').value);
+  fd.append('format_type', 'generic');
+  fd.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch('/api/reconciliation/upload-csv', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { showToast('エラー: ' + (d.error||'不明')); return; }
+    closeReconUploadModal();
+    showToast(`✓ ${d.total_entries}件の明細を取り込みました`);
+    await loadReconciliation();
+    if (d.source_id) await runReconMatch(d.source_id);
+  } catch(e) {
+    showToast('通信エラーが発生しました');
+  } finally {
+    btn.disabled = false; btn.textContent = 'アップロード';
+  }
+}
+
+async function runReconMatch(sourceId) {
+  const uid  = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  const sid  = sourceId || window._reconCurrentSourceId;
+  if (!uid || !wsId || !sid) return;
+  const btn = document.getElementById('btn-recon-match');
+  if (btn) { btn.textContent = '照合中...'; btn.disabled = true; }
+  try {
+    const r = await fetch('/api/reconciliation/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, source_id: sid, workspace_id: wsId })
+    });
+    const d = await r.json();
+    showToast(`照合完了: 一致 ${d.matched}件 / 候補 ${d.candidate}件 / 未照合 ${d.unmatched}件`, 3000);
+    await _loadReconSource(sid);
+  } catch(e) {
+    showToast('照合に失敗しました');
+  } finally {
+    if (btn) { btn.textContent = '照合実行'; btn.disabled = false; }
+  }
+}
+
+function resolveReconEntry(id) {
+  showToast('解決機能は次のフェーズで実装予定です', 2000);
+}
+
+// v2.7.0: 突合タブ切替ハンドラ
+const _origSwitchTab_v270 = window.switchTab;
+window.switchTab = function(tab) {
+  if (typeof _origSwitchTab_v270 === 'function') _origSwitchTab_v270(tab);
+  if (tab === 'reconciliation') loadReconciliation();
 };
 </script>
 
