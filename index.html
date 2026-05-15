@@ -3052,7 +3052,7 @@ function toggleSbGroup(btn) {
 }
 
 function initSbGroups() {
-  const defaults = { '1': false, '2': true, '3': false, 'settings': false };
+  const defaults = { '1': true, '2': true, '3': true, 'settings': false };
   const saved = JSON.parse(localStorage.getItem('sb_group_state') || '{}');
   const state = Object.assign({}, defaults, saved);
   document.querySelectorAll('.sb-group').forEach(group => {
