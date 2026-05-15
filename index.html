@@ -142,6 +142,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ae-hist-dropdown{position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.12);padding:4px 0;min-width:144px;}
 .ae-hist-dropdown-item{display:block;width:100%;padding:7px 14px;font-size:12px;text-align:left;border:none;background:none;cursor:pointer;color:#333;white-space:nowrap;}
 .ae-hist-dropdown-item:hover{background:#f5f5f5;}
+.ae-hist-toggle{display:block;width:100%;text-align:center;font-size:12px;color:#185FA5;cursor:pointer;padding:6px 0;border:none;background:none;}
+.ae-hist-toggle:hover{text-decoration:underline;}
 /* WS使用状況バー */
 .ws-usage-bar-wrap{margin-bottom:16px;padding:12px 14px;background:#faf9f6;border:1px solid #e8e7e0;border-radius:10px;}
 .ws-usage-bar-label{font-size:12px;color:#555;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;}
@@ -7719,6 +7721,21 @@ async function loadAeHistory(wsId, uid) {
       return `<tr><td>${dateStr}</td><td>${count}</td><td>${destStr}</td><td>${splitStr}</td><td>${dlBtn}</td></tr>`;
     }).join('');
     el.innerHTML = `<table class="ae-hist-table"><thead><tr><th>日時</th><th>件数</th><th>出力先</th><th>分割</th><th>DL</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    const SHOW = 3;
+    if (rows.length > SHOW) {
+      const trs = el.querySelectorAll('tbody tr');
+      trs.forEach((tr, i) => { if (i >= SHOW) tr.style.display = 'none'; });
+      const toggle = document.createElement('button');
+      toggle.className = 'ae-hist-toggle';
+      toggle.textContent = `もっと見る（残り${rows.length - SHOW}件）`;
+      let expanded = false;
+      toggle.addEventListener('click', () => {
+        expanded = !expanded;
+        trs.forEach((tr, i) => { if (i >= SHOW) tr.style.display = expanded ? '' : 'none'; });
+        toggle.textContent = expanded ? '閉じる' : `もっと見る（残り${rows.length - SHOW}件）`;
+      });
+      el.appendChild(toggle);
+    }
   } catch(e) {
     if (el) el.innerHTML = '<div style="color:#e55;font-size:12px;">履歴の読み込みに失敗しました</div>';
   }
