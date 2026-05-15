@@ -65,6 +65,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 .lv3{background:#1876a8;}.lv3:hover{box-shadow:0 6px 20px rgba(24,118,168,0.35);}
 .lv4{background:#185FA5;}.lv4:hover{box-shadow:0 6px 20px rgba(24,95,165,0.35);}
 .lv5{background:#1a4e96;}.lv5:hover{box-shadow:0 6px 20px rgba(26,78,150,0.35);}
+.lv5b{background:#1a3d80;}.lv5b:hover{box-shadow:0 6px 20px rgba(26,61,128,0.35);}
 .lv6{background:linear-gradient(135deg,#7c3aed 0%,#4f56d9 100%);}.lv6:hover{box-shadow:0 6px 20px rgba(124,58,237,0.4);}
 .spine-node.dimmed{background:repeating-linear-gradient(-45deg,#ebebea,#ebebea 4px,#dddcd6 4px,#dddcd6 8px) !important;cursor:default;}
 .spine-node.dimmed:hover{transform:none;box-shadow:none;}
@@ -292,6 +293,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
               <div class="spine-node-label">仕訳データを自動エクスポート</div>
               <div class="spine-node-sub">会計ソフト向けCSVをスケジュール出力</div>
               <div class="spine-node-plan-tag">Agent / Elite</div>
+            </button>
+          </div>
+          <div class="map-right"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
+        </div>
+        <div class="spine-join" aria-hidden="true"><div class="spine-join-empty"></div><div class="spine-join-line"><div class="join-line-inner"></div></div><div class="spine-join-empty"></div></div>
+        <!-- ROW 5b: 突合（照合） -->
+        <div class="map-row">
+          <div class="map-left">
+            <div class="fn" data-key="bank-formats" data-saas="active" data-agent="active" data-elite="active" data-label="銀行・カードCSV対応" data-badge-saas="全プラン共通" data-badge-agent="全プラン共通" data-badge-elite="全プラン共通" data-desc="主要銀行・カード会社のCSVフォーマットをプリインストール。取引先マスタにエイリアスを蓄積し、照合精度が使うほど向上します。" role="button" tabindex="0">
+              <div class="fn-inner"><div class="fn-label">銀行・カードCSV対応</div><div class="fn-hint">主要行フォーマットをプリインストール</div></div>
+            </div>
+          </div>
+          <div class="map-center-col">
+            <button class="spine-node lv5b" data-key="reconciliation" data-saas="active" data-agent="active" data-elite="active" data-label="突合（照合）" data-badge-saas="全プラン共通" data-badge-agent="全プラン共通" data-badge-elite="全プラン共通" data-desc="銀行明細・カード明細・請求書と仕訳データを自動照合。重複・欠落・未払いを検知し、帳簿の正確性を検証します。通帳を軸にした照合ビューで、差額がゼロになるまで追跡できます。">
+              <div class="spine-node-label">突合（照合）</div>
+              <div class="spine-node-sub">銀行・カード・請求書と仕訳を自動照合</div>
+              <div class="spine-node-plan-tag">全プラン共通</div>
             </button>
           </div>
           <div class="map-right"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
