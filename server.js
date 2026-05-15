@@ -5110,6 +5110,68 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.7.0: 突合機能 Phase C（エイリアス管理） =====
+
+  // POST /api/partner-aliases → エイリアス登録
+  if (req.method === 'POST' && reqPath === '/api/partner-aliases') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, canonical_name, alias, source } = JSON.parse(body);
+        if (!uid || !workspace_id || !canonical_name || !alias) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, canonical_name, alias required' })); return;
+        }
+        const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+        if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+        const created = await supabaseQuery('/partner_aliases', 'POST', {
+          workspace_id, canonical_name, alias, source: source || 'manual',
+        }, { 'Prefer': 'return=representation' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(created?.[0] || {}));
+      } catch(e) {
+        if (e.message.includes('23505')) {
+          res.writeHead(409); res.end(JSON.stringify({ error: 'alias already exists in this workspace' })); return;
+        }
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/partner-aliases?uid=xxx&workspace_id=yyy → エイリアス一覧
+  if (req.method === 'GET' && reqPath === '/api/partner-aliases') {
+    const _p = new URL(req.url, 'http://localhost').searchParams;
+    const uid = _p.get('uid');
+    const workspace_id = _p.get('workspace_id');
+    if (!uid || !workspace_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and workspace_id required' })); return; }
+    try {
+      const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+      const aliases = await supabaseQuery(`/partner_aliases?workspace_id=eq.${workspace_id}&select=*&order=canonical_name.asc`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(aliases || []));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // DELETE /api/partner-aliases/:id → エイリアス削除
+  if (req.method === 'DELETE' && /^\/api\/partner-aliases\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
+    const aliasId = reqPath.slice('/api/partner-aliases/'.length);
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const rows = await supabaseQuery(`/partner_aliases?id=eq.${aliasId}&select=id,workspace_id`);
+      if (!rows || rows.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'alias not found' })); return; }
+      const ws = await supabaseQuery(`/workspaces?id=eq.${rows[0].workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+      await supabaseQuery(`/partner_aliases?id=eq.${aliasId}`, 'DELETE');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
   // ===== v2.7.0: 突合機能 Phase A（基本CRUD） =====
 
   // POST /api/reconciliation/sources → 照合用ファイルのメタデータ登録
