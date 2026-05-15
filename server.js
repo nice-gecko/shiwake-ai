@@ -4879,6 +4879,95 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.7.0: 突合機能 Phase A（基本CRUD） =====
+
+  // POST /api/reconciliation/sources → 照合用ファイルのメタデータ登録
+  if (req.method === 'POST' && reqPath === '/api/reconciliation/sources') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, workspace_id, source_type, institution_name, account_info, period_year, period_month } = JSON.parse(body);
+        if (!uid || !workspace_id || !source_type) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, source_type required' })); return;
+        }
+        const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+        if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
+        const created = await supabaseQuery('/reconciliation_sources', 'POST', {
+          workspace_id, source_type,
+          institution_name: institution_name || null,
+          account_info: account_info || null,
+          period_year: period_year || null,
+          period_month: period_month || null,
+        }, { 'Prefer': 'return=representation' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(created?.[0] || {}));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/reconciliation/sources?uid=xxx&workspace_id=yyy → ソース一覧
+  if (req.method === 'GET' && reqPath === '/api/reconciliation/sources') {
+    const _p = new URL(req.url, 'http://localhost').searchParams;
+    const uid = _p.get('uid');
+    const workspace_id = _p.get('workspace_id');
+    if (!uid || !workspace_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and workspace_id required' })); return; }
+    try {
+      const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'workspace not found or access denied' })); return; }
+      const sources = await supabaseQuery(`/reconciliation_sources?workspace_id=eq.${workspace_id}&select=*&order=created_at.desc`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(sources || []));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // GET /api/reconciliation/entries/:sourceId?uid=xxx[&status=unmatched] → 明細一覧
+  if (req.method === 'GET' && /^\/api\/reconciliation\/entries\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
+    const sourceId = reqPath.slice('/api/reconciliation/entries/'.length);
+    const _p = new URL(req.url, 'http://localhost').searchParams;
+    const uid = _p.get('uid');
+    const status = _p.get('status');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      // ソースの所有確認
+      const src = await supabaseQuery(`/reconciliation_sources?id=eq.${sourceId}&select=id,workspace_id`);
+      if (!src || src.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'source not found' })); return; }
+      const ws = await supabaseQuery(`/workspaces?id=eq.${src[0].workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+      const statusFilter = status ? `&match_status=eq.${encodeURIComponent(status)}` : '';
+      const entries = await supabaseQuery(`/reconciliation_entries?source_id=eq.${sourceId}${statusFilter}&select=*&order=entry_date.asc`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(entries || []));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // GET /api/reconciliation/summary/:sourceId?uid=xxx → 照合統計
+  if (req.method === 'GET' && /^\/api\/reconciliation\/summary\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
+    const sourceId = reqPath.slice('/api/reconciliation/summary/'.length);
+    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const src = await supabaseQuery(`/reconciliation_sources?id=eq.${sourceId}&select=id,workspace_id,total_entries`);
+      if (!src || src.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'source not found' })); return; }
+      const ws = await supabaseQuery(`/workspaces?id=eq.${src[0].workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+      const entries = await supabaseQuery(`/reconciliation_entries?source_id=eq.${sourceId}&select=match_status`);
+      const rows = entries || [];
+      const total = rows.length;
+      const matched   = rows.filter(r => r.match_status === 'matched').length;
+      const candidate = rows.filter(r => r.match_status === 'candidate').length;
+      const unmatched = rows.filter(r => r.match_status === 'unmatched').length;
+      const resolved  = rows.filter(r => r.match_status === 'resolved').length;
+      const reconciliation_rate = total > 0 ? Math.round((matched + resolved) / total * 100) : 0;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ total_entries: total, matched_count: matched, candidate_count: candidate, unmatched_count: unmatched, resolved_count: resolved, reconciliation_rate }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
   res.writeHead(404); res.end();
 });
 
