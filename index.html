@@ -2686,8 +2686,9 @@ function updateFabBadge() {
         <h4 style="margin-top:0;">📧 専用メールアドレス</h4>
         <div class="email-display">
           <code id="userInboxEmail">未発行</code>
-          <button class="btn-copy" onclick="copyInboxEmail()">コピー</button>
-          <button class="btn-reissue" onclick="reissueInboxEmail()">再発行</button>
+          <button class="btn-connect" id="btn-inbox-issue" onclick="issueInboxEmail()">発行する</button>
+          <button class="btn-copy" id="btn-inbox-copy" onclick="copyInboxEmail()" hidden>コピー</button>
+          <button class="btn-reissue" id="btn-inbox-reissue" onclick="reissueInboxEmail()" hidden>再発行</button>
         </div>
         <p class="setting-hint">このアドレスに領収書PDF/画像を添付して送信すると、自動でトレイに追加されます。</p>
       </div>
@@ -6568,21 +6569,54 @@ async function updateIntakeSetting(key, value) {
   } catch(e) { showToast('設定の保存に失敗しました'); console.error(e); }
 }
 
+function _updateInboxEmailUI(address) {
+  const emailEl    = document.getElementById('userInboxEmail');
+  const issueBtn   = document.getElementById('btn-inbox-issue');
+  const copyBtn    = document.getElementById('btn-inbox-copy');
+  const reissueBtn = document.getElementById('btn-inbox-reissue');
+  if (address) {
+    if (emailEl)    emailEl.textContent = address;
+    if (issueBtn)   issueBtn.hidden   = true;
+    if (copyBtn)    copyBtn.hidden    = false;
+    if (reissueBtn) reissueBtn.hidden = false;
+  } else {
+    if (emailEl)    emailEl.textContent = '未発行';
+    if (issueBtn)   issueBtn.hidden   = false;
+    if (copyBtn)    copyBtn.hidden    = true;
+    if (reissueBtn) reissueBtn.hidden = true;
+  }
+}
+
 async function loadInboxAddress() {
   const uid = window._firebaseUser?.uid;
   if (!uid) return;
-  const emailEl = document.getElementById('userInboxEmail');
   try {
     const r = await fetch(await withWsId('/api/inbox/address?uid=' + uid));
     const d = await r.json();
-    if (emailEl) emailEl.textContent = d.address || '未発行（下のボタンで発行）';
-  } catch(e) { if (emailEl) emailEl.textContent = '取得に失敗'; }
+    _updateInboxEmailUI(d.address);
+  } catch(e) {
+    const emailEl = document.getElementById('userInboxEmail');
+    if (emailEl) emailEl.textContent = '取得に失敗';
+  }
 }
 
 function copyInboxEmail() {
   const email = document.getElementById('userInboxEmail')?.textContent || '';
   if (!email || email.includes('未発行')) return;
   navigator.clipboard.writeText(email).then(() => showToast('コピーしました')).catch(() => showToast('コピーに失敗'));
+}
+
+async function issueInboxEmail() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const r = await fetch('/api/inbox/address/issue', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid })
+    });
+    const d = await r.json();
+    if (d.address) { _updateInboxEmailUI(d.address); showToast('メールアドレスを発行しました'); }
+  } catch(e) { showToast('発行に失敗しました'); }
 }
 
 async function reissueInboxEmail() {
@@ -6595,11 +6629,7 @@ async function reissueInboxEmail() {
       body: JSON.stringify({ uid })
     });
     const d = await r.json();
-    if (d.address) {
-      const emailEl = document.getElementById('userInboxEmail');
-      if (emailEl) emailEl.textContent = d.address;
-      showToast('アドレスを再発行しました');
-    }
+    if (d.address) { _updateInboxEmailUI(d.address); showToast('アドレスを再発行しました'); }
   } catch(e) { showToast('再発行に失敗しました'); }
 }
 
