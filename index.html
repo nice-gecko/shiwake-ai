@@ -1987,6 +1987,20 @@ function updateFabBadge() {
         </div>
       </div>
     </div>
+    <!-- Group 4: 突合する -->
+    <div class="sb-group" data-group="4">
+      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+        <span class="sb-group-label">4. 突合する</span>
+        <span class="sb-group-agg-badge" style="display:none;"></span>
+        <span class="sb-group-chevron">▶</span>
+      </button>
+      <div class="sb-group-body">
+        <div class="sidebar-nav-item" id="navReconciliation" onclick="switchTab('reconciliation')">
+          <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M2 5h9M8 3l3 2-3 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 10H4m3 2L4 10l3-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          突合ダッシュボード
+        </div>
+      </div>
+    </div>
     <!-- Group 設定 -->
     <div class="sb-group" data-group="settings">
       <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
@@ -2770,6 +2784,12 @@ function updateFabBadge() {
     </div>
   </div>
 
+  <!-- v2.7.0: 突合ダッシュボード -->
+  <div class="panel" id="panel-reconciliation">
+    <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px;">突合（照合）</h2>
+    <p style="font-size:13px;color:#888;margin:0;">銀行明細・カード明細・請求書と仕訳データを自動照合します。</p>
+  </div>
+
 <!-- スキャン編集モーダル -->
 <div class="scan-modal-overlay" id="scanModalOverlay">
   <div class="scan-modal-header">
@@ -3007,7 +3027,8 @@ function switchTab(tab){
     'siwake':'navSiwake','scan':'navScan','master':'navMaster','csvmerge':'navCsvmerge',
     'staff':'navStaff','auto-intake':'navAutoIntake','unassigned-tray':'navUnassignedTray',
     'unlock-features':'navUnlockFeatures','pricing':'navPlanInSettings',
-    'auto-approve-log':'navAutoApproveLog','reverted-tray':'navRevertedTray'
+    'auto-approve-log':'navAutoApproveLog','reverted-tray':'navRevertedTray',
+    'reconciliation':'navReconciliation'
   };
   const navId=tabNavMap[tab];
   if(navId)document.getElementById(navId)?.classList.add('active');
@@ -3048,7 +3069,7 @@ function toggleSbGroup(btn) {
 }
 
 function initSbGroups() {
-  const defaults = { '1': true, '2': true, '3': true, 'settings': false };
+  const defaults = { '1': true, '2': true, '3': true, '4': true, 'settings': false };
   const saved = JSON.parse(localStorage.getItem('sb_group_state') || '{}');
   const state = Object.assign({}, defaults, saved);
   document.querySelectorAll('.sb-group').forEach(group => {
