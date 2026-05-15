@@ -4974,13 +4974,16 @@ async function loadAutoApproveLog(){
         ?`<div style="font-size:10px;color:#888;margin-top:2px;">${escapeHtml(JSON.stringify(log.applied_rule.conditions||{}))} → ${escapeHtml(JSON.stringify(log.applied_rule.result||{}))}</div>`
         :'';
       const amount=log.amount!=null?`¥${Number(log.amount).toLocaleString()}`:'—';
+      const revertCell=log.status==='reverted'
+        ?`<span style="font-size:11px;color:#bbb;">差し戻し済み</span>`
+        :`<button class="aa-revert-btn" onclick="revertAutoApproveLog('${escapeHtml(log.id)}')">差し戻し</button>`;
       return `<tr>
         <td>${escapeHtml(log.partner_name||'—')}</td>
         <td>${escapeHtml(log.debit_account||'—')} → ${escapeHtml(log.credit_account||'—')}</td>
         <td>${amount}</td>
         <td>${typeBadge}${ruleHtml}</td>
         <td>${dateStr}</td>
-        <td><button class="aa-revert-btn" onclick="revertAutoApproveLog('${escapeHtml(log.id)}')">差し戻し</button></td>
+        <td>${revertCell}</td>
       </tr>`;
     }).join('');
     el.innerHTML=`<table class="aa-log-table">
