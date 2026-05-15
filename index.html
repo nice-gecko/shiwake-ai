@@ -2675,7 +2675,7 @@ function updateFabBadge() {
       <h3>⚙ 自動インポート設定</h3>
       <label class="switch-row">
         <input type="checkbox" id="autoIntakeToggle" onchange="updateIntakeSetting('auto_intake_enabled', this.checked)">
-        <span>自動インポートを有効にする</span>
+        <span>ファイルを自動で「取り込み予定」に追加する</span>
       </label>
       <p class="setting-hint">ファイルを自動で「取り込み予定」に追加します。</p>
 
@@ -2730,7 +2730,7 @@ function updateFabBadge() {
       <div id="autoShiwakeRow" style="margin-top:14px;" hidden>
         <label class="switch-row">
           <input type="checkbox" id="autoShiwakeToggle" onchange="updateIntakeSetting('auto_shiwake_enabled', this.checked)">
-          <span>取り込み後、自動でAI仕訳まで実行する</span>
+          <span>さらに、AI仕訳まで自動で実行する</span>
         </label>
         <p class="setting-hint">取り込み予定に追加するだけでなく、AI仕訳まで自動で実行します。</p>
         <p class="setting-hint warn">⚠ AI仕訳が誤判定する可能性があります。最初のうちは OFF（保存のみ）を推奨します。</p>
