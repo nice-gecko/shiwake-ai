@@ -9070,10 +9070,11 @@ function _renderReconRows(entries, aliases) {
   }).join('');
   if (bodyB) {
     bodyB.innerHTML = entries.map(e => {
-      const lbl  = BADGE_LBL[e.match_status] || '未照合';
-      const bCls = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
+      const lbl    = BADGE_LBL[e.match_status] || '未照合';
+      const bCls   = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
+      const bAmt   = `${e.direction === 'credit' ? '+' : '-'}¥${Number(e.amount).toLocaleString()}`;
       const actBtn = (e.match_status === 'unmatched' || e.match_status === 'candidate')
-        ? `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-date="${escapeHtml(e.entry_date)}" data-desc="${escapeHtml(e.description||'')}" data-amt="${escapeHtml(amt)}" onclick="openResolveModal(this.dataset.eid,this.dataset.date,this.dataset.desc,this.dataset.amt)">解決</button>` : '';
+        ? `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-date="${escapeHtml(e.entry_date)}" data-desc="${escapeHtml(e.description||'')}" data-amt="${escapeHtml(bAmt)}" onclick="openResolveModal(this.dataset.eid,this.dataset.date,this.dataset.desc,this.dataset.amt)">解決</button>` : '';
       return `<div class="recon-match-row ${bCls}" data-id="${escapeHtml(e.id)}">` +
         `<span class="recon-badge ${bCls}">${lbl}</span>${actBtn}` +
       `</div>`;
