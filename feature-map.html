@@ -378,7 +378,7 @@ function applyPlan(){
     node.classList.remove('dimmed');
     if(state==='dimmed')node.classList.add('dimmed');
   });
-  document.querySelectorAll('.fn:not([aria-hidden="true"])').forEach(function(fn){
+  document.querySelectorAll('.fn[data-key]').forEach(function(fn){
     var state=fn.dataset[currentPlan]||'active';
     fn.classList.remove('active','simple','dimmed','hidden');
     fn.classList.add(state);
@@ -504,7 +504,7 @@ function showPopup(el){
   backdrop.classList.add('show');
 }
 function hidePopup(){backdrop.classList.remove('show');}
-document.querySelectorAll('.fn:not([aria-hidden="true"])').forEach(function(fn){
+document.querySelectorAll('.fn[data-key]').forEach(function(fn){
   fn.addEventListener('mouseenter',function(){showPopup(this);});
   fn.addEventListener('mouseleave',hidePopup);
 });
