@@ -1202,9 +1202,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:#f4f2ec;color:#555;white-space:nowrap;}
 .recon-pill.green{background:#DCFCE7;color:#15803d;}
 .recon-pill.red{background:#FEE2E2;color:#dc2626;}
-.recon-cols{display:grid;grid-template-columns:1fr 36px 1fr;gap:0;margin-bottom:0;}
-@media(max-width:768px){.recon-cols{grid-template-columns:1fr;}.recon-divider{display:none;}.recon-col:first-child{margin-bottom:12px;}}
+.recon-cols{display:grid;grid-template-columns:3fr 36px 2fr;gap:0;margin-bottom:0;}
+@media(max-width:768px){.recon-cols{grid-template-columns:1fr;}.recon-col-sep-head,.recon-col-sep-sub{display:none;}}
 .recon-col-head{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#f4f2ec;border-radius:8px 8px 0 0;border:1px solid #e0dfd8;border-bottom:none;}
+.recon-col-sep-head{background:#f4f2ec;border-top:1px solid #e0dfd8;display:flex;align-items:center;justify-content:center;font-size:14px;color:#bbb;user-select:none;}
+.recon-col-sep-sub{background:#fafaf8;border-left:1px solid #e0dfd8;border-right:1px solid #e0dfd8;min-height:34px;}
 .recon-col-label{font-size:11px;font-weight:700;color:#555;flex:1;letter-spacing:0.03em;}
 .recon-count-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;background:#e0dfd8;color:#555;white-space:nowrap;}
 .recon-count-badge.auto{background:#EBF4FD;color:#185FA5;}
@@ -1213,9 +1215,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-col-sub{padding:6px 10px;background:#fafaf8;border-left:1px solid #e0dfd8;border-right:1px solid #e0dfd8;min-height:34px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .recon-col-sub select{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;flex:1;min-width:0;}
 .recon-col-body{border:1px solid #e0dfd8;border-radius:0 0 8px 8px;overflow-y:auto;max-height:480px;}
+.recon-rows-wrap{grid-column:1/-1;display:grid;grid-template-columns:3fr 36px 2fr;border:1px solid #e0dfd8;border-top:none;border-radius:0 0 8px 8px;overflow-y:auto;max-height:480px;}
+.recon-pair{display:contents;}
+.recon-pair:last-child .recon-row,.recon-pair:last-child .recon-match-row,.recon-pair:last-child .recon-pair-mid{border-bottom:none;}
+.recon-pair-mid{background:#fafaf8;border-bottom:1px solid #f0eee6;border-left:1px solid #e0dfd8;border-right:1px solid #e0dfd8;}
 .recon-empty{text-align:center;color:#bbb;padding:32px;font-size:13px;}
 .recon-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f0eee6;font-size:12px;min-height:37px;box-sizing:border-box;}
-.recon-row:last-child{border-bottom:none;}
 .recon-row.row-unmatched{background:#FFFBEB;}
 .recon-row-date{color:#999;white-space:nowrap;font-size:11px;width:36px;flex-shrink:0;margin-right:6px;}
 .recon-row-desc{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:6px;}
@@ -1225,7 +1230,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-alias-btn{font-size:10px;padding:1px 6px;border-radius:5px;border:1px solid #f59e0b;color:#b45309;background:#fef3c7;cursor:pointer;flex-shrink:0;}
 .recon-alias-btn:hover{background:#fde68a;}
 .recon-match-row{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #f0eee6;font-size:12px;min-height:37px;}
-.recon-match-row:last-child{border-bottom:none;}
 .recon-match-row.matched{background:#F0FDF4;}
 .recon-match-row.candidate{background:#EFF6FF;}
 .recon-status-icon{font-size:12px;font-weight:700;width:16px;text-align:center;flex-shrink:0;}
@@ -2873,28 +2877,24 @@ function updateFabBadge() {
       </div>
     </div>
     <div class="recon-cols">
-      <div class="recon-col">
-        <div class="recon-col-head">
-          <span class="recon-col-label">A: 通帳・明細</span>
-          <button class="btn-recon-add" onclick="openReconUploadModal('bank')">+ 取り込む</button>
-        </div>
-        <div class="recon-col-sub">
-          <select id="recon-source-select" class="recon-source-select" onchange="onReconSourceChange()">
-            <option value="">-- 明細を選択 --</option>
-          </select>
-        </div>
-        <div class="recon-col-body" id="recon-col-a-body">
-          <div class="recon-empty-guide" id="recon-empty-guide">明細を取り込むと照合を開始できます</div>
-        </div>
+      <div class="recon-col-head">
+        <span class="recon-col-label">A: 通帳・明細</span>
+        <button class="btn-recon-add" onclick="openReconUploadModal('bank')">+ 取り込む</button>
       </div>
-      <div class="recon-divider">⇄</div>
-      <div class="recon-col">
-        <div class="recon-col-head">
-          <span class="recon-col-label">B: 照合先（証憑・仕訳）</span>
-          <button class="btn-recon-add" onclick="openReconUploadModal('card')">+ 取り込む</button>
-        </div>
-        <div class="recon-col-sub" id="recon-col-b-sub"></div>
-        <div class="recon-col-body" id="recon-col-b-body"></div>
+      <div class="recon-col-sep-head">⇄</div>
+      <div class="recon-col-head">
+        <span class="recon-col-label">B: 照合先</span>
+        <button class="btn-recon-add" onclick="openReconUploadModal('card')">+ 取り込む</button>
+      </div>
+      <div class="recon-col-sub">
+        <select id="recon-source-select" class="recon-source-select" onchange="onReconSourceChange()">
+          <option value="">-- 明細を選択 --</option>
+        </select>
+      </div>
+      <div class="recon-col-sep-sub"></div>
+      <div class="recon-col-sub" id="recon-col-b-sub"></div>
+      <div class="recon-rows-wrap" id="recon-rows-wrap">
+        <div class="recon-empty-guide" id="recon-empty-guide" style="grid-column:1/-1;">明細を取り込むと照合を開始できます</div>
       </div>
     </div>
     <div class="recon-footer" id="recon-footer" style="display:none;">
@@ -8912,9 +8912,9 @@ let _reconAliases = [];
 async function loadReconciliation() {
   const uid = window._firebaseUser?.uid;
   const wsId = window._currentWorkspaceId;
-  const bodyEl = document.getElementById('recon-col-a-body');
+  const wrap = document.getElementById('recon-rows-wrap');
   if (!uid || !wsId) {
-    if (bodyEl) bodyEl.innerHTML = '<div class="recon-empty-guide">ワークスペースを選択してください</div>';
+    if (wrap) wrap.innerHTML = '<div class="recon-empty-guide" style="grid-column:1/-1;">ワークスペースを選択してください</div>';
     return;
   }
   try {
@@ -8929,7 +8929,7 @@ async function loadReconciliation() {
     if (sel.value) {
       await _loadReconSource(sel.value);
     } else {
-      if (bodyEl) bodyEl.innerHTML = '<div class="recon-empty-guide">明細を取り込むと照合を開始できます</div>';
+      if (wrap) wrap.innerHTML = '<div class="recon-empty-guide" id="recon-empty-guide" style="grid-column:1/-1;">明細を取り込むと照合を開始できます</div>';
     }
   } catch(e) { console.warn('loadReconciliation error:', e); }
 }
@@ -8963,8 +8963,8 @@ async function onReconSourceChange() {
 async function _loadReconSource(sourceId) {
   const uid = window._firebaseUser?.uid;
   window._reconCurrentSourceId = sourceId;
-  const bodyEl = document.getElementById('recon-col-a-body');
-  if (bodyEl) bodyEl.innerHTML = '<div class="recon-empty-guide">読み込み中...</div>';
+  const wrap = document.getElementById('recon-rows-wrap');
+  if (wrap) wrap.innerHTML = '<div class="recon-empty-guide" style="grid-column:1/-1;">読み込み中...</div>';
   try {
     const [er, sr] = await Promise.all([
       fetch(`/api/reconciliation/entries/${encodeURIComponent(sourceId)}?uid=${encodeURIComponent(uid)}`),
@@ -8972,12 +8972,11 @@ async function _loadReconSource(sourceId) {
     ]);
     _reconEntries = await er.json();
     _renderReconPills(await sr.json());
-    _renderReconLeftCol(_reconEntries, _reconAliases);
-    _renderReconRightCol(_reconEntries);
+    _renderReconRows(_reconEntries, _reconAliases);
     _renderReconFooter(_reconEntries);
   } catch(e) {
     console.warn('_loadReconSource error:', e);
-    if (bodyEl) bodyEl.innerHTML = '<div class="recon-empty-guide">読み込みに失敗しました</div>';
+    if (wrap) wrap.innerHTML = '<div class="recon-empty-guide" style="grid-column:1/-1;">読み込みに失敗しました</div>';
   }
 }
 
@@ -8989,14 +8988,22 @@ function _renderReconPills(s) {
   document.getElementById('recon-pill-rate').textContent      = s.reconciliation_rate != null ? s.reconciliation_rate + '%' : '—';
 }
 
-function _renderReconLeftCol(entries, aliases) {
-  const body = document.getElementById('recon-col-a-body');
-  if (!body) return;
-  if (!(entries||[]).length) { body.innerHTML = '<div class="recon-empty-guide">明細がありません</div>'; return; }
+function _renderReconRows(entries, aliases) {
+  const wrap = document.getElementById('recon-rows-wrap');
+  const sub  = document.getElementById('recon-col-b-sub');
+  if (!wrap) return;
+  if (!(entries||[]).length) {
+    wrap.innerHTML = '<div class="recon-empty-guide" id="recon-empty-guide" style="grid-column:1/-1;">明細がありません</div>';
+    if (sub) sub.innerHTML = '';
+    return;
+  }
+  const matchedCnt = entries.filter(e => e.match_status === 'matched' || e.match_status === 'resolved').length;
+  if (sub) sub.innerHTML = `<span style="font-size:12px;color:#888;">照合済 ${matchedCnt} / ${entries.length} 件</span>`;
   const aliasMap = {};
   (aliases||[]).forEach(a => { aliasMap[a.alias] = a.canonical_name; });
   const STATUS_ICON = { matched:'✓', candidate:'？', unmatched:'✕', resolved:'✓' };
-  body.innerHTML = entries.map(e => {
+  const BADGE_LBL  = { matched:'一致', candidate:'候補あり', unmatched:'未照合', resolved:'解決済み' };
+  wrap.innerHTML = entries.map(e => {
     const icon    = STATUS_ICON[e.match_status] || '✕';
     const icnCls  = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
     const amtSign = e.direction === 'credit' ? '+' : '-';
@@ -9008,30 +9015,24 @@ function _renderReconLeftCol(entries, aliases) {
     const aliasBtn= (!hasAlias && e.match_status !== 'matched' && e.match_status !== 'resolved')
       ? `<button class="recon-alias-btn" data-alias="${escapeHtml(norm)}" onclick="openAliasModal(this.dataset.alias)">取引先登録</button>` : '';
     const rowCls  = e.match_status === 'unmatched' ? ' row-unmatched' : '';
-    return `<div class="recon-row${rowCls}" data-id="${escapeHtml(e.id)}">` +
-      `<span class="recon-status-icon ${icnCls}">${icon}</span>` +
-      `<span class="recon-row-date">${escapeHtml(e.entry_date.replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`))}</span>` +
-      `<span class="recon-row-desc">${desc}</span>` +
-      `<span class="recon-row-amt ${amtCls}">${amt}</span>` +
-      `${aliasBtn}</div>`;
-  }).join('');
-}
-
-function _renderReconRightCol(entries) {
-  const body = document.getElementById('recon-col-b-body');
-  const sub  = document.getElementById('recon-col-b-sub');
-  if (!body) return;
-  if (!(entries||[]).length) { body.innerHTML = ''; if (sub) sub.innerHTML = ''; return; }
-  const matchedCnt = entries.filter(e => e.match_status === 'matched' || e.match_status === 'resolved').length;
-  if (sub) sub.innerHTML = `<span style="font-size:12px;color:#888;">照合済 ${matchedCnt} / ${entries.length} 件</span>`;
-  const BADGE_LBL = { matched:'一致', candidate:'候補あり', unmatched:'未照合', resolved:'解決済み' };
-  body.innerHTML = entries.map(e => {
-    const lbl    = BADGE_LBL[e.match_status] || '未照合';
-    const bCls   = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
-    const actBtn = (e.match_status === 'unmatched' || e.match_status === 'candidate')
+    const lbl     = BADGE_LBL[e.match_status] || '未照合';
+    const bCls    = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
+    const actBtn  = (e.match_status === 'unmatched' || e.match_status === 'candidate')
       ? `<button class="recon-action-btn" onclick="resolveReconEntry('${escapeHtml(e.id)}')">解決</button>` : '';
-    return `<div class="recon-match-row ${bCls}" data-id="${escapeHtml(e.id)}">` +
-      `<span class="recon-badge ${bCls}">${lbl}</span>${actBtn}</div>`;
+    const shortDate = escapeHtml(e.entry_date.replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
+    return `<div class="recon-pair">` +
+      `<div class="recon-row${rowCls}" data-id="${escapeHtml(e.id)}">` +
+        `<span class="recon-status-icon ${icnCls}">${icon}</span>` +
+        `<span class="recon-row-date">${shortDate}</span>` +
+        `<span class="recon-row-desc">${desc}</span>` +
+        `<span class="recon-row-amt ${amtCls}">${amt}</span>` +
+        `${aliasBtn}` +
+      `</div>` +
+      `<div class="recon-pair-mid"></div>` +
+      `<div class="recon-match-row ${bCls}" data-id="${escapeHtml(e.id)}">` +
+        `<span class="recon-badge ${bCls}">${lbl}</span>${actBtn}` +
+      `</div>` +
+    `</div>`;
   }).join('');
 }
 
@@ -9176,7 +9177,7 @@ async function submitAlias() {
     closeAliasModal();
     showToast('エイリアスを登録しました');
     _reconAliases.push({ alias: _reconAliasTarget, canonical_name: canonical });
-    _renderReconLeftCol(_reconEntries, _reconAliases);
+    _renderReconRows(_reconEntries, _reconAliases);
   } catch(e) {
     showToast('通信エラーが発生しました');
   } finally {
