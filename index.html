@@ -2844,15 +2844,17 @@ function updateFabBadge() {
     <div class="recon-header">
       <div class="recon-source-wrap">
         <select id="recon-source-select" class="recon-source-select" onchange="onReconSourceChange()">
-          <option value="">-- ソースを選択 --</option>
+          <option value="">-- 照合する明細を取り込んでください --</option>
         </select>
         <span id="recon-period-badge" class="recon-period-badge" style="display:none;"></span>
       </div>
       <div style="display:flex;gap:6px;">
         <button class="btn-recon-upload" id="btn-recon-match" onclick="runReconMatch()" style="display:none;background:#1D9E75;">照合実行</button>
-        <button class="btn-recon-upload" id="btn-recon-upload" onclick="openReconUploadModal()">CSV取り込み</button>
+        <button class="btn-recon-upload" id="btn-recon-upload" onclick="openReconUploadModal()">明細を取り込む</button>
       </div>
     </div>
+    <!-- ソース0件時の案内 -->
+    <p id="recon-empty-guide" style="display:none;font-size:13px;color:#888;margin:0 0 14px;">通帳・カード明細・請求書などのデータを取り込むと、仕訳との照合を開始できます。</p>
     <!-- サマリーカード -->
     <div class="recon-summary" id="recon-summary">
       <div class="recon-stat-card"><div class="recon-stat-label">明細件数</div><div class="recon-stat-value" id="recon-total">—</div></div>
@@ -2886,8 +2888,12 @@ function updateFabBadge() {
 <!-- v2.7.0: 突合CSVアップロードモーダル -->
 <div class="recon-modal-overlay" id="modal-recon-upload" onclick="if(event.target===this)closeReconUploadModal()">
   <div class="recon-modal">
-    <h3>CSV取り込み</h3>
-    <div class="recon-modal-row"><label>ファイル（CSV）</label><input type="file" id="recon-csv-file" accept=".csv,text/csv"></div>
+    <h3>明細を取り込む</h3>
+    <div class="recon-modal-row">
+      <label>ファイル</label>
+      <input type="file" id="recon-csv-file" accept=".csv,.pdf,.jpg,.jpeg,.png,.heic,text/csv">
+      <div style="font-size:11px;color:#999;margin-top:4px;">CSV・PDF・写真（レシート等）に対応</div>
+    </div>
     <div class="recon-modal-row"><label>ソース種別</label>
       <select id="recon-source-type">
         <option value="bank">銀行明細</option>
@@ -8822,7 +8828,7 @@ async function loadReconciliation() {
     if (sel.value) {
       await _loadReconSource(sel.value);
     } else {
-      document.getElementById('recon-tbody').innerHTML = '<tr><td colspan="6" class="recon-empty">CSV取り込みでソースを追加してください</td></tr>';
+      document.getElementById('recon-tbody').innerHTML = '<tr><td colspan="6" class="recon-empty">明細を取り込んでください</td></tr>';
     }
   } catch(e) { console.warn('loadReconciliation error:', e); }
 }
@@ -8830,7 +8836,7 @@ async function loadReconciliation() {
 function _buildReconSourceDropdown(sources) {
   const sel = document.getElementById('recon-source-select');
   const prevVal = sel.value;
-  sel.innerHTML = '<option value="">-- ソースを選択 --</option>';
+  sel.innerHTML = '<option value="">-- 照合する明細を取り込んでください --</option>';
   (sources || []).forEach(s => {
     const period = (s.period_year && s.period_month) ? `${s.period_year}/${s.period_month}` : null;
     const label = [s.institution_name, period].filter(Boolean).join(' ') || s.source_type;
@@ -8844,6 +8850,8 @@ function _buildReconSourceDropdown(sources) {
   } else if (sources && sources.length > 0) {
     sel.value = sources[0].id;
   }
+  const guide = document.getElementById('recon-empty-guide');
+  if (guide) guide.style.display = (sources && sources.length > 0) ? 'none' : '';
 }
 
 async function onReconSourceChange() {
