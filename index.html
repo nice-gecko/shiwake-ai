@@ -2987,6 +2987,36 @@ function updateFabBadge() {
   </div>
 </div>
 
+<!-- v2.7.0: 照合解決モーダル -->
+<div class="recon-modal-overlay" id="modal-recon-resolve" onclick="if(event.target===this)closeResolveModal()">
+  <div class="recon-modal">
+    <h3>照合を解決</h3>
+    <div class="recon-modal-row">
+      <label>通帳の情報</label>
+      <div id="resolve-entry-info" style="padding:7px 10px;background:#f8f7f3;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#333;"></div>
+    </div>
+    <div class="recon-modal-row">
+      <label>解決理由<span style="color:#e04;margin-left:6px;">必須</span></label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="振込手数料">振込手数料</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="値引き・割引">値引き・割引</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="相殺">相殺</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="現金払い（銀行明細に出ない）">現金払い（銀行明細に出ない）</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="対応不要（ATM引出し等）">対応不要（ATM引出し等）</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="その他">その他</label>
+      </div>
+    </div>
+    <div class="recon-modal-row">
+      <label>メモ（任意）</label>
+      <input type="text" id="resolve-note" placeholder="補足があれば入力">
+    </div>
+    <div class="recon-modal-btns">
+      <button class="btn-recon-modal-cancel" onclick="closeResolveModal()">キャンセル</button>
+      <button class="btn-recon-modal-ok" id="btn-resolve-submit" onclick="submitResolve()">解決済みにする</button>
+    </div>
+  </div>
+</div>
+
 <!-- スキャン編集モーダル -->
 <div class="scan-modal-overlay" id="scanModalOverlay">
   <div class="scan-modal-header">
@@ -9043,7 +9073,7 @@ function _renderReconRows(entries, aliases) {
       const lbl  = BADGE_LBL[e.match_status] || '未照合';
       const bCls = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
       const actBtn = (e.match_status === 'unmatched' || e.match_status === 'candidate')
-        ? `<button class="recon-action-btn" onclick="resolveReconEntry('${escapeHtml(e.id)}')">解決</button>` : '';
+        ? `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-date="${escapeHtml(e.entry_date)}" data-desc="${escapeHtml(e.description||'')}" data-amt="${escapeHtml(amt)}" onclick="openResolveModal(this.dataset.eid,this.dataset.date,this.dataset.desc,this.dataset.amt)">解決</button>` : '';
       return `<div class="recon-match-row ${bCls}" data-id="${escapeHtml(e.id)}">` +
         `<span class="recon-badge ${bCls}">${lbl}</span>${actBtn}` +
       `</div>`;
@@ -9161,8 +9191,39 @@ async function runReconMatch(sourceId) {
   }
 }
 
-function resolveReconEntry(id) {
-  showToast('解決機能は次のフェーズで実装予定です', 2000);
+let _resolveTargetId = '';
+function openResolveModal(entryId, date, description, amount) {
+  _resolveTargetId = entryId;
+  document.getElementById('resolve-entry-info').textContent = `${date}　${description}　${amount}`;
+  document.querySelectorAll('input[name="resolve-reason"]').forEach(r => { r.checked = false; });
+  document.getElementById('resolve-note').value = '';
+  document.getElementById('btn-resolve-submit').disabled = false;
+  document.getElementById('modal-recon-resolve').classList.add('show');
+}
+function closeResolveModal() {
+  document.getElementById('modal-recon-resolve').classList.remove('show');
+}
+async function submitResolve() {
+  const reason = document.querySelector('input[name="resolve-reason"]:checked')?.value;
+  if (!reason) { showToast('解決理由を選択してください'); return; }
+  const note = document.getElementById('resolve-note').value.trim();
+  const btn  = document.getElementById('btn-resolve-submit');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/reconciliation/entries/${_resolveTargetId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ match_status: 'resolved', resolution_type: reason, resolution_note: note })
+    });
+    if (!r.ok) { const d = await r.json(); showToast('エラー: ' + (d.error||'不明')); return; }
+    closeResolveModal();
+    showToast('解決済みにしました');
+    await loadReconciliation();
+  } catch(e) {
+    showToast('通信エラーが発生しました');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 let _reconAliasTarget = '';
