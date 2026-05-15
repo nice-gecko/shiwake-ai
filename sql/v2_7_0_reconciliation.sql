@@ -27,7 +27,7 @@ ALTER TABLE reconciliation_sources ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "reconciliation_sources_workspace_access" ON reconciliation_sources
   FOR ALL USING (
     workspace_id IN (
-      SELECT id FROM workspaces WHERE owner_uid = auth.uid()
+      SELECT id FROM workspaces WHERE owner_uid = auth.uid()::text::text
     )
   );
 
@@ -68,7 +68,7 @@ ALTER TABLE reconciliation_entries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "reconciliation_entries_workspace_access" ON reconciliation_entries
   FOR ALL USING (
     workspace_id IN (
-      SELECT id FROM workspaces WHERE owner_uid = auth.uid()
+      SELECT id FROM workspaces WHERE owner_uid = auth.uid()::text
     )
   );
 
@@ -95,6 +95,6 @@ ALTER TABLE partner_aliases ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "partner_aliases_workspace_access" ON partner_aliases
   FOR ALL USING (
     workspace_id IN (
-      SELECT id FROM workspaces WHERE owner_uid = auth.uid()
+      SELECT id FROM workspaces WHERE owner_uid = auth.uid()::text
     )
   );
