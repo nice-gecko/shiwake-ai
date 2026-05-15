@@ -1253,7 +1253,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-footer-value.diff-negative{color:#dc2626;}
 .recon-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;}
 .recon-modal-overlay.show{display:flex;}
-.recon-modal{background:#fff;border-radius:12px;padding:20px 22px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
+.recon-modal{background:#fff;border-radius:12px;padding:20px 22px;width:100%;max-width:400px;min-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
+.recon-resolve-opts{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+.recon-resolve-opts label{display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;white-space:nowrap;margin-bottom:0;}
+.recon-resolve-opts input[type="radio"]{width:auto;padding:0;border:none;border-radius:0;flex-shrink:0;}
 .recon-modal h3{font-size:15px;font-weight:700;margin:0 0 14px;}
 .recon-modal-row{margin-bottom:10px;}
 .recon-modal-row label{display:block;font-size:12px;color:#666;margin-bottom:4px;}
@@ -2997,13 +3000,13 @@ function updateFabBadge() {
     </div>
     <div class="recon-modal-row">
       <label>解決理由<span style="color:#e04;margin-left:6px;">必須</span></label>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="振込手数料">振込手数料</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="値引き・割引">値引き・割引</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="相殺">相殺</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="現金払い（銀行明細に出ない）">現金払い（銀行明細に出ない）</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="対応不要（ATM引出し等）">対応不要（ATM引出し等）</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#333;cursor:pointer;"><input type="radio" name="resolve-reason" value="その他">その他</label>
+      <div class="recon-resolve-opts">
+        <label for="rr-fee"><input type="radio" id="rr-fee" name="resolve-reason" value="振込手数料">振込手数料</label>
+        <label for="rr-disc"><input type="radio" id="rr-disc" name="resolve-reason" value="値引き・割引">値引き・割引</label>
+        <label for="rr-offset"><input type="radio" id="rr-offset" name="resolve-reason" value="相殺">相殺</label>
+        <label for="rr-cash"><input type="radio" id="rr-cash" name="resolve-reason" value="現金払い（銀行明細に出ない）">現金払い（銀行明細に出ない）</label>
+        <label for="rr-na"><input type="radio" id="rr-na" name="resolve-reason" value="対応不要（ATM引出し等）">対応不要（ATM引出し等）</label>
+        <label for="rr-other"><input type="radio" id="rr-other" name="resolve-reason" value="その他">その他</label>
       </div>
     </div>
     <div class="recon-modal-row">
