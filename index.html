@@ -1213,7 +1213,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-col-sub select{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;flex:1;min-width:0;}
 .recon-col-body{border:1px solid #e0dfd8;border-radius:0 0 8px 8px;overflow-y:auto;max-height:480px;}
 .recon-empty{text-align:center;color:#bbb;padding:32px;font-size:13px;}
-.recon-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f0eee6;font-size:12px;}
+.recon-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f0eee6;font-size:12px;min-height:37px;box-sizing:border-box;}
 .recon-row:last-child{border-bottom:none;}
 .recon-row.row-unmatched{background:#FFFBEB;}
 .recon-row-date{color:#999;white-space:nowrap;font-size:11px;width:50px;flex-shrink:0;}
@@ -1237,12 +1237,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-match-amt{white-space:nowrap;font-size:11px;color:#888;flex-shrink:0;}
 .recon-divider{display:flex;align-items:flex-start;justify-content:center;padding-top:46px;font-size:16px;color:#bbb;user-select:none;}
 .recon-src-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;background:#f4f2ec;color:#555;border:1px solid #e0dfd8;}
-.recon-footer{margin-top:12px;padding:10px 14px;background:#f4f2ec;border-radius:8px;display:flex;gap:20px;flex-wrap:wrap;}
-.recon-footer-item{display:flex;flex-direction:column;gap:2px;}
-.recon-footer-label{font-size:10px;color:#999;font-weight:600;}
-.recon-footer-value{font-size:14px;font-weight:700;color:#1a1a1a;}
+.recon-footer{margin-top:12px;padding:14px 20px;background:#f4f2ec;border-radius:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.recon-footer-item{display:flex;flex-direction:column;gap:3px;align-items:center;}
+.recon-footer-label{font-size:10px;color:#999;font-weight:600;letter-spacing:0.03em;}
+.recon-footer-value{font-size:15px;font-weight:700;color:#1a1a1a;}
 .recon-footer-value.red{color:#dc2626;}
-.recon-footer-value.diff-nonzero{color:#dc2626;}
+.recon-footer-value.diff-positive{color:#15803d;}
+.recon-footer-value.diff-negative{color:#dc2626;}
 .recon-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;}
 .recon-modal-overlay.show{display:flex;}
 .recon-modal{background:#fff;border-radius:12px;padding:20px 22px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
@@ -1252,7 +1253,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-modal-row input,.recon-modal-row select{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;box-sizing:border-box;}
 .recon-modal-row-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
 .recon-modal-row-2col label{display:block;font-size:12px;color:#666;margin-bottom:4px;}
-.recon-modal-row-2col input{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;box-sizing:border-box;}
+.recon-modal-row-2col input,.recon-modal-row-2col select{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;box-sizing:border-box;}
 .recon-modal-btns{display:flex;gap:8px;margin-top:14px;}
 .btn-recon-modal-cancel{flex:1;padding:8px;border-radius:7px;border:1px solid #ddd;background:#fff;font-size:13px;cursor:pointer;color:#555;}
 .btn-recon-modal-ok{flex:2;padding:8px;border-radius:7px;border:none;background:#185FA5;color:#fff;font-size:13px;font-weight:500;cursor:pointer;}
@@ -2928,14 +2929,42 @@ function updateFabBadge() {
       <div style="font-size:11px;color:#999;margin-top:4px;">CSV・PDF・写真（レシート等）に対応</div>
     </div>
     <div class="recon-modal-row"><label>ソース種別</label>
-      <select id="recon-source-type">
+      <select id="recon-source-type" onchange="onReconSourceTypeChange()">
         <option value="bank">銀行明細</option>
         <option value="card">カード明細</option>
         <option value="invoice">請求書</option>
       </select>
     </div>
-    <div class="recon-modal-row"><label>金融機関名（任意）</label><input type="text" id="recon-institution" placeholder="例：三井住友銀行"></div>
-    <div class="recon-modal-row"><label>口座情報（任意）</label><input type="text" id="recon-account-info" placeholder="例：普通 1234567"></div>
+    <div class="recon-modal-row" id="recon-row-institution">
+      <label id="recon-label-institution">金融機関名（任意）</label>
+      <input type="text" id="recon-institution" placeholder="例：三井住友銀行" list="datalist-institutions" autocomplete="off">
+      <datalist id="datalist-institutions">
+        <option value="三井住友銀行"><option value="三菱UFJ銀行"><option value="みずほ銀行">
+        <option value="りそな銀行"><option value="ゆうちょ銀行"><option value="楽天銀行">
+        <option value="住信SBIネット銀行"><option value="PayPay銀行"><option value="イオン銀行">
+        <option value="セブン銀行"><option value="横浜銀行"><option value="千葉銀行">
+        <option value="福岡銀行"><option value="静岡銀行"><option value="北海道銀行"><option value="広島銀行">
+      </datalist>
+      <datalist id="datalist-cards">
+        <option value="楽天カード"><option value="三井住友カード"><option value="JCBカード">
+        <option value="アメリカン・エキスプレス"><option value="ダイナースクラブ"><option value="オリコカード">
+        <option value="セゾンカード"><option value="イオンカード"><option value="dカード"><option value="PayPayカード">
+      </datalist>
+    </div>
+    <div class="recon-modal-row" id="recon-row-account">
+      <div class="recon-modal-row-2col" style="margin-bottom:0;">
+        <div><label>口座種別</label>
+          <select id="recon-account-type">
+            <option value="普通">普通</option>
+            <option value="当座">当座</option>
+            <option value="貯蓄">貯蓄</option>
+          </select>
+        </div>
+        <div><label>口座番号</label>
+          <input type="text" id="recon-account-number" placeholder="例：1234567">
+        </div>
+      </div>
+    </div>
     <div class="recon-modal-row-2col">
       <div><label>年</label><input type="number" id="recon-period-year" placeholder="2026"></div>
       <div><label>月</label><input type="number" id="recon-period-month" placeholder="5" min="1" max="12"></div>
@@ -8981,10 +9010,33 @@ function _renderReconFooter(entries) {
   document.getElementById('recon-credit-total').textContent    = `¥${creditTotal.toLocaleString()}`;
   document.getElementById('recon-debit-total').textContent     = `¥${debitTotal.toLocaleString()}`;
   const diffEl = document.getElementById('recon-diff');
-  diffEl.textContent = (diff >= 0 ? '+' : '') + `¥${diff.toLocaleString()}`;
-  diffEl.className   = 'recon-footer-value' + (diff !== 0 ? ' diff-nonzero' : '');
+  diffEl.textContent = (diff > 0 ? '+' : '') + `¥${diff.toLocaleString()}`;
+  diffEl.className   = 'recon-footer-value' + (diff > 0 ? ' diff-positive' : diff < 0 ? ' diff-negative' : '');
   document.getElementById('recon-unmatched-amount').textContent= `¥${unmatchedAmt.toLocaleString()}`;
   document.getElementById('recon-footer').style.display = rows.length > 0 ? '' : 'none';
+}
+
+function onReconSourceTypeChange() {
+  const type = document.getElementById('recon-source-type').value;
+  const labelEl   = document.getElementById('recon-label-institution');
+  const inputEl   = document.getElementById('recon-institution');
+  const rowAccount= document.getElementById('recon-row-account');
+  if (type === 'bank') {
+    labelEl.textContent = '金融機関名（任意）';
+    inputEl.setAttribute('list', 'datalist-institutions');
+    inputEl.placeholder = '例：三井住友銀行';
+    rowAccount.style.display = '';
+  } else if (type === 'card') {
+    labelEl.textContent = 'カード会社（任意）';
+    inputEl.setAttribute('list', 'datalist-cards');
+    inputEl.placeholder = '例：楽天カード';
+    rowAccount.style.display = 'none';
+  } else {
+    labelEl.textContent = '請求元（会社名・任意）';
+    inputEl.removeAttribute('list');
+    inputEl.placeholder = '例：株式会社○○';
+    rowAccount.style.display = 'none';
+  }
 }
 
 function openReconUploadModal(defaultType) {
@@ -8999,6 +9051,7 @@ function openReconUploadModal(defaultType) {
     const sel = document.getElementById('recon-source-type');
     if (sel) sel.value = defaultType;
   }
+  onReconSourceTypeChange();
 }
 function closeReconUploadModal() {
   document.getElementById('modal-recon-upload').classList.remove('show');
@@ -9017,7 +9070,9 @@ async function submitReconUpload() {
   fd.append('workspace_id', wsId);
   fd.append('source_type',      document.getElementById('recon-source-type').value);
   fd.append('institution_name', document.getElementById('recon-institution').value);
-  fd.append('account_info',     document.getElementById('recon-account-info').value);
+  const acctType = document.getElementById('recon-account-type')?.value || '';
+  const acctNum  = document.getElementById('recon-account-number')?.value || '';
+  fd.append('account_info', (acctType && acctNum) ? `${acctType} ${acctNum}` : acctNum || acctType);
   fd.append('period_year',      document.getElementById('recon-period-year').value);
   fd.append('period_month',     document.getElementById('recon-period-month').value);
   fd.append('format_type', 'generic');
