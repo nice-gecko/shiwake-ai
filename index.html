@@ -3063,6 +3063,26 @@ function updateFabBadge() {
   </div>
 </div>
 
+<!-- v2.7.0: 照合取り消し確認モーダル -->
+<div class="recon-modal-overlay" id="modal-recon-undo" onclick="if(event.target===this)closeUndoModal()">
+  <div class="recon-modal">
+    <h3>照合の確認</h3>
+    <div class="recon-modal-row">
+      <label>現在の照合情報</label>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div id="undo-entry-info" style="padding:6px 10px;background:#f8f7f3;border:1px solid #ddd;border-radius:7px;font-size:12px;color:#333;"></div>
+        <div style="text-align:center;font-size:11px;color:#aaa;">↕</div>
+        <div id="undo-record-info" style="padding:6px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;font-size:12px;color:#15803d;"></div>
+      </div>
+    </div>
+    <div class="recon-modal-btns" style="flex-direction:column;gap:6px;">
+      <button class="btn-recon-modal-ok" id="btn-undo-rematch" onclick="undoAndRematch()" style="flex:none;">別の仕訳と照合し直す</button>
+      <button class="btn-recon-modal-cancel" id="btn-undo-only" onclick="undoOnly()" style="flex:none;">照合を外す</button>
+      <button style="background:none;border:none;font-size:12px;color:#aaa;cursor:pointer;padding:4px;" onclick="closeUndoModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <!-- スキャン編集モーダル -->
 <div class="scan-modal-overlay" id="scanModalOverlay">
   <div class="scan-modal-header">
@@ -9103,20 +9123,20 @@ function _renderReconRows(entries, aliases) {
   if (sub) sub.innerHTML = `<span style="font-size:12px;color:#888;">照合済 ${matchedCnt} / ${entries.length} 件</span>`;
   const aliasMap = {};
   (aliases||[]).forEach(a => { aliasMap[a.alias] = a.canonical_name; });
-  const STATUS_ICON = { matched:'✓', candidate:'？', unmatched:'✕', resolved:'✓' };
   const BADGE_LBL  = { matched:'一致', candidate:'候補あり', unmatched:'未照合', resolved:'解決済み' };
   bodyA.innerHTML = entries.map(e => {
-    const icon    = STATUS_ICON[e.match_status] || '✕';
-    const icnCls  = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
+    const isMatched = (e.match_status === 'matched' || e.match_status === 'resolved' || e.match_status === 'candidate');
+    const icon    = isMatched ? '✓' : '✕';
+    const icnCls  = isMatched ? 'matched' : 'unmatched';
     const amtSign = e.direction === 'credit' ? '+' : '-';
     const amt     = `${amtSign}¥${Number(e.amount).toLocaleString()}`;
     const amtCls  = e.direction === 'credit' ? 'credit' : 'debit';
     const desc    = escapeHtml(e.description || '—');
     const norm    = (e.description||'').trim();
     const hasAlias= norm && aliasMap[norm];
-    const aliasBtn= (!hasAlias && e.match_status !== 'matched' && e.match_status !== 'resolved')
+    const aliasBtn= (!isMatched && !hasAlias)
       ? `<button class="recon-alias-btn" data-alias="${escapeHtml(norm)}" onclick="openAliasModal(this.dataset.alias)">取引先登録</button>` : '';
-    const rowCls  = e.match_status === 'unmatched' ? ' row-unmatched' : '';
+    const rowCls  = isMatched ? '' : ' row-unmatched';
     const shortDate = escapeHtml(e.entry_date.replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
     return `<div class="recon-row${rowCls}" data-id="${escapeHtml(e.id)}">` +
       `<span class="recon-status-icon ${icnCls}">${icon}</span>` +
@@ -9136,10 +9156,12 @@ function _renderReconRows(entries, aliases) {
       if (st === 'matched' || st === 'resolved' || st === 'candidate') {
         const name = rec ? escapeHtml(rec.partner_name || rec.memo || '照合済み') : '照合済み';
         const rAmt = `¥${Number(rec ? rec.amount : e.amount).toLocaleString()}`;
+        const eInfoShort = escapeHtml(`${e.description||''}　${bAmt}`);
+        const rInfoShort = escapeHtml(rec ? `${rec.partner_name || rec.memo || ''}　¥${Number(rec.amount).toLocaleString()}` : '—');
         return `<div class="recon-match-row matched" data-id="${escapeHtml(e.id)}">` +
           `<span class="recon-status-icon matched">✓</span>` +
           `<div class="recon-b-detail"><span class="recon-b-partner">${name}</span><span class="recon-b-match-amt">${rAmt}</span></div>` +
-          `<button class="recon-undo-btn" data-eid="${escapeHtml(e.id)}" onclick="undoMatch(this.dataset.eid)" title="照合を取り消す">↩</button>` +
+          `<button class="recon-undo-btn" data-eid="${escapeHtml(e.id)}" data-einfo="${eInfoShort}" data-rinfo="${rInfoShort}" onclick="openUndoModal(this.dataset.eid,this.dataset.einfo,this.dataset.rinfo)" title="照合を確認・取り消す">↩</button>` +
           `</div>`;
       }
 
@@ -9266,18 +9288,47 @@ async function runReconMatch(sourceId) {
 }
 
 // v2.7.0 B列詳細表示: 照合確定・差額理由・対応不要の3関数セット
-async function undoMatch(entryId) {
+let _undoTargetId = '';
+function openUndoModal(entryId, entryInfo, recordInfo) {
+  _undoTargetId = entryId;
+  document.getElementById('undo-entry-info').textContent  = entryInfo;
+  document.getElementById('undo-record-info').textContent = recordInfo;
+  document.getElementById('btn-undo-rematch').disabled = false;
+  document.getElementById('btn-undo-only').disabled    = false;
+  document.getElementById('modal-recon-undo').classList.add('show');
+}
+function closeUndoModal() { document.getElementById('modal-recon-undo').classList.remove('show'); }
+
+async function _patchUnmatched() {
   const uid = window._firebaseUser?.uid;
+  const r = await fetch(`/api/reconciliation/entries/${_undoTargetId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid, match_status: 'unmatched', matched_record_id: null })
+  });
+  if (!r.ok) { const d = await r.json(); throw new Error(d.error || '不明'); }
+}
+async function undoAndRematch() {
+  const btn = document.getElementById('btn-undo-rematch');
+  btn.disabled = true;
   try {
-    const r = await fetch(`/api/reconciliation/entries/${entryId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid, match_status: 'unmatched', matched_record_id: null })
-    });
-    if (!r.ok) { const d = await r.json(); showToast('エラー: ' + (d.error||'不明')); return; }
-    showToast('照合を取り消しました');
+    await _patchUnmatched();
+    closeUndoModal();
+    showToast('照合を外し、再マッチングします...');
+    const sid = window._reconCurrentSourceId;
+    if (sid) await runReconMatch(sid);
+    else await loadReconciliation();
+  } catch(e) { showToast('エラー: ' + e.message); btn.disabled = false; }
+}
+async function undoOnly() {
+  const btn = document.getElementById('btn-undo-only');
+  btn.disabled = true;
+  try {
+    await _patchUnmatched();
+    closeUndoModal();
+    showToast('照合を外しました');
     await loadReconciliation();
-  } catch(e) { showToast('通信エラーが発生しました'); }
+  } catch(e) { showToast('エラー: ' + e.message); btn.disabled = false; }
 }
 
 async function confirmMatch(entryId, recordId) {
