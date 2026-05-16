@@ -1233,7 +1233,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-alias-btn:hover{background:#fde68a;}
 .recon-match-row{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #f0efe8;font-size:12px;min-height:37px;}
 .recon-match-row.matched{background:#F0FDF4;}
+.recon-match-row.resolved{background:#F0FDF4;}
 .recon-match-row.candidate{background:#EFF6FF;}
+.recon-match-row.unmatched{background:#FFFBEB;}
+.recon-b-detail{display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow:hidden;}
+.recon-b-partner{font-size:12px;font-weight:500;color:#1a1a1a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.recon-b-match-amt{font-size:12px;color:#555;white-space:nowrap;flex-shrink:0;}
+.recon-b-label{font-size:11px;color:#888;white-space:nowrap;flex-shrink:0;}
+.recon-b-diff{font-size:11px;color:#dc2626;font-weight:500;white-space:nowrap;flex-shrink:0;}
+.recon-b-noop{font-size:12px;color:#92400e;flex:1;}
+.recon-b-actions{display:flex;gap:4px;flex-shrink:0;}
+.recon-confirm-btn{background:#185FA5!important;color:#fff!important;border-color:#185FA5!important;}
+.recon-confirm-btn:hover{background:#144e8c!important;}
 .recon-status-icon{font-size:12px;font-weight:700;width:16px;text-align:center;flex-shrink:0;}
 .recon-status-icon.matched{color:#16a34a;opacity:0.6;}
 .recon-status-icon.candidate{color:#1d4ed8;}
@@ -2990,32 +3001,62 @@ function updateFabBadge() {
   </div>
 </div>
 
-<!-- v2.7.0: 照合解決モーダル -->
-<div class="recon-modal-overlay" id="modal-recon-resolve" onclick="if(event.target===this)closeResolveModal()">
+<!-- v2.7.0: 差額理由モーダル（候補ありで差額がある場合） -->
+<div class="recon-modal-overlay" id="modal-recon-diff" onclick="if(event.target===this)closeDiffModal()">
   <div class="recon-modal">
-    <h3>照合を解決</h3>
+    <h3>差額の理由</h3>
     <div class="recon-modal-row">
       <label>通帳の情報</label>
-      <div id="resolve-entry-info" style="padding:7px 10px;background:#f8f7f3;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#333;"></div>
+      <div id="diff-entry-info" style="padding:7px 10px;background:#f8f7f3;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#333;"></div>
     </div>
     <div class="recon-modal-row">
-      <label>解決理由<span style="color:#e04;margin-left:6px;">必須</span></label>
+      <label>照合候補の情報</label>
+      <div id="diff-record-info" style="padding:7px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;font-size:13px;color:#333;"></div>
+    </div>
+    <div class="recon-modal-row">
+      <label>差額</label>
+      <div id="diff-amount-info" style="padding:7px 10px;background:#fff;border:1px solid #ddd;border-radius:7px;font-size:13px;font-weight:600;color:#dc2626;"></div>
+    </div>
+    <div class="recon-modal-row">
+      <label>差額の理由<span style="color:#e04;margin-left:6px;">必須</span></label>
       <div class="recon-resolve-opts">
-        <label for="rr-fee"><input type="radio" id="rr-fee" name="resolve-reason" value="振込手数料">振込手数料</label>
-        <label for="rr-disc"><input type="radio" id="rr-disc" name="resolve-reason" value="値引き・割引">値引き・割引</label>
-        <label for="rr-offset"><input type="radio" id="rr-offset" name="resolve-reason" value="相殺">相殺</label>
-        <label for="rr-cash"><input type="radio" id="rr-cash" name="resolve-reason" value="現金払い（銀行明細に出ない）">現金払い（銀行明細に出ない）</label>
-        <label for="rr-na"><input type="radio" id="rr-na" name="resolve-reason" value="対応不要（ATM引出し等）">対応不要（ATM引出し等）</label>
-        <label for="rr-other"><input type="radio" id="rr-other" name="resolve-reason" value="その他">その他</label>
+        <label for="dr-fee"><input type="radio" id="dr-fee" name="diff-reason" value="振込手数料">振込手数料</label>
+        <label for="dr-disc"><input type="radio" id="dr-disc" name="diff-reason" value="値引き・割引">値引き・割引</label>
+        <label for="dr-offset"><input type="radio" id="dr-offset" name="diff-reason" value="相殺">相殺</label>
+        <label for="dr-other"><input type="radio" id="dr-other" name="diff-reason" value="その他">その他</label>
+      </div>
+    </div>
+    <div class="recon-modal-btns">
+      <button class="btn-recon-modal-cancel" onclick="closeDiffModal()">キャンセル</button>
+      <button class="btn-recon-modal-ok" id="btn-diff-submit" onclick="submitDiffMatch()">照合する</button>
+    </div>
+  </div>
+</div>
+
+<!-- v2.7.0: 対応不要モーダル（未照合行） -->
+<div class="recon-modal-overlay" id="modal-recon-noop" onclick="if(event.target===this)closeNoopModal()">
+  <div class="recon-modal">
+    <h3>対応不要にする</h3>
+    <div class="recon-modal-row">
+      <label>通帳の情報</label>
+      <div id="noop-entry-info" style="padding:7px 10px;background:#f8f7f3;border:1px solid #ddd;border-radius:7px;font-size:13px;color:#333;"></div>
+    </div>
+    <div class="recon-modal-row">
+      <label>理由<span style="color:#e04;margin-left:6px;">必須</span></label>
+      <div class="recon-resolve-opts">
+        <label for="nr-atm"><input type="radio" id="nr-atm" name="noop-reason" value="ATM引出し">ATM引出し</label>
+        <label for="nr-xfer"><input type="radio" id="nr-xfer" name="noop-reason" value="口座間振替">口座間振替</label>
+        <label for="nr-pers"><input type="radio" id="nr-pers" name="noop-reason" value="個人利用">個人利用</label>
+        <label for="nr-other"><input type="radio" id="nr-other" name="noop-reason" value="その他">その他</label>
       </div>
     </div>
     <div class="recon-modal-row">
       <label>メモ（任意）</label>
-      <input type="text" id="resolve-note" placeholder="補足があれば入力">
+      <input type="text" id="noop-note" placeholder="補足があれば入力">
     </div>
     <div class="recon-modal-btns">
-      <button class="btn-recon-modal-cancel" onclick="closeResolveModal()">キャンセル</button>
-      <button class="btn-recon-modal-ok" id="btn-resolve-submit" onclick="submitResolve()">解決済みにする</button>
+      <button class="btn-recon-modal-cancel" onclick="closeNoopModal()">キャンセル</button>
+      <button class="btn-recon-modal-ok" id="btn-noop-submit" onclick="submitNoop()">対応不要にする</button>
     </div>
   </div>
 </div>
@@ -9016,6 +9057,16 @@ async function _loadReconSource(sourceId) {
     ]);
     _reconEntries = await er.json();
     _renderReconPills(await sr.json());
+    // matched_record_id → shiwake_records のマップを構築
+    _reconRecordMap = {};
+    const wsId = window._currentWorkspaceId;
+    const recordIds = [...new Set(_reconEntries.map(e => e.matched_record_id).filter(Boolean))];
+    if (recordIds.length > 0 && wsId) {
+      try {
+        const rr = await fetch(`/api/reconciliation/matched-records?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}&ids=${encodeURIComponent(recordIds.join(','))}`);
+        if (rr.ok) { (await rr.json() || []).forEach(r => { _reconRecordMap[r.id] = r; }); }
+      } catch(_) { /* shiwake_records が空でも続行 */ }
+    }
     _renderReconRows(_reconEntries, _reconAliases);
     _renderReconFooter(_reconEntries);
   } catch(e) {
@@ -9032,6 +9083,8 @@ function _renderReconPills(s) {
   document.getElementById('recon-pill-unmatched').textContent = unmatched;
   document.getElementById('recon-pill-rate').textContent      = s.reconciliation_rate != null ? s.reconciliation_rate + '%' : '—';
 }
+
+let _reconRecordMap = {};
 
 function _renderReconRows(entries, aliases) {
   const bodyA = document.getElementById('recon-body-a');
@@ -9073,14 +9126,52 @@ function _renderReconRows(entries, aliases) {
   }).join('');
   if (bodyB) {
     bodyB.innerHTML = entries.map(e => {
-      const lbl    = BADGE_LBL[e.match_status] || '未照合';
-      const bCls   = (e.match_status === 'resolved') ? 'matched' : (e.match_status || 'unmatched');
-      const bAmt   = `${e.direction === 'credit' ? '+' : '-'}¥${Number(e.amount).toLocaleString()}`;
-      const actBtn = (e.match_status === 'unmatched' || e.match_status === 'candidate')
-        ? `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-date="${escapeHtml(e.entry_date)}" data-desc="${escapeHtml(e.description||'')}" data-amt="${escapeHtml(bAmt)}" onclick="openResolveModal(this.dataset.eid,this.dataset.date,this.dataset.desc,this.dataset.amt)">解決</button>` : '';
-      return `<div class="recon-match-row ${bCls}" data-id="${escapeHtml(e.id)}">` +
-        `<span class="recon-badge ${bCls}">${lbl}</span>${actBtn}` +
-      `</div>`;
+      const st  = e.match_status;
+      const rec = _reconRecordMap[e.matched_record_id];
+      const bAmt = `${e.direction === 'credit' ? '+' : '-'}¥${Number(e.amount).toLocaleString()}`;
+      const eInfo = escapeHtml(`${e.entry_date}　${e.description||''}　${bAmt}`);
+
+      if (st === 'matched' || st === 'resolved') {
+        const name = rec ? escapeHtml(rec.partner_name || rec.memo || '照合済み') : '照合済み';
+        const rAmt = `¥${Number(rec ? rec.amount : e.amount).toLocaleString()}`;
+        return `<div class="recon-match-row matched" data-id="${escapeHtml(e.id)}">` +
+          `<span class="recon-status-icon matched">✓</span>` +
+          `<div class="recon-b-detail"><span class="recon-b-partner">${name}</span><span class="recon-b-match-amt">${rAmt}</span></div>` +
+          `</div>`;
+      }
+
+      if (st === 'candidate') {
+        const name   = rec ? escapeHtml(rec.partner_name || rec.memo || '照合候補') : '照合候補';
+        const recAmt = Number(rec ? rec.amount : e.amount);
+        const entAmt = Number(e.amount);
+        const diff   = recAmt - entAmt;
+        const rAmtStr = `¥${recAmt.toLocaleString()}`;
+        const rInfo  = rec ? escapeHtml(`${rec.shiwake_date}　${rec.partner_name || rec.memo || ''}　¥${recAmt.toLocaleString()}`) : '';
+        let btn;
+        if (diff !== 0) {
+          const diffDisp = escapeHtml((diff > 0 ? '+' : '-') + `¥${Math.abs(diff).toLocaleString()}`);
+          btn = `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-rid="${escapeHtml(e.matched_record_id||'')}" data-diff="${diff}" data-einfo="${eInfo}" data-rinfo="${rInfo}" onclick="openDiffModal(this.dataset.eid,this.dataset.rid,this.dataset.diff,this.dataset.einfo,this.dataset.rinfo)">照合する</button>`;
+        } else {
+          btn = `<button class="recon-action-btn recon-confirm-btn" data-eid="${escapeHtml(e.id)}" data-rid="${escapeHtml(e.matched_record_id||'')}" onclick="confirmMatch(this.dataset.eid,this.dataset.rid)">照合する</button>`;
+        }
+        return `<div class="recon-match-row candidate" data-id="${escapeHtml(e.id)}">` +
+          `<div class="recon-b-detail">` +
+          `<span class="recon-b-partner">${name}</span>` +
+          `<span class="recon-b-match-amt">${rAmtStr}</span>` +
+          `<span class="recon-b-label">と一致？</span>` +
+          (diff !== 0 ? `<span class="recon-b-diff">差額${diff > 0 ? '+' : '-'}¥${Math.abs(diff).toLocaleString()}</span>` : '') +
+          `</div><div class="recon-b-actions">${btn}</div>` +
+          `</div>`;
+      }
+
+      // unmatched
+      return `<div class="recon-match-row unmatched" data-id="${escapeHtml(e.id)}">` +
+        `<span class="recon-status-icon unmatched" style="color:#d97706;">？</span>` +
+        `<span class="recon-b-noop">対応する証憑なし</span>` +
+        `<div class="recon-b-actions">` +
+        `<button class="recon-action-btn" onclick="openReconUploadModal()">証憑を追加</button>` +
+        `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-einfo="${eInfo}" onclick="openNoopModal(this.dataset.eid,this.dataset.einfo)">対応不要</button>` +
+        `</div></div>`;
     }).join('');
   }
 }
@@ -9195,39 +9286,81 @@ async function runReconMatch(sourceId) {
   }
 }
 
-let _resolveTargetId = '';
-function openResolveModal(entryId, date, description, amount) {
-  _resolveTargetId = entryId;
-  document.getElementById('resolve-entry-info').textContent = `${date}　${description}　${amount}`;
-  document.querySelectorAll('input[name="resolve-reason"]').forEach(r => { r.checked = false; });
-  document.getElementById('resolve-note').value = '';
-  document.getElementById('btn-resolve-submit').disabled = false;
-  document.getElementById('modal-recon-resolve').classList.add('show');
-}
-function closeResolveModal() {
-  document.getElementById('modal-recon-resolve').classList.remove('show');
-}
-async function submitResolve() {
-  const reason = document.querySelector('input[name="resolve-reason"]:checked')?.value;
-  if (!reason) { showToast('解決理由を選択してください'); return; }
-  const note = document.getElementById('resolve-note').value.trim();
-  const btn  = document.getElementById('btn-resolve-submit');
-  btn.disabled = true;
+// v2.7.0 B列詳細表示: 照合確定・差額理由・対応不要の3関数セット
+async function confirmMatch(entryId, recordId) {
+  const uid = window._firebaseUser?.uid;
   try {
-    const r = await fetch(`/api/reconciliation/entries/${_resolveTargetId}`, {
+    const r = await fetch(`/api/reconciliation/entries/${entryId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ match_status: 'resolved', resolution_type: reason, resolution_note: note })
+      body: JSON.stringify({ uid, match_status: 'matched', matched_record_id: recordId })
     });
     if (!r.ok) { const d = await r.json(); showToast('エラー: ' + (d.error||'不明')); return; }
-    closeResolveModal();
-    showToast('解決済みにしました');
+    showToast('照合しました');
     await loadReconciliation();
-  } catch(e) {
-    showToast('通信エラーが発生しました');
-  } finally {
-    btn.disabled = false;
-  }
+  } catch(e) { showToast('通信エラーが発生しました'); }
+}
+
+let _diffTargetEntryId = '', _diffTargetRecordId = '';
+function openDiffModal(entryId, recordId, diff, entryInfo, recordInfo) {
+  _diffTargetEntryId = entryId;
+  _diffTargetRecordId = recordId;
+  document.getElementById('diff-entry-info').textContent  = entryInfo;
+  document.getElementById('diff-record-info').textContent = recordInfo || '—';
+  const diffN = Number(diff);
+  document.getElementById('diff-amount-info').textContent = (diffN > 0 ? '+' : '') + `¥${diffN.toLocaleString()}`;
+  document.querySelectorAll('input[name="diff-reason"]').forEach(r => { r.checked = false; });
+  document.getElementById('btn-diff-submit').disabled = false;
+  document.getElementById('modal-recon-diff').classList.add('show');
+}
+function closeDiffModal() { document.getElementById('modal-recon-diff').classList.remove('show'); }
+async function submitDiffMatch() {
+  const uid    = window._firebaseUser?.uid;
+  const reason = document.querySelector('input[name="diff-reason"]:checked')?.value;
+  if (!reason) { showToast('差額の理由を選択してください'); return; }
+  const btn = document.getElementById('btn-diff-submit');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/reconciliation/entries/${_diffTargetEntryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, match_status: 'resolved', matched_record_id: _diffTargetRecordId, resolution_type: reason })
+    });
+    if (!r.ok) { const d = await r.json(); showToast('エラー: ' + (d.error||'不明')); return; }
+    closeDiffModal();
+    showToast('照合しました');
+    await loadReconciliation();
+  } catch(e) { showToast('通信エラーが発生しました'); } finally { btn.disabled = false; }
+}
+
+let _noopTargetId = '';
+function openNoopModal(entryId, entryInfo) {
+  _noopTargetId = entryId;
+  document.getElementById('noop-entry-info').textContent = entryInfo;
+  document.querySelectorAll('input[name="noop-reason"]').forEach(r => { r.checked = false; });
+  document.getElementById('noop-note').value = '';
+  document.getElementById('btn-noop-submit').disabled = false;
+  document.getElementById('modal-recon-noop').classList.add('show');
+}
+function closeNoopModal() { document.getElementById('modal-recon-noop').classList.remove('show'); }
+async function submitNoop() {
+  const uid    = window._firebaseUser?.uid;
+  const reason = document.querySelector('input[name="noop-reason"]:checked')?.value;
+  if (!reason) { showToast('理由を選択してください'); return; }
+  const note = document.getElementById('noop-note').value.trim();
+  const btn  = document.getElementById('btn-noop-submit');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/reconciliation/entries/${_noopTargetId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, match_status: 'resolved', resolution_type: reason, resolution_note: note })
+    });
+    if (!r.ok) { const d = await r.json(); showToast('エラー: ' + (d.error||'不明')); return; }
+    closeNoopModal();
+    showToast('対応不要にしました');
+    await loadReconciliation();
+  } catch(e) { showToast('通信エラーが発生しました'); } finally { btn.disabled = false; }
 }
 
 let _reconAliasTarget = '';

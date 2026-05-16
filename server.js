@@ -5237,6 +5237,24 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // GET /api/reconciliation/matched-records?uid=xxx&workspace_id=yyy&ids=a,b,c → 照合先仕訳情報取得
+  if (req.method === 'GET' && reqPath === '/api/reconciliation/matched-records') {
+    const _p = new URL(req.url, 'http://localhost').searchParams;
+    const uid = _p.get('uid');
+    const workspace_id = _p.get('workspace_id');
+    const ids = _p.get('ids');
+    if (!uid || !workspace_id || !ids) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, ids required' })); return; }
+    try {
+      const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+      const idList = ids.split(',').filter(Boolean).slice(0, 200).join(',');
+      const records = await supabaseQuery(`/shiwake_records?id=in.(${idList})&workspace_id=eq.${workspace_id}&select=id,partner_name,memo,amount,shiwake_date`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(records || []));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
   // GET /api/reconciliation/summary/:sourceId?uid=xxx → 照合統計
   if (req.method === 'GET' && /^\/api\/reconciliation\/summary\/[a-zA-Z0-9_-]+$/.test(reqPath)) {
     const sourceId = reqPath.slice('/api/reconciliation/summary/'.length);
