@@ -1241,8 +1241,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-b-match-amt{font-size:12px;color:#555;white-space:nowrap;flex-shrink:0;}
 .recon-b-label{font-size:11px;color:#888;white-space:nowrap;flex-shrink:0;}
 .recon-b-diff{font-size:11px;color:#dc2626;font-weight:500;white-space:nowrap;flex-shrink:0;}
-.recon-b-noop{font-size:12px;color:#92400e;flex:1;}
+.recon-b-noop{font-size:12px;color:#92400e;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .recon-b-actions{display:flex;gap:4px;flex-shrink:0;}
+.recon-undo-btn{background:none;border:none;cursor:pointer;font-size:11px;color:#555;opacity:0.3;padding:2px 4px;flex-shrink:0;line-height:1;}
+.recon-undo-btn:hover{opacity:0.8;}
 .recon-confirm-btn{background:#185FA5!important;color:#fff!important;border-color:#185FA5!important;}
 .recon-confirm-btn:hover{background:#144e8c!important;}
 .recon-status-icon{font-size:12px;font-weight:700;width:16px;text-align:center;flex-shrink:0;}
@@ -9131,43 +9133,20 @@ function _renderReconRows(entries, aliases) {
       const bAmt = `${e.direction === 'credit' ? '+' : '-'}¥${Number(e.amount).toLocaleString()}`;
       const eInfo = escapeHtml(`${e.entry_date}　${e.description||''}　${bAmt}`);
 
-      if (st === 'matched' || st === 'resolved') {
+      if (st === 'matched' || st === 'resolved' || st === 'candidate') {
         const name = rec ? escapeHtml(rec.partner_name || rec.memo || '照合済み') : '照合済み';
         const rAmt = `¥${Number(rec ? rec.amount : e.amount).toLocaleString()}`;
         return `<div class="recon-match-row matched" data-id="${escapeHtml(e.id)}">` +
           `<span class="recon-status-icon matched">✓</span>` +
           `<div class="recon-b-detail"><span class="recon-b-partner">${name}</span><span class="recon-b-match-amt">${rAmt}</span></div>` +
-          `</div>`;
-      }
-
-      if (st === 'candidate') {
-        const name   = rec ? escapeHtml(rec.partner_name || rec.memo || '照合候補') : '照合候補';
-        const recAmt = Number(rec ? rec.amount : e.amount);
-        const entAmt = Number(e.amount);
-        const diff   = recAmt - entAmt;
-        const rAmtStr = `¥${recAmt.toLocaleString()}`;
-        const rInfo  = rec ? escapeHtml(`${rec.shiwake_date}　${rec.partner_name || rec.memo || ''}　¥${recAmt.toLocaleString()}`) : '';
-        let btn;
-        if (diff !== 0) {
-          const diffDisp = escapeHtml((diff > 0 ? '+' : '-') + `¥${Math.abs(diff).toLocaleString()}`);
-          btn = `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-rid="${escapeHtml(e.matched_record_id||'')}" data-diff="${diff}" data-einfo="${eInfo}" data-rinfo="${rInfo}" onclick="openDiffModal(this.dataset.eid,this.dataset.rid,this.dataset.diff,this.dataset.einfo,this.dataset.rinfo)">照合する</button>`;
-        } else {
-          btn = `<button class="recon-action-btn recon-confirm-btn" data-eid="${escapeHtml(e.id)}" data-rid="${escapeHtml(e.matched_record_id||'')}" onclick="confirmMatch(this.dataset.eid,this.dataset.rid)">照合する</button>`;
-        }
-        return `<div class="recon-match-row candidate" data-id="${escapeHtml(e.id)}">` +
-          `<div class="recon-b-detail">` +
-          `<span class="recon-b-partner">${name}</span>` +
-          `<span class="recon-b-match-amt">${rAmtStr}</span>` +
-          `<span class="recon-b-label">と一致？</span>` +
-          (diff !== 0 ? `<span class="recon-b-diff">差額${diff > 0 ? '+' : '-'}¥${Math.abs(diff).toLocaleString()}</span>` : '') +
-          `</div><div class="recon-b-actions">${btn}</div>` +
+          `<button class="recon-undo-btn" data-eid="${escapeHtml(e.id)}" onclick="undoMatch(this.dataset.eid)" title="照合を取り消す">↩</button>` +
           `</div>`;
       }
 
       // unmatched
       return `<div class="recon-match-row unmatched" data-id="${escapeHtml(e.id)}">` +
         `<span class="recon-status-icon unmatched" style="color:#d97706;">？</span>` +
-        `<span class="recon-b-noop">対応する証憑なし</span>` +
+        `<span class="recon-b-noop">証憑なし</span>` +
         `<div class="recon-b-actions">` +
         `<button class="recon-action-btn" onclick="openReconUploadModal()">証憑を追加</button>` +
         `<button class="recon-action-btn" data-eid="${escapeHtml(e.id)}" data-einfo="${eInfo}" onclick="openNoopModal(this.dataset.eid,this.dataset.einfo)">対応不要</button>` +
@@ -9287,6 +9266,20 @@ async function runReconMatch(sourceId) {
 }
 
 // v2.7.0 B列詳細表示: 照合確定・差額理由・対応不要の3関数セット
+async function undoMatch(entryId) {
+  const uid = window._firebaseUser?.uid;
+  try {
+    const r = await fetch(`/api/reconciliation/entries/${entryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, match_status: 'unmatched', matched_record_id: null })
+    });
+    if (!r.ok) { const d = await r.json(); showToast('エラー: ' + (d.error||'不明')); return; }
+    showToast('照合を取り消しました');
+    await loadReconciliation();
+  } catch(e) { showToast('通信エラーが発生しました'); }
+}
+
 async function confirmMatch(entryId, recordId) {
   const uid = window._firebaseUser?.uid;
   try {

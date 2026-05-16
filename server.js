@@ -1145,7 +1145,7 @@ function runReconciliationMatch(entries, records, aliases) {
     if (lv1Match) {
       results.push({ id: entry.id, match_status: 'matched',   matched_record_id: lv1Match.id });
     } else if (lv2Match) {
-      results.push({ id: entry.id, match_status: 'candidate', matched_record_id: lv2Match.id });
+      results.push({ id: entry.id, match_status: 'matched', matched_record_id: lv2Match.id });
     } else {
       results.push({ id: entry.id, match_status: 'unmatched', matched_record_id: null });
     }
