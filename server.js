@@ -140,61 +140,6 @@ const RESELLER_TIER_THRESHOLDS = {
   gold:   500000, // ¥500,001〜 で Gold
 };
 
-// edition ごとの機能定義
-const EDITION_FEATURES = {
-  saas: {
-    receipt_upload: true,
-    ai_judgment: true,
-    master_learning: true,
-    csv_export: true,
-    incentive: 'option',
-    auto_ingest: false,
-    auto_export: false,
-    auto_rule_learning: false,
-    auto_approval: false,
-    industry_template: false,
-    my_template: false,
-    dashboard_full: false,
-    career_path_full: false,
-    chat_mode: false,
-  },
-  agent: {
-    receipt_upload: true,
-    ai_judgment: true,
-    master_learning: true,
-    csv_export: true,
-    incentive: false,
-    auto_ingest: true,
-    auto_export: true,
-    auto_rule_learning: true,
-    auto_approval: true,
-    industry_template: true,
-    my_template: true,
-    dashboard_full: true,
-    career_path_full: true,
-    chat_mode: false,
-  },
-  elite: {
-    receipt_upload: true,
-    ai_judgment: true,
-    master_learning: true,
-    csv_export: true,
-    incentive: false,
-    auto_ingest: true,
-    auto_export: true,
-    auto_rule_learning: true,
-    auto_approval: true,
-    industry_template: true,
-    my_template: true,
-    dashboard_full: true,
-    career_path_full: true,
-    chat_mode: true,
-    context_cross_judgment: true,
-    closing_self_drive: true,
-    fiscal_year_assist: true,
-  },
-};
-
 // 管理者トークン検証
 function verifyAdminToken(token) {
   const adminToken = process.env.ADMIN_TOKEN || '';
@@ -220,16 +165,6 @@ async function sendAdminNotification(subject, data) {
   await sendEmail(adminEmail, `【shiwake-ai 管理通知】${subject}`, html);
 }
 
-// 機能フラグ判定関数
-async function canUse(uid, feature) {
-  const data = await supabaseQuery(`/users?id=eq.${uid}&select=edition,plan_key`);
-  const user = data?.[0];
-  if (!user) return false;
-  const edition = user.edition || 'saas';
-  const features = EDITION_FEATURES[edition] || EDITION_FEATURES.saas;
-  return features[feature] === true;
-}
-
 // ワークスペース上限計算関数(§6.2)
 async function getWorkspaceLimit(uid) {
   // 新料金体系（v3.2）: 全プラン ワークスペース無制限
@@ -242,7 +177,7 @@ async function getUserPlan(uid) {
   const user = data?.[0];
   if (!user || !user.plan_key) return null;
   const plan = STRIPE_PLANS[user.plan_key];
-  return plan ? { ...plan, key: user.plan_key, edition: user.edition } : null;
+  return plan ? { ...plan, key: user.plan_key } : null;
 }
 
 // ===== SendGridメール送信 =====
@@ -1015,34 +950,23 @@ async function ensureAutoExportsBucket() {
 
 // 自動取り込み機能利用判定
 async function canUseAutoIntake(uid) {
-  const data = await supabaseQuery(`/users?id=eq.${uid}&select=is_paid,plan_key,graduated_rookie_at,cumulative_shiwake_count`);
+  const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key`);
   const user = data?.[0];
   if (!user) return { allowed: false, reason: 'user_not_found' };
-  if (!user.is_paid) return { allowed: false, reason: 'free_trial_not_allowed' };
-  if (user.plan_key && user.plan_key.startsWith('agent_')) return { allowed: true };
-  if (!user.graduated_rookie_at) {
-    return { allowed: false, reason: 'rookie_not_graduated', cumulative_count: user.cumulative_shiwake_count || 0, threshold: 50 };
-  }
+  const eligible = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'].includes(user.plan_key);
+  if (!eligible) return { allowed: false, reason: 'plan_not_eligible' };
   return { allowed: true };
 }
 
-// 累計仕訳件数インクリメント + ルーキー卒業判定
+// 累計仕訳件数インクリメント
 async function bumpCumulativeAndCheckGraduation(uid, addCount) {
   try {
-    const data = await supabaseQuery(`/users?id=eq.${uid}&select=cumulative_shiwake_count,graduated_rookie_at,plan_key,is_paid`);
+    const data = await supabaseQuery(`/users?id=eq.${uid}&select=cumulative_shiwake_count`);
     const user = data?.[0];
     if (!user) return null;
     const newCount = (user.cumulative_shiwake_count || 0) + addCount;
-    const updates = { cumulative_shiwake_count: newCount };
-    let justGraduated = false;
-    const isPaid = user.is_paid === true;
-    const isAgent = user.plan_key && user.plan_key.startsWith('agent_');
-    if (isPaid && !isAgent && !user.graduated_rookie_at && newCount >= 50) {
-      updates.graduated_rookie_at = new Date().toISOString();
-      justGraduated = true;
-    }
-    await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', updates);
-    return { just_graduated: justGraduated, cumulative_count: newCount };
+    await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { cumulative_shiwake_count: newCount });
+    return { cumulative_count: newCount };
   } catch(e) {
     console.error('bumpCumulative error:', e.message);
     return null;
@@ -2134,16 +2058,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/user/plan?uid=xxx → ユーザーのプラン情報・edition・利用可能機能を返す
+  // GET /api/user/plan?uid=xxx → ユーザーのプラン情報を返す
   if (req.method === 'GET' && req.url.startsWith('/api/user/plan')) {
     const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
-      const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,edition,monthly_count,billing_period_end`);
+      const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,monthly_count,billing_period_end`);
       const user = data?.[0];
       if (!user || !user.plan_key) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ plan: null, edition: 'saas', features: EDITION_FEATURES.saas }));
+        res.end(JSON.stringify({ plan: null }));
         return;
       }
       const plan = STRIPE_PLANS[user.plan_key];
@@ -2159,8 +2083,6 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         plan: { key: user.plan_key, ...plan },
-        edition: user.edition,
-        features: EDITION_FEATURES[user.edition] || EDITION_FEATURES.saas,
         usage: {
           monthly_count: monthlyCount,
           included_count: plan ? plan.included_count : null,
@@ -2219,8 +2141,8 @@ const server = http.createServer(async (req, res) => {
         }
         await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patch);
 
-        // 累計件数インクリメント + 卒業判定
-        const gradResult = await bumpCumulativeAndCheckGraduation(uid, n).catch(() => null);
+        // 累計件数インクリメント
+        await bumpCumulativeAndCheckGraduation(uid, n).catch(() => null);
         // workspace_id が解決できた場合は信頼度メトリクスを再計算
         if (wsId) recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error:', e.message));
 
@@ -2255,7 +2177,6 @@ const server = http.createServer(async (req, res) => {
           incentive_threshold: INCENTIVE_THRESHOLD,
           incentive_amount: INCENTIVE_AMOUNT,
           is_agency: isAgency,
-          graduation: gradResult
         }));
       } catch(e) {
         res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
@@ -2443,7 +2364,7 @@ const server = http.createServer(async (req, res) => {
           const isResellerPlan = planKey && STRIPE_PLANS[planKey]?.is_reseller === true;
 
           if (uid) {
-            // 通常/代理店プラン購入: billing_period・edition・is_reseller を保存
+            // 通常/代理店プラン購入: billing_period・is_reseller を保存
             let billingPeriodStart = null, billingPeriodEnd = null;
             if (subscriptionId) {
               try {
@@ -2454,25 +2375,20 @@ const server = http.createServer(async (req, res) => {
                 console.warn('subscription取得失敗:', e.message);
               }
             }
-            const plan = STRIPE_PLANS[planKey];
-            const edition = plan?.edition || 'saas';
-            const isAgentPlan = planKey && planKey.startsWith('agent_');
             const patchData = {
               is_paid: true,
               is_free_trial: false,
               stripe_customer_id: customerId,
               stripe_plan: planKey,
               plan_key: planKey,
-              edition: edition,
               is_reseller: isResellerPlan ? true : false,
               billing_period_start: billingPeriodStart,
               billing_period_end: billingPeriodEnd,
               monthly_count: 0,
               paid_at: new Date().toISOString()
             };
-            if (isAgentPlan) patchData.graduated_rookie_at = new Date().toISOString();
             await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patchData);
-            console.log(`プラン契約: ${uid} → ${planKey} (${edition})${isResellerPlan ? ' [代理店]' : ''}${isAgentPlan ? ' [agent→graduated]' : ''}`);
+            console.log(`プラン契約: ${uid} → ${planKey}${isResellerPlan ? ' [代理店]' : ''}`);
           }
         }
         if (event.type === 'customer.subscription.updated') {
@@ -2487,22 +2403,6 @@ const server = http.createServer(async (req, res) => {
           });
           console.log(`請求期間更新: ${customerId}`);
         }
-        if (event.type === 'invoice.paid') {
-          const invoice = event.data.object;
-          const customerId = invoice.customer;
-          const lineItems = invoice.lines?.data || [];
-          const newPlanKey = lineItems.map(l => l.metadata?.plan_key).find(k => k) || null;
-          if (newPlanKey && newPlanKey.startsWith('agent_')) {
-            const users = await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}&select=id,graduated_rookie_at`);
-            const user = Array.isArray(users) ? users[0] : null;
-            if (user && !user.graduated_rookie_at) {
-              await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
-                graduated_rookie_at: new Date().toISOString()
-              });
-              console.log(`invoice.paid agent→graduated: ${customerId}`);
-            }
-          }
-        }
         if (event.type === 'customer.subscription.deleted') {
           const deletedSub = event.data.object;
           const deletedSubId = deletedSub.id;
@@ -2510,7 +2410,6 @@ const server = http.createServer(async (req, res) => {
           await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
             is_paid: false,
             plan_key: null,
-            edition: null,
             is_reseller: false,
           });
           console.log(`サブスク解約: ${customerId}`);
@@ -2983,32 +2882,6 @@ const server = http.createServer(async (req, res) => {
 
   // ===== v2.3.0: 自動取り込み API =====
 
-  // GET /api/user/graduation-status?uid=xxx
-  if (req.method === 'GET' && reqPath === '/api/user/graduation-status') {
-    const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
-    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
-    try {
-      const data = await supabaseQuery(`/users?id=eq.${uid}&select=cumulative_shiwake_count,graduated_rookie_at,plan_key,is_paid`);
-      const user = data?.[0];
-      if (!user) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'user not found' })); return; }
-      const isAgent = user?.plan_key?.startsWith('agent_');
-      const cumulativeCount = user?.cumulative_shiwake_count || 0;
-      const threshold = 50;
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        graduated: !!user?.graduated_rookie_at,
-        is_agent: isAgent,
-        is_paid: user?.is_paid || false,
-        cumulative_count: cumulativeCount,
-        threshold,
-        progress_pct: Math.min(100, Math.floor((cumulativeCount / threshold) * 100)),
-        remaining: Math.max(0, threshold - cumulativeCount),
-        graduated_at: user?.graduated_rookie_at
-      }));
-    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
-    return;
-  }
-
   // GET /api/inbox/address?uid=xxx&workspace_id=yyy (将来用、現状は uid 単位)
   if (req.method === 'GET' && reqPath === '/api/inbox/address') {
     const params = new URL(req.url, 'http://localhost').searchParams;
@@ -3067,13 +2940,12 @@ const server = http.createServer(async (req, res) => {
     try {
       // workspace_id を検証(inbox_settings テーブル未実装のため検証のみ、フィルタは uid 単位)
       try { await resolveWorkspaceId(uid, params.get('workspace_id')); } catch(e) { handleWsError(e, res); return; }
-      const data = await supabaseQuery(`/users?id=eq.${uid}&select=auto_intake_enabled,auto_shiwake_enabled,graduated_rookie_at`);
+      const data = await supabaseQuery(`/users?id=eq.${uid}&select=auto_intake_enabled,auto_shiwake_enabled`);
       const u = data?.[0];
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         auto_intake_enabled: u?.auto_intake_enabled || false,
         auto_shiwake_enabled: u?.auto_shiwake_enabled || false,
-        graduated: !!u?.graduated_rookie_at
       }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;

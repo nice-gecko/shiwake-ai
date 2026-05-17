@@ -1698,28 +1698,17 @@ function updateFabBadge() {
           // 累計処理数（全ユーザー共通・Supabase信頼源）
           window._userTotalCount = u.monthly_count || 0;
 
-          // /api/user/plan から edition・features を取得して保存
+          // /api/user/plan からプラン情報を取得して保存
           try {
             const pr = await fetch('/api/user/plan?uid=' + uid);
             const pd = await pr.json();
-            window._userEdition        = pd.edition  || 'saas';
-            window._userFeatures       = pd.features || {};
             window._userUsage          = pd.usage    || {};
             window._wsLimit            = pd.workspace_limit        ?? 1;
             window._wsCurrentCount     = pd.current_workspace_count ?? 0;
             window._userBillingEstimate = pd.billing_estimate       || null;
-          } catch(e) { window._userEdition = 'saas'; }
+          } catch(e) {}
 
           renderPlanStatusBanner();
-
-          // Agent/Elite サイドバーメニュー出し分け
-          const isAgentEdition = ['agent','elite'].includes(window._userEdition);
-          const isEliteEdition = window._userEdition === 'elite';
-          ['navAgentDashboard','navAgentTemplate','navMyTemplate'].forEach(id => {
-            const n = document.getElementById(id); if(n) n.style.display = isAgentEdition ? '' : 'none';
-          });
-          const eliteNav = document.getElementById('navEliteChat');
-          if(eliteNav) eliteNav.style.display = isEliteEdition ? '' : 'none';
 
           // adminは画面切替を優先、他ユーザーはプラン判定
           let isAgency;
@@ -1978,7 +1967,7 @@ function updateFabBadge() {
           差し戻しトレイ
           <span class="reverted-sidebar-badge" id="revertedSidebarBadge" style="display:none;"></span>
         </div>
-        <!-- Agent版メニュー (edition: agent / elite) -->
+        <!-- Agent版メニュー（準備中） -->
         <div class="sidebar-nav-item" id="navAgentDashboard" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
           <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="8.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
           ダッシュボード<span class="nav-badge-coming">準備中</span>
@@ -1991,7 +1980,7 @@ function updateFabBadge() {
           <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="4.5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M3 13c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="10" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="11.5" y1="5.5" x2="11.5" y2="8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           Myテンプレート<span class="nav-badge-coming">準備中</span>
         </div>
-        <!-- Eliteメニュー (edition: elite のみ) -->
+        <!-- Eliteメニュー（準備中） -->
         <div class="sidebar-nav-item" id="navEliteChat" style="display:none;" onclick="showToast('この機能は準備中です', 2000)">
           <svg class="nav-icon" viewBox="0 0 15 15" fill="none"><path d="M2 3h11a1 1 0 011 1v6a1 1 0 01-1 1H8l-3 2v-2H2a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/></svg>
           対話モード設定<span class="nav-badge-coming">準備中</span>
@@ -6453,15 +6442,6 @@ let _inboxTrayInterval = null;
 let _inboxTrayEligibilityCache = null;  // { eligible: boolean, fetchedAt: number } | null
 let _inboxTrayListSignature = '';        // 直近に描画した files の署名
 
-async function fetchGraduationStatus() {
-  const uid = window._firebaseUser?.uid;
-  if (!uid) return null;
-  try {
-    const r = await fetch('/api/user/graduation-status?uid=' + uid);
-    return await r.json();
-  } catch(e) { return null; }
-}
-
 async function fetchInboxSettings() {
   const uid = window._firebaseUser?.uid;
   if (!uid) return { auto_intake_enabled: false };
@@ -6481,9 +6461,9 @@ async function loadInboxTray() {
     // (A) eligibility キャッシュ: 未取得 or 10 分以上経過なら再取得
     const TEN_MIN = 10 * 60 * 1000;
     if (!_inboxTrayEligibilityCache || Date.now() - _inboxTrayEligibilityCache.fetchedAt > TEN_MIN) {
-      const grad = await fetchGraduationStatus();
       const settings = await fetchInboxSettings();
-      const eligible = !!(grad && (grad.is_agent || grad.graduated) && grad.is_paid && settings.auto_intake_enabled);
+      const autoIntakeKeys = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'];
+      const eligible = autoIntakeKeys.includes(window._userPlanKey) && settings.auto_intake_enabled;
       _inboxTrayEligibilityCache = { eligible, fetchedAt: Date.now() };
     }
 
@@ -6598,8 +6578,8 @@ async function loadAutoIntakeSettings() {
   const uid = window._firebaseUser?.uid;
   if (!uid) return;
   try {
-    const grad = await fetchGraduationStatus();
     const settings = await fetchInboxSettings();
+    const autoIntakeKeys = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'];
 
     const intakeSection  = document.getElementById('autoIntakeSection');
     const autoIntakeToggle = document.getElementById('autoIntakeToggle');
@@ -6609,12 +6589,12 @@ async function loadAutoIntakeSettings() {
     const gdriveRow      = document.getElementById('gdriveRow');
     const autoShiwakeRow = document.getElementById('autoShiwakeRow');
 
-    if (!grad || !grad.is_paid) {
+    if (!autoIntakeKeys.includes(window._userPlanKey)) {
       if (intakeSection) intakeSection.hidden = true;
       return;
     }
 
-    // 有料プランなら全員設定可能
+    // オートメーション以上のプランなら設定可能
     if (intakeSection) intakeSection.hidden = false;
     if (autoIntakeToggle) autoIntakeToggle.checked = settings.auto_intake_enabled;
     if (autoShiwakeToggle) autoShiwakeToggle.checked = settings.auto_shiwake_enabled;
@@ -6805,13 +6785,13 @@ async function disconnectGDrive() {
 }
 
 // ===== サイドバー自動取り込みメニュー出し分け =====
-async function setupAutoIntakeMenuItem() {
+function setupAutoIntakeMenuItem() {
   const menuItem = document.getElementById('navAutoIntake');
   const menuUT   = document.getElementById('navUnassignedTray');
   if (!menuItem && !menuUT) return;
-  const grad = await fetchGraduationStatus();
-  const show = !!(grad && grad.is_paid);
-  // 有料プランなら表示、無料は非表示(navAutoIntake / navUnassignedTray 共通)
+  const autoIntakeKeys = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'];
+  const show = autoIntakeKeys.includes(window._userPlanKey);
+  // オートメーション以上のプランなら表示
   if (menuItem) {
     menuItem.style.display = show ? '' : 'none';
     const lb = menuItem.querySelector('.lock-badge');
@@ -7965,7 +7945,7 @@ function renderWsEditBody(ws, ae = {}) {
       <div class="ws-rule-section-title">最近のエクスポート履歴（直近30日）</div>
       <div id="aeHistBody"><span style="color:#bbb;font-size:12px;">読み込み中...</span></div>
     </div>
-    ${(()=>{const isAgent=['agent','elite'].includes(window._userEdition||'saas');
+    ${(()=>{const isAgent=['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'].includes(window._userPlanKey||'');
     if(!isAgent)return`<div class="ws-rule-section" id="auto-rule-learning-section"><div class="ws-rule-section-title">自動ルール学習</div><div class="lr-upgrade-hint">Agent ライト以上のプランで利用できます。<br><button style="margin-top:6px;padding:4px 14px;border-radius:6px;border:none;background:#185FA5;color:#fff;font-size:12px;cursor:pointer;" onclick="closeWsEdit();switchTab('pricing')">プランを確認する</button></div></div>`;
     return`<div class="ws-rule-section" id="auto-rule-learning-section">
       <div class="ws-rule-section-title">自動ルール学習</div>
@@ -8256,14 +8236,6 @@ window.addEventListener('DOMContentLoaded', () => {
       updateUnassignedBadge();
       // v2.6.0: 差し戻しトレイバッジ初期化
       updateRevertedBadge();
-      // 既に卒業済みのユーザーはlocalStorageフラグだけ立てる（モーダルは出さない）
-      fetchGraduationStatus().then(grad => {
-        const uid = window._firebaseUser?.uid || '';
-        const lsKey = 'shiwake_graduated_modal_shown_' + uid;
-        if (grad && grad.graduated && !localStorage.getItem(lsKey)) {
-          localStorage.setItem(lsKey, '1');
-        }
-      });
     }
   }, 1000);
 });
