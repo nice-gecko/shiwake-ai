@@ -6833,6 +6833,7 @@ const _NAV_PLAN_GATES = {
   'navAutoIntake':     'import',
   'navMaster':         'learning',
   'navAutoApproveLog': 'approval',
+  'navRevertedTray':   'approval',
   'navReconciliation': 'reconciliation',
 };
 function setupPlanGateSidebarItems() {
@@ -9479,6 +9480,7 @@ window.switchTab = function(tab) {
 const _PLAN_GATE_REQUIRED_PLAN = {
   'master':          { feature: 'learning',       planName: 'オートメーション' },
   'auto-approve-log':{ feature: 'approval',       planName: 'オートメーション' },
+  'reverted-tray':   { feature: 'approval',       planName: 'オートメーション' },
   'reconciliation':  { feature: 'reconciliation', planName: 'コンプリート'    },
   'auto-intake':     { feature: 'import',         planName: 'オートメーション' },
 };
@@ -9489,6 +9491,7 @@ function _showPlanGateForTab(tab, planName) {
   if (pBtn) pBtn.classList.remove('active');
   const tabNavMap = {
     'master':'navMaster','auto-approve-log':'navAutoApproveLog',
+    'reverted-tray':'navRevertedTray',
     'reconciliation':'navReconciliation','auto-intake':'navAutoIntake',
   };
   const navId = tabNavMap[tab];
@@ -9501,6 +9504,7 @@ function _showPlanGateForTab(tab, planName) {
   const GATE_MSGS = {
     'master':          { title: '仕訳ルール学習', desc: 'ルール学習機能は' },
     'auto-approve-log':{ title: '自動承認ログ',   desc: '自動承認ログは'   },
+    'reverted-tray':   { title: '差し戻しトレイ', desc: '差し戻しトレイは' },
     'reconciliation':  { title: '帳簿照合',        desc: '帳簿照合機能は'   },
     'auto-intake':     { title: '自動インポート',   desc: '自動インポートは' },
   };

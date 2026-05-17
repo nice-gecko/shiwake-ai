@@ -747,8 +747,10 @@ async function notifyAutoApprovePaused(ownerUid, workspaceId, currentScore, requ
 }
 
 // 自動承認フラグを items に付与（analyze-chunk のハッシュパス・通常パス共通）
+const _APPROVAL_PLANS = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'];
 function applyAutoApproveFlags(items, wsSettings) {
-  if (!wsSettings || wsSettings.auto_approve_paused_at) return items;
+  if (!wsSettings?.plan_key || !_APPROVAL_PLANS.includes(wsSettings.plan_key)) return items;
+  if (wsSettings.auto_approve_paused_at) return items;
   const allEnabled = wsSettings.auto_approve_all_enabled;
   const learnedEnabled = wsSettings.auto_approve_learned_enabled;
   if (!allEnabled && !learnedEnabled) return items;
@@ -2565,10 +2567,16 @@ const server = http.createServer(async (req, res) => {
           try {
             const [rulesRes, wsRes] = await Promise.all([
               supabaseQuery(`/learned_rules?workspace_id=eq.${workspace_id}&anomaly_flag=is.null&select=id,conditions,result,applied_count,is_active`),
-              supabaseQuery(`/workspaces?id=eq.${workspace_id}&select=auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_paused_at`)
+              supabaseQuery(`/workspaces?id=eq.${workspace_id}&select=owner_uid,auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_paused_at`)
             ]);
             workspaceLearnedRules = rulesRes || [];
-            wsAutoApproveSettings = wsRes?.[0] || null;
+            const wsData = wsRes?.[0] || null;
+            if (wsData?.owner_uid) {
+              const planData = await supabaseQuery(`/users?id=eq.${wsData.owner_uid}&select=plan_key`);
+              wsAutoApproveSettings = { ...wsData, plan_key: planData?.[0]?.plan_key || null };
+            } else {
+              wsAutoApproveSettings = wsData;
+            }
           } catch(e) { /* 取得失敗は無視してフォールバック */ }
         }
 
