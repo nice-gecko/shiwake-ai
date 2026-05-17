@@ -8872,10 +8872,11 @@ async function loadUnlockFeatures() {
     (ws.client_email_domains?.length > 0) ||
     (ws.subject_keywords?.length > 0)
   ));
-  renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId });
+  const autoApproveActive = !!(window._master?.auto_approve_learned_enabled || window._master?.auto_approve_all_enabled);
+  renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, autoApproveActive, wsId });
 }
 
-function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) {
+function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, autoApproveActive, wsId }) {
   const iconIntake = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9l2.5 2.5L10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const iconApproval = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M7.5 1.5l1.4 2.9 3.1.45-2.25 2.2.53 3.1L7.5 8.55 4.72 10.15l.53-3.1L3 4.85l3.1-.45z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
   const iconExport = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M2 10V8a2 2 0 012-2h7a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 6V4.5a2 2 0 014 0V6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="9" r="1" fill="currentColor"/></svg>';
@@ -8887,6 +8888,7 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) 
   // v3.2: プラン制御
   const canImport = canUsePlanFeature('import');
   const canExport = canUsePlanFeature('export');
+  const canApproval = canUsePlanFeature('approval');
 
   // 自動インポートカード
   const intakeCard = canImport
@@ -8906,13 +8908,13 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) 
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
           <div class="unlock-card-title">${iconIntake}自動インポート</div>
-          <div style="font-size:11px;color:#888;margin-top:2px;">オートメーション以上で利用可能</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">アップグレードで利用可能</div>
         </div>
         <span class="unlock-status-badge locked">🔒 プラン限定</span>
       </div>
       <div class="unlock-card-desc">メール / Dropbox / Google Drive から証憑を自動で取り込みます</div>
       <div class="unlock-card-action">
-        <button class="unlock-action-btn" onclick="switchTab('pricing')">プランを確認する</button>
+        <button class="unlock-action-btn" onclick="switchTab('pricing')">プランを比較</button>
       </div>
     </div>`;
 
@@ -8934,31 +8936,45 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) 
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
           <div class="unlock-card-title">${iconExport}自動エクスポート</div>
-          <div style="font-size:11px;color:#888;margin-top:2px;">オートメーション以上で利用可能</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">アップグレードで利用可能</div>
         </div>
         <span class="unlock-status-badge locked">🔒 プラン限定</span>
       </div>
       <div class="unlock-card-desc">承認済み仕訳が一定件数溜まったら、メール / クラウド / ローカルへ自動でCSVを送ります</div>
       <div class="unlock-card-action">
-        <button class="unlock-action-btn" onclick="switchTab('pricing')">プランを確認する</button>
+        <button class="unlock-action-btn" onclick="switchTab('pricing')">プランを比較</button>
       </div>
     </div>`;
 
-  wrap.innerHTML = intakeCard + `
-    <div class="unlock-card future">
+  // 自動承認カード
+  const approvalCard = canApproval
+    ? `<div class="unlock-card${autoApproveActive ? ' unlocked' : ''}">
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
           <div class="unlock-card-title">${iconApproval}自動承認</div>
-          <div style="font-size:11px;color:#92400e;margin-top:2px;">アップグレードで利用可能</div>
         </div>
-        <span class="unlock-status-badge future">将来実装</span>
+        ${toggleBtn('unlockToggleApproval', autoApproveActive, false)}
       </div>
-      <div class="unlock-card-desc">エージェントモードで自動仕訳・自動承認を実行する次世代機能（将来実装予定）</div>
+      <div class="unlock-card-desc">AIの学習結果をもとに、信頼度の高い仕訳を自動で承認します</div>
       <div class="unlock-card-action">
-        <button class="unlock-action-btn" onclick="openUpgradeModal()">プランを比較</button>
+        <button class="unlock-action-btn" onclick="switchTab('auto-approve-log')">設定を開く</button>
       </div>
-    </div>
-  ` + exportCard;
+    </div>`
+    : `<div class="unlock-card plan-locked">
+      <div class="unlock-card-top">
+        <div class="unlock-card-title-wrap">
+          <div class="unlock-card-title">${iconApproval}自動承認</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">アップグレードで利用可能</div>
+        </div>
+        <span class="unlock-status-badge locked">🔒 プラン限定</span>
+      </div>
+      <div class="unlock-card-desc">AIの学習結果をもとに、信頼度の高い仕訳を自動で承認します</div>
+      <div class="unlock-card-action">
+        <button class="unlock-action-btn" onclick="switchTab('pricing')">プランを比較</button>
+      </div>
+    </div>`;
+
+  wrap.innerHTML = intakeCard + approvalCard + exportCard;
 
   // トグルイベント設定（プラン対応時のみ）
   if (canImport) {
@@ -8969,6 +8985,11 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) 
   if (canExport) {
     document.getElementById('unlockToggleExport')?.addEventListener('click', () => {
       toggleAutoExport(wsId, autoExportEnabled);
+    });
+  }
+  if (canApproval) {
+    document.getElementById('unlockToggleApproval')?.addEventListener('click', () => {
+      switchTab('auto-approve-log');
     });
   }
 }
