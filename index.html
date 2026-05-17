@@ -1618,7 +1618,8 @@ function updateFabBadge() {
       usageHtml = `<span class="sbps-usage">${usageText}</span>`;
       barHtml = `<div class="sbps-bar"><div class="sbps-bar-fill" style="width:${pct}%;background:${fillColor};"></div></div>`;
     } else {
-      usageHtml = `<span class="sbps-usage">今月 ${used.toLocaleString()} 件処理</span>`;
+      const suffix = planKey != null ? '（無制限）' : '';
+      usageHtml = `<span class="sbps-usage">今月 ${used.toLocaleString()} 件処理${suffix}</span>`;
     }
 
     let billingHtml = '';
@@ -2480,16 +2481,16 @@ function updateFabBadge() {
     <p class="main-subcopy">プランを選んでアップグレードしてください。現在は無料期間中で全機能をご利用いただけます。</p>
     <div class="pricing-wrap">
       <style>
-        .pricing-pack-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+        .pricing-pack-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;padding-top:18px;}
         @media(max-width:700px){.pricing-pack-grid{grid-template-columns:1fr 1fr;}}
         @media(max-width:480px){.pricing-pack-grid{grid-template-columns:1fr;}}
         .pack-card{background:#fff;border:1.5px solid #e5e5e5;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;position:relative;}
-        .pack-card:hover{border-color:#185FA5;box-shadow:0 2px 8px rgba(24,95,165,0.1);}
+        .pack-card:hover{border-color:#7baad6;box-shadow:0 2px 8px rgba(24,95,165,0.1);}
         .pack-card.popular{border-color:#185FA5;box-shadow:0 2px 10px rgba(24,95,165,0.15);}
-        .pack-badge{display:inline-block;color:#fff;font-size:10px;font-weight:600;padding:2px 9px;border-radius:10px;margin-bottom:6px;}
-        .pack-badge.entry{background:#6c757d;}
-        .pack-badge.recommend{background:#185FA5;}
-        .pack-name{font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:2px;}
+        .pack-card.popular:hover{border-color:#185FA5;box-shadow:0 2px 14px rgba(24,95,165,0.22);}
+        .pack-badge{display:inline-block;color:#fff;font-size:10px;font-weight:600;padding:2px 9px;border-radius:10px;}
+        .pack-badge.recommend{background:#185FA5;position:absolute;top:-13px;left:50%;transform:translateX(-50%);white-space:nowrap;}
+        .pack-name{font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:2px;white-space:nowrap;}
         .pack-price{font-size:20px;font-weight:700;color:#185FA5;margin-bottom:2px;}
         .pack-price span{font-size:12px;font-weight:400;color:#888;}
         .pack-sub{font-size:11px;color:#888;margin-bottom:10px;line-height:1.5;}
@@ -2512,7 +2513,6 @@ function updateFabBadge() {
 
         <!-- ベーシック -->
         <div class="pack-card" onclick="startCheckout('basic')">
-          <div class="pack-badge entry">入口</div>
           <div class="pack-name">ベーシック</div>
           <div class="pack-price">¥2,980<span>/月</span></div>
           <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
@@ -2529,7 +2529,7 @@ function updateFabBadge() {
         <div class="pack-card" onclick="startCheckout('automation')">
           <div class="pack-name">オートメーション</div>
           <div class="pack-price">¥14,800<span>/月</span></div>
-          <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
+          <div class="pack-sub">1,000件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
             <li class="feat-yes">自動取込（メール/Dropbox/Drive）</li>
@@ -2545,7 +2545,7 @@ function updateFabBadge() {
           <div class="pack-badge recommend">おすすめ</div>
           <div class="pack-name">コンプリート</div>
           <div class="pack-price">¥24,800<span>/月</span></div>
-          <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
+          <div class="pack-sub">2,500件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
             <li class="feat-yes">自動取込・エクスポート・学習・承認</li>
@@ -2558,7 +2558,7 @@ function updateFabBadge() {
         <div class="pack-card" onclick="startCheckout('dialog')">
           <div class="pack-name">ダイアログ</div>
           <div class="pack-price">¥98,000<span>/月</span></div>
-          <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
+          <div class="pack-sub">件数無制限</div>
           <ul class="pack-features">
             <li class="feat-yes">コンプリートの全機能</li>
             <li class="feat-yes">対話モード（Slack / LINE / 音声）</li>

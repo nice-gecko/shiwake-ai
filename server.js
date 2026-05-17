@@ -34,14 +34,14 @@ const STRIPE_PLANS = {
   automation: {
     price_id: 'price_1TXiHgFHQeEbTFygtXMGwph3',
     name: 'オートメーション', plan_key: 'automation',
-    price_yen: 14800, included_count: 100, staff_limit: 10,
+    price_yen: 14800, included_count: 1000, staff_limit: 10,
     modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
               'auto_import','auto_export','auto_rule_learning','auto_approve'],
   },
   complete: {
     price_id: 'price_1TXiKUFHQeEbTFygw8kxhEYJ',
     name: 'コンプリート', plan_key: 'complete',
-    price_yen: 24800, included_count: 100, staff_limit: 20,
+    price_yen: 24800, included_count: 2500, staff_limit: 20,
     modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
               'auto_import','auto_export','auto_rule_learning','auto_approve',
               'reconciliation'],
@@ -49,7 +49,7 @@ const STRIPE_PLANS = {
   dialog: {
     price_id: 'price_1TXiR2FHQeEbTFyghWY1lusL',
     name: 'ダイアログ', plan_key: 'dialog',
-    price_yen: 98000, included_count: 100, staff_limit: null,
+    price_yen: 98000, included_count: null, staff_limit: null,
     modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
               'auto_import','auto_export','auto_rule_learning','auto_approve',
               'reconciliation','dialog_mode'],
@@ -65,7 +65,7 @@ const STRIPE_PLANS = {
   reseller_automation: {
     price_id: 'price_1TXiSBFHQeEbTFygpMp74UYC',
     name: '【代理店】オートメーション', plan_key: 'reseller_automation',
-    price_yen: 10360, included_count: 100, staff_limit: 10,
+    price_yen: 10360, included_count: 1000, staff_limit: 10,
     is_reseller: true, base_plan_key: 'automation',
     modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
               'auto_import','auto_export','auto_rule_learning','auto_approve'],
@@ -73,7 +73,7 @@ const STRIPE_PLANS = {
   reseller_complete: {
     price_id: 'price_1TXiSqFHQeEbTFygE32pUgsp',
     name: '【代理店】コンプリート', plan_key: 'reseller_complete',
-    price_yen: 17360, included_count: 100, staff_limit: 20,
+    price_yen: 17360, included_count: 2500, staff_limit: 20,
     is_reseller: true, base_plan_key: 'complete',
     modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
               'auto_import','auto_export','auto_rule_learning','auto_approve',
@@ -82,7 +82,7 @@ const STRIPE_PLANS = {
   reseller_dialog: {
     price_id: 'price_1TXiT2FHQeEbTFygcY2xKeTB',
     name: '【代理店】ダイアログ', plan_key: 'reseller_dialog',
-    price_yen: 68600, included_count: 100, staff_limit: null,
+    price_yen: 68600, included_count: null, staff_limit: null,
     is_reseller: true, base_plan_key: 'dialog',
     modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
               'auto_import','auto_export','auto_rule_learning','auto_approve',
@@ -90,39 +90,41 @@ const STRIPE_PLANS = {
   },
 };
 
-// 件数従量の逓減テーブル（全プラン共通）
+// 件数従量の逓減テーブル（込み件数超過分の相対累積件数に対して適用）
 const OVERAGE_TIERS = [
-  { upTo: 100,   unit_yen: 0  },   // 1〜100件は込み
-  { upTo: 500,   unit_yen: 18 },   // 101〜500件
-  { upTo: 2000,  unit_yen: 16 },   // 501〜2,000件
-  { upTo: null,  unit_yen: 15 },   // 2,001件〜
+  { upTo: 400,  unit_yen: 18 },  // 超過 1〜400件
+  { upTo: 1900, unit_yen: 16 },  // 超過 401〜1,900件
+  { upTo: null, unit_yen: 15 },  // 超過 1,901件〜
 ];
 
 // 月次件数 → 逓減課金額計算（graduated方式）
-function calculateOverage(monthlyCount) {
-  if (monthlyCount <= 100) return { overage_count: 0, overage_yen: 0, breakdown: [] };
-  const overage_count = monthlyCount - 100;
-  let remaining = overage_count;
-  let prevUpTo = 100;
+// includedCount: プランの込み件数（null は無制限＝超過課金なし）
+function calculateOverage(monthlyCount, includedCount) {
+  if (includedCount === null || includedCount === undefined) {
+    return { overage_count: 0, overage_yen: 0, breakdown: [] };
+  }
+  const overageBase = Math.max(0, monthlyCount - includedCount);
+  if (overageBase === 0) return { overage_count: 0, overage_yen: 0, breakdown: [] };
+  let remaining = overageBase;
+  let prevUpTo = 0;
   let overage_yen = 0;
   const breakdown = [];
   for (const tier of OVERAGE_TIERS) {
-    if (tier.unit_yen === 0) { prevUpTo = tier.upTo; continue; }
     const tierMax = tier.upTo === null ? Infinity : tier.upTo;
     const tierCapacity = tierMax - prevUpTo;
     const count = Math.min(remaining, tierCapacity);
     if (count <= 0) break;
     const subtotal = count * tier.unit_yen;
     const label = tier.upTo === null
-      ? `${prevUpTo + 1}-`
-      : `${prevUpTo + 1}-${tier.upTo}`;
+      ? `超過 ${prevUpTo + 1}-`
+      : `超過 ${prevUpTo + 1}-${tier.upTo}`;
     breakdown.push({ tier: label, count, unit_yen: tier.unit_yen, subtotal });
     overage_yen += subtotal;
     remaining -= count;
     prevUpTo = tier.upTo === null ? prevUpTo : tier.upTo;
     if (remaining <= 0) break;
   }
-  return { overage_count, overage_yen, breakdown };
+  return { overage_count: overageBase, overage_yen, breakdown };
 }
 
 // 代理店ランク別 Coupon ID(Stripe で作成済み)
@@ -2153,7 +2155,7 @@ const server = http.createServer(async (req, res) => {
       if (user.billing_period_end && new Date(user.billing_period_end) < new Date()) {
         monthlyCount = 0;
       }
-      const overageResult = plan ? calculateOverage(monthlyCount) : null;
+      const overageResult = plan ? calculateOverage(monthlyCount, plan.included_count) : null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         plan: { key: user.plan_key, ...plan },
@@ -2161,7 +2163,7 @@ const server = http.createServer(async (req, res) => {
         features: EDITION_FEATURES[user.edition] || EDITION_FEATURES.saas,
         usage: {
           monthly_count: monthlyCount,
-          included_count: plan?.included_count ?? 100,
+          included_count: plan ? plan.included_count : null,
           billing_period_end: user.billing_period_end,
         },
         workspace_limit: workspaceLimit === Infinity ? 'unlimited' : workspaceLimit,
