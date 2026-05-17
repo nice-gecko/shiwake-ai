@@ -1014,6 +1014,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .inbox-tray-empty{font-size:13px;color:#aaa;padding:8px 0;}
 /* v2.3.0: 自動取り込み設定 */
 .lock-badge{font-size:10px;background:#e0dfd8;color:#777;border-radius:4px;padding:1px 5px;margin-left:auto;white-space:nowrap;}
+/* v3.2: plan gate */
+.sidebar-nav-item.plan-locked{opacity:0.6;}
+.nav-plan-lock{width:11px;height:11px;flex-shrink:0;margin-left:auto;color:#bbb;pointer-events:none;}
+.unlock-card.plan-locked{opacity:0.7;background:#f7f7f5;}
+.plan-gate-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px;padding:40px 24px;text-align:center;}
+.plan-gate-lock{font-size:38px;margin-bottom:12px;line-height:1;}
+.plan-gate-title{font-size:16px;font-weight:700;color:#1a1a1a;margin-bottom:8px;}
+.plan-gate-desc{font-size:13px;color:#888;margin-bottom:22px;line-height:1.65;}
+.plan-gate-btn{padding:9px 28px;background:#185FA5;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
+.plan-gate-btn:hover{background:#0C447C;}
 .intake-settings-section{background:#fff;border-radius:12px;border:1px solid #E8E2D5;padding:18px;margin-bottom:16px;}
 .intake-settings-section h3{font-size:14px;font-weight:700;margin-bottom:14px;color:#2A2A2A;}
 .intake-settings-section h4{font-size:13px;font-weight:600;margin:14px 0 6px;color:#2A2A2A;}
@@ -1754,6 +1764,7 @@ function updateFabBadge() {
       loadTrustMetrics();
       // v2.3.5: navAutoIntake / navUnassignedTray の表示を同一パスで更新
       if (typeof setupAutoIntakeMenuItem === 'function') setupAutoIntakeMenuItem();
+      if (typeof setupPlanGateSidebarItems === 'function') setupPlanGateSidebarItems();
       // 初回ログイン時にチュートリアル自動表示
       try {
         const tutorialKey = 'shiwake_tutorial_shown_v1';
@@ -2893,6 +2904,16 @@ function updateFabBadge() {
     </div>
   </div>
 
+  <!-- v3.2: plan gate パネル（プラン不足時の誘導画面） -->
+  <div class="panel" id="panel-plan-gate">
+    <div class="plan-gate-wrap">
+      <div class="plan-gate-lock">🔒</div>
+      <div class="plan-gate-title" id="planGateTitle">この機能はご利用のプランでは使用できません</div>
+      <div class="plan-gate-desc" id="planGateDesc">アップグレードするとご利用いただけます。</div>
+      <button class="plan-gate-btn" onclick="switchTab('pricing')">プランを確認する</button>
+    </div>
+  </div>
+
 <!-- v2.7.0: 取引先登録モーダル -->
 <div class="recon-modal-overlay" id="modal-recon-alias" onclick="if(event.target===this)closeAliasModal()">
   <div class="recon-modal">
@@ -3150,6 +3171,19 @@ let files=[],results=[],approved=new Set(),deleted=new Set();
 let abortController=null;
 let processQueue=[];
 let isProcessing=false;
+
+// ===== v3.2: plan gate ヘルパー =====
+const PLAN_FEATURE_GATES = {
+  'import':         ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'],
+  'learning':       ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'],
+  'export':         ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'],
+  'approval':       ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'],
+  'reconciliation': ['complete','dialog','reseller_complete','reseller_dialog'],
+  'autonomy':       ['dialog','reseller_dialog'],
+};
+function canUsePlanFeature(featureKey) {
+  return (PLAN_FEATURE_GATES[featureKey] || []).includes(window._userPlanKey || 'basic');
+}
 
 // ===== セッション管理 =====
 function getOrCreateSessionId(){
@@ -6462,8 +6496,7 @@ async function loadInboxTray() {
     const TEN_MIN = 10 * 60 * 1000;
     if (!_inboxTrayEligibilityCache || Date.now() - _inboxTrayEligibilityCache.fetchedAt > TEN_MIN) {
       const settings = await fetchInboxSettings();
-      const autoIntakeKeys = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'];
-      const eligible = autoIntakeKeys.includes(window._userPlanKey) && settings.auto_intake_enabled;
+      const eligible = canUsePlanFeature('import') && settings.auto_intake_enabled;
       _inboxTrayEligibilityCache = { eligible, fetchedAt: Date.now() };
     }
 
@@ -6579,7 +6612,6 @@ async function loadAutoIntakeSettings() {
   if (!uid) return;
   try {
     const settings = await fetchInboxSettings();
-    const autoIntakeKeys = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'];
 
     const intakeSection  = document.getElementById('autoIntakeSection');
     const autoIntakeToggle = document.getElementById('autoIntakeToggle');
@@ -6589,7 +6621,7 @@ async function loadAutoIntakeSettings() {
     const gdriveRow      = document.getElementById('gdriveRow');
     const autoShiwakeRow = document.getElementById('autoShiwakeRow');
 
-    if (!autoIntakeKeys.includes(window._userPlanKey)) {
+    if (!canUsePlanFeature('import')) {
       if (intakeSection) intakeSection.hidden = true;
       return;
     }
@@ -6789,15 +6821,35 @@ function setupAutoIntakeMenuItem() {
   const menuItem = document.getElementById('navAutoIntake');
   const menuUT   = document.getElementById('navUnassignedTray');
   if (!menuItem && !menuUT) return;
-  const autoIntakeKeys = ['automation','complete','dialog','reseller_automation','reseller_complete','reseller_dialog'];
-  const show = autoIntakeKeys.includes(window._userPlanKey);
-  // オートメーション以上のプランなら表示
-  if (menuItem) {
-    menuItem.style.display = show ? '' : 'none';
-    const lb = menuItem.querySelector('.lock-badge');
-    if (lb) lb.remove();
-  }
+  const show = canUsePlanFeature('import');
+  // navAutoIntake は v3.2 よりロック表示に統一（setupPlanGateSidebarItems で制御）
+  // navUnassignedTray は引き続き非表示/表示制御
   if (menuUT) menuUT.style.display = show ? '' : 'none';
+}
+
+// ===== v3.2: plan gate サイドバーアイテム制御 =====
+const _LOCK_SVG = '<svg class="nav-plan-lock" viewBox="0 0 12 14" fill="none"><rect x="1.5" y="6" width="9" height="7" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 6V4.5a3 3 0 016 0V6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+const _NAV_PLAN_GATES = {
+  'navAutoIntake':     'import',
+  'navMaster':         'learning',
+  'navAutoApproveLog': 'approval',
+  'navReconciliation': 'reconciliation',
+};
+function setupPlanGateSidebarItems() {
+  Object.entries(_NAV_PLAN_GATES).forEach(([navId, feature]) => {
+    const el = document.getElementById(navId);
+    if (!el) return;
+    // navAutoIntake は display:none 初期値なので常に表示に変更
+    if (navId === 'navAutoIntake') el.style.display = '';
+    // 既存の lock アイコンを除去してから再描画
+    el.querySelectorAll('.nav-plan-lock').forEach(n => n.remove());
+    if (!canUsePlanFeature(feature)) {
+      el.classList.add('plan-locked');
+      el.insertAdjacentHTML('beforeend', _LOCK_SVG);
+    } else {
+      el.classList.remove('plan-locked');
+    }
+  });
 }
 
 // ===== v2.3.5: 未振り分けトレイ =====
@@ -8231,6 +8283,7 @@ window.addEventListener('DOMContentLoaded', () => {
       clearInterval(_inboxInitTimer);
       loadInboxTray();
       setupAutoIntakeMenuItem();
+      setupPlanGateSidebarItems();
       startInboxPolling();
       // v2.3.5: 未振り分けバッジ初期化 (表示制御は setupAutoIntakeMenuItem が担当)
       updateUnassignedBadge();
@@ -8827,23 +8880,71 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) 
   const iconApproval = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M7.5 1.5l1.4 2.9 3.1.45-2.25 2.2.53 3.1L7.5 8.55 4.72 10.15l.53-3.1L3 4.85l3.1-.45z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
   const iconExport = '<svg class="unlock-card-icon" viewBox="0 0 15 15" fill="none"><path d="M2 10V8a2 2 0 012-2h7a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 6V4.5a2 2 0 014 0V6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7.5" cy="9" r="1" fill="currentColor"/></svg>';
 
-  function toggleBtn(id, isOn) {
-    return `<button class="unlock-toggle${isOn ? ' on' : ''}" id="${id}" title="${isOn ? 'OFFにする' : 'ONにする'}"><span class="unlock-toggle-thumb"></span></button>`;
+  function toggleBtn(id, isOn, disabled) {
+    return `<button class="unlock-toggle${isOn ? ' on' : ''}" id="${id}" title="${isOn ? 'OFFにする' : 'ONにする'}"${disabled ? ' disabled style="cursor:not-allowed;opacity:0.5;"' : ''}><span class="unlock-toggle-thumb"></span></button>`;
   }
 
-  wrap.innerHTML = `
-    <div class="unlock-card${autoIntakeActive ? ' unlocked' : ''}">
+  // v3.2: プラン制御
+  const canImport = canUsePlanFeature('import');
+  const canExport = canUsePlanFeature('export');
+
+  // 自動インポートカード
+  const intakeCard = canImport
+    ? `<div class="unlock-card${autoIntakeActive ? ' unlocked' : ''}">
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
           <div class="unlock-card-title">${iconIntake}自動インポート</div>
         </div>
-        ${toggleBtn('unlockToggleIntake', autoIntakeActive)}
+        ${toggleBtn('unlockToggleIntake', autoIntakeActive, false)}
       </div>
       <div class="unlock-card-desc">メール / Dropbox / Google Drive から証憑を自動で取り込みます</div>
       <div class="unlock-card-action">
         <button class="unlock-action-btn" onclick="switchTab('auto-intake')">設定を開く</button>
       </div>
-    </div>
+    </div>`
+    : `<div class="unlock-card plan-locked">
+      <div class="unlock-card-top">
+        <div class="unlock-card-title-wrap">
+          <div class="unlock-card-title">${iconIntake}自動インポート</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">オートメーション以上で利用可能</div>
+        </div>
+        <span class="unlock-status-badge locked">🔒 プラン限定</span>
+      </div>
+      <div class="unlock-card-desc">メール / Dropbox / Google Drive から証憑を自動で取り込みます</div>
+      <div class="unlock-card-action">
+        <button class="unlock-action-btn" onclick="switchTab('pricing')">プランを確認する</button>
+      </div>
+    </div>`;
+
+  // 自動エクスポートカード
+  const exportCard = canExport
+    ? `<div class="unlock-card${autoExportEnabled ? ' unlocked' : ''}">
+      <div class="unlock-card-top">
+        <div class="unlock-card-title-wrap">
+          <div class="unlock-card-title">${iconExport}自動エクスポート</div>
+        </div>
+        ${toggleBtn('unlockToggleExport', autoExportEnabled, false)}
+      </div>
+      <div class="unlock-card-desc">承認済み仕訳が一定件数溜まったら、メール / クラウド / ローカルへ自動でCSVを送ります</div>
+      <div class="unlock-card-action">
+        <button class="unlock-action-btn" onclick="openWsEditAndScroll('${wsId}','auto-export-section')">${autoExportEnabled ? '設定を変更' : '設定を開く'}</button>
+      </div>
+    </div>`
+    : `<div class="unlock-card plan-locked">
+      <div class="unlock-card-top">
+        <div class="unlock-card-title-wrap">
+          <div class="unlock-card-title">${iconExport}自動エクスポート</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">オートメーション以上で利用可能</div>
+        </div>
+        <span class="unlock-status-badge locked">🔒 プラン限定</span>
+      </div>
+      <div class="unlock-card-desc">承認済み仕訳が一定件数溜まったら、メール / クラウド / ローカルへ自動でCSVを送ります</div>
+      <div class="unlock-card-action">
+        <button class="unlock-action-btn" onclick="switchTab('pricing')">プランを確認する</button>
+      </div>
+    </div>`;
+
+  wrap.innerHTML = intakeCard + `
     <div class="unlock-card future">
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
@@ -8857,27 +8958,19 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, wsId }) 
         <button class="unlock-action-btn" onclick="openUpgradeModal()">プランを比較</button>
       </div>
     </div>
-    <div class="unlock-card${autoExportEnabled ? ' unlocked' : ''}">
-      <div class="unlock-card-top">
-        <div class="unlock-card-title-wrap">
-          <div class="unlock-card-title">${iconExport}自動エクスポート</div>
-        </div>
-        ${toggleBtn('unlockToggleExport', autoExportEnabled)}
-      </div>
-      <div class="unlock-card-desc">承認済み仕訳が一定件数溜まったら、メール / クラウド / ローカルへ自動でCSVを送ります</div>
-      <div class="unlock-card-action">
-        <button class="unlock-action-btn" onclick="openWsEditAndScroll('${wsId}','auto-export-section')">${autoExportEnabled ? '設定を変更' : '設定を開く'}</button>
-      </div>
-    </div>
-  `;
+  ` + exportCard;
 
-  // トグルイベント設定
-  document.getElementById('unlockToggleIntake')?.addEventListener('click', () => {
-    switchTab('auto-intake');
-  });
-  document.getElementById('unlockToggleExport')?.addEventListener('click', () => {
-    toggleAutoExport(wsId, autoExportEnabled);
-  });
+  // トグルイベント設定（プラン対応時のみ）
+  if (canImport) {
+    document.getElementById('unlockToggleIntake')?.addEventListener('click', () => {
+      switchTab('auto-intake');
+    });
+  }
+  if (canExport) {
+    document.getElementById('unlockToggleExport')?.addEventListener('click', () => {
+      toggleAutoExport(wsId, autoExportEnabled);
+    });
+  }
 }
 
 async function toggleAutoExport(wsId, currentEnabled) {
@@ -9359,6 +9452,54 @@ const _origSwitchTab_v270 = window.switchTab;
 window.switchTab = function(tab) {
   if (typeof _origSwitchTab_v270 === 'function') _origSwitchTab_v270(tab);
   if (tab === 'reconciliation') loadReconciliation();
+};
+
+// v3.2: plan gate wrapper（チェーン最外 — gate 失敗時はチェーンを切る）
+const _PLAN_GATE_REQUIRED_PLAN = {
+  'master':          { feature: 'learning',       planName: 'オートメーション' },
+  'auto-approve-log':{ feature: 'approval',       planName: 'オートメーション' },
+  'reconciliation':  { feature: 'reconciliation', planName: 'コンプリート'    },
+  'auto-intake':     { feature: 'import',         planName: 'オートメーション' },
+};
+function _showPlanGateForTab(tab, planName) {
+  // サイドバー active 更新
+  document.querySelectorAll('.sidebar-nav-item').forEach(el => el.classList.remove('active'));
+  const pBtn = document.querySelector('.pricing-nav-btn');
+  if (pBtn) pBtn.classList.remove('active');
+  const tabNavMap = {
+    'master':'navMaster','auto-approve-log':'navAutoApproveLog',
+    'reconciliation':'navReconciliation','auto-intake':'navAutoIntake',
+  };
+  const navId = tabNavMap[tab];
+  if (navId) document.getElementById(navId)?.classList.add('active');
+  // 全パネル非表示 → plan-gate パネルをアクティブ化
+  document.querySelectorAll('.panel').forEach(p => p.className = 'panel');
+  const gatePanel = document.getElementById('panel-plan-gate');
+  if (gatePanel) gatePanel.className = 'panel active';
+  // 誘導メッセージを機能ごとに設定
+  const GATE_MSGS = {
+    'master':          { title: '仕訳ルール学習', desc: 'ルール学習機能は' },
+    'auto-approve-log':{ title: '自動承認ログ',   desc: '自動承認ログは'   },
+    'reconciliation':  { title: '帳簿照合',        desc: '帳簿照合機能は'   },
+    'auto-intake':     { title: '自動インポート',   desc: '自動インポートは' },
+  };
+  const msg = GATE_MSGS[tab] || { title: 'この機能', desc: 'この機能は' };
+  const titleEl = document.getElementById('planGateTitle');
+  const descEl  = document.getElementById('planGateDesc');
+  if (titleEl) titleEl.textContent = msg.title + 'はご利用中のプランでは使用できません';
+  if (descEl)  descEl.textContent  = msg.desc + planName + 'プラン以上でご利用いただけます。プランをアップグレードしてください。';
+  // モバイル: サイドバーを閉じる
+  document.querySelector('.sidebar')?.classList.remove('open');
+  document.getElementById('sidebarOverlay')?.classList.remove('show');
+}
+const _origSwitchTab_planGate = window.switchTab;
+window.switchTab = function(tab) {
+  const gateInfo = _PLAN_GATE_REQUIRED_PLAN[tab];
+  if (gateInfo && typeof canUsePlanFeature === 'function' && !canUsePlanFeature(gateInfo.feature)) {
+    _showPlanGateForTab(tab, gateInfo.planName);
+    return;
+  }
+  if (typeof _origSwitchTab_planGate === 'function') _origSwitchTab_planGate(tab);
 };
 </script>
 
