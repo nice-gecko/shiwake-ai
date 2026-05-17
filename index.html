@@ -754,6 +754,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sbps-upgrade-btn.warning:hover{color:var(--color-text-primary,#1a1a1a);background:#f5f5f5;}
 .sbps-upgrade-btn.danger{color:#555;border-color:#c0c0c0;}
 .sbps-upgrade-btn.danger:hover{color:var(--color-text-primary,#1a1a1a);background:#f5f5f5;}
+.sbps-billing{font-size:11px;color:#555;margin-top:4px;line-height:1.6;}
+.sbps-billing-overage{color:#888;}
+.sbps-billing-total{font-size:12px;font-weight:600;color:#1a1a1a;margin-top:1px;}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;align-items:stretch;}
 .dashboard-left{display:flex;flex-direction:column;}
 .dashboard-left > .dash-card{flex:1;}
@@ -1311,7 +1314,7 @@ window.startCheckout = async (plan_key) => {
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: user.uid, email: user.email, plan_key: plan_key || 'ai_saas_lite' })
+      body: JSON.stringify({ uid: user.uid, email: user.email, plan_key: plan_key || 'basic' })
     });
     const data = await res.json();
     if (data.free_trial) {
@@ -1587,11 +1590,9 @@ function updateFabBadge() {
 
   function getNextPlan(planKey) {
     const map = {
-      ai_saas_lite:      { key: 'ai_saas_unlimited', name: 'アンリミテッド' },
-      ai_saas_unlimited: { key: 'agent_lite',        name: 'Agent ライト' },
-      agent_lite:        { key: 'agent_std',         name: 'Agent スタンダード' },
-      agent_std:         { key: 'agent_premium',     name: 'Agent プレミアム' },
-      agent_premium:     { key: 'agent_elite',       name: 'Agent エリート' },
+      basic:      { key: 'automation', name: 'オートメーション' },
+      automation: { key: 'complete',   name: 'コンプリート' },
+      complete:   { key: 'dialog',     name: 'ダイアログ' },
     };
     return map[planKey] || null;
   }
@@ -1603,17 +1604,33 @@ function updateFabBadge() {
     const planKey  = window._userPlanKey  || null;
     const usage = window._userUsage || {};
     const used  = usage.monthly_count ?? (window._userTotalCount || 0);
-    const limit = usage.limit ?? null;
+    const limit = usage.included_count ?? null;
 
     let usageHtml = '';
     let barHtml = '';
     if (limit != null) {
       const pct = Math.min(100, Math.round(used / limit * 100));
-      const fillColor = pct >= 90 ? '#e53e3e' : pct >= 70 ? '#d97706' : '#185FA5';
-      usageHtml = `<span class="sbps-usage">今月 ${used.toLocaleString()} / ${limit.toLocaleString()} 件</span>`;
+      const fillColor = pct >= 100 ? '#d97706' : '#185FA5';
+      const overage = used - limit;
+      const usageText = overage > 0
+        ? `今月 ${used.toLocaleString()} 件処理（無料枠 ${limit.toLocaleString()}件＋超過 ${overage.toLocaleString()}件）`
+        : `今月 ${used.toLocaleString()} 件処理（無料枠 ${limit.toLocaleString()}件）`;
+      usageHtml = `<span class="sbps-usage">${usageText}</span>`;
       barHtml = `<div class="sbps-bar"><div class="sbps-bar-fill" style="width:${pct}%;background:${fillColor};"></div></div>`;
     } else {
-      usageHtml = `<span class="sbps-usage">今月 ${used.toLocaleString()} 件（無制限）</span>`;
+      usageHtml = `<span class="sbps-usage">今月 ${used.toLocaleString()} 件処理</span>`;
+    }
+
+    let billingHtml = '';
+    const estimate = window._userBillingEstimate;
+    if (estimate) {
+      const overageText = estimate.overage_count > 0
+        ? `基本 ¥${estimate.base_yen.toLocaleString()} ＋ 超過 ${estimate.overage_count.toLocaleString()}件 ¥${estimate.overage_yen.toLocaleString()}`
+        : `基本 ¥${estimate.base_yen.toLocaleString()} ＋ 超過なし`;
+      billingHtml = `<div class="sbps-billing">
+        <span class="sbps-billing-overage">${overageText}</span><br>
+        <span class="sbps-billing-total">今月の請求見込み ¥${estimate.total_yen.toLocaleString()}</span>
+      </div>`;
     }
 
     let upgradeHtml = '';
@@ -1623,7 +1640,7 @@ function updateFabBadge() {
       upgradeHtml = `<button class="sbps-upgrade-btn" onclick="openUpgradeModal()">アップグレード</button>`;
     }
 
-    el.innerHTML = `<span class="sbps-plan-name">${planName}</span>${usageHtml}${barHtml}${upgradeHtml}`;
+    el.innerHTML = `<span class="sbps-plan-name">${planName}</span>${usageHtml}${barHtml}${billingHtml}${upgradeHtml}`;
     el.style.display = '';
   }
 
@@ -1748,18 +1765,11 @@ function updateFabBadge() {
         const d = await r.json();
         const u = d?.user;
         if (u) {
-          // プラン名マッピング（旧キー後方互換 + 新キー）
           const PLAN_NAMES = {
-            // 旧キー（後方互換）
-            light:'ライト', unlimited:'アンリミテッド',
-            agency_light:'代理店ライト', agency_std:'代理店スタンダード', agency_prem:'代理店プレミアム',
-            team_lite:'チームライト', team_std:'チームスタンダード', team_prem:'チームプレミアム',
-            // 新キー
-            ai_saas_lite:'ライト', ai_saas_unlimited:'アンリミテッド',
-            ai_saas_team_lite:'チームライト', ai_saas_team_std:'チームスタンダード', ai_saas_team_prem:'チームプレミアム',
-            agent_lite:'Agent ライト', agent_std:'Agent スタンダード',
-            agent_premium:'Agent プレミアム', agent_elite:'Agent エリート',
-            incentive_lite:'インセンティブ ライト', incentive_std:'インセンティブ スタンダード', incentive_prem:'インセンティブ プレミアム',
+            basic:'ベーシック', automation:'オートメーション',
+            complete:'コンプリート', dialog:'ダイアログ',
+            reseller_basic:'【代理店】ベーシック', reseller_automation:'【代理店】オートメーション',
+            reseller_complete:'【代理店】コンプリート', reseller_dialog:'【代理店】ダイアログ',
           };
           const planKey = u.plan_key || u.stripe_plan;
           window._userPlanName = PLAN_NAMES[planKey] || (u.is_paid ? '有料プラン' : '無料トライアル');
@@ -1778,6 +1788,7 @@ function updateFabBadge() {
             window._hasWsOption        = pd.has_workspace_option    ?? false;
             window._wsAddonCount       = pd.workspace_addon_count   ?? 0;
             window._wsCurrentCount     = pd.current_workspace_count ?? 0;
+            window._userBillingEstimate = pd.billing_estimate       || null;
           } catch(e) { window._userEdition = 'saas'; }
 
           renderPlanStatusBanner();
@@ -2468,108 +2479,124 @@ function updateFabBadge() {
   <div class="panel" id="panel-pricing">
     <p class="main-subcopy">プランを選んでアップグレードしてください。現在は無料期間中で全機能をご利用いただけます。</p>
     <div class="pricing-wrap">
+      <style>
+        .pricing-pack-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+        @media(max-width:700px){.pricing-pack-grid{grid-template-columns:1fr 1fr;}}
+        @media(max-width:480px){.pricing-pack-grid{grid-template-columns:1fr;}}
+        .pack-card{background:#fff;border:1.5px solid #e5e5e5;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;position:relative;}
+        .pack-card:hover{border-color:#185FA5;box-shadow:0 2px 8px rgba(24,95,165,0.1);}
+        .pack-card.popular{border-color:#185FA5;box-shadow:0 2px 10px rgba(24,95,165,0.15);}
+        .pack-badge{display:inline-block;color:#fff;font-size:10px;font-weight:600;padding:2px 9px;border-radius:10px;margin-bottom:6px;}
+        .pack-badge.entry{background:#6c757d;}
+        .pack-badge.recommend{background:#185FA5;}
+        .pack-name{font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:2px;}
+        .pack-price{font-size:20px;font-weight:700;color:#185FA5;margin-bottom:2px;}
+        .pack-price span{font-size:12px;font-weight:400;color:#888;}
+        .pack-sub{font-size:11px;color:#888;margin-bottom:10px;line-height:1.5;}
+        .pack-features{list-style:none;margin:0;padding:0;font-size:12px;}
+        .pack-features li{padding:3px 0;line-height:1.5;}
+        .pack-features .feat-yes::before{content:'✓ ';color:#22a06b;font-weight:700;}
+        .pack-features .feat-more{color:#aaa;font-style:italic;font-size:11px;}
+        .feat-section-label{font-size:11px;font-weight:600;color:#888;letter-spacing:0.05em;margin:16px 0 8px;}
+        .feat-table-wrap{overflow-x:auto;}
+        .feat-table{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 16px;}
+        .feat-table th,.feat-table td{padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center;}
+        .feat-table th:first-child,.feat-table td:first-child{text-align:left;min-width:120px;}
+        .feat-table thead th{font-size:11px;font-weight:600;color:#555;background:#f8f8f8;}
+        .feat-table .feat-o{color:#22a06b;font-weight:700;}
+        .feat-table .feat-n{color:#ccc;}
+      </style>
 
-      <!-- AI SaaS版 -->
-      <div class="pricing-section-title">🖥 AI SaaS版 — 自分で操作する仕訳ツール</div>
-      <div class="pricing-card" onclick="startCheckout('ai_saas_lite')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">ライト</span>
-          <span class="pricing-card-price">¥980<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">月100件まで処理可能。個人事業主・フリーランス向け。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('ai_saas_unlimited')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">アンリミテッド <span class="pricing-card-badge badge-popular">人気</span></span>
-          <span class="pricing-card-price">¥5,800<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">処理件数無制限。法人・ヘビーユーザー向け。</div>
-      </div>
-      <div class="pricing-section-title" style="margin-top:16px;">チームプラン（事務所内スタッフで使う）</div>
-      <div class="pricing-card" onclick="startCheckout('ai_saas_team_lite')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">チームライト</span>
-          <span class="pricing-card-price">¥20,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">5IDまで利用可能。小規模事務所のスタッフ向け。インセンティブオプション対応。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('ai_saas_team_std')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">チームスタンダード</span>
-          <span class="pricing-card-price">¥50,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">15IDまで利用可能。中規模事務所のスタッフ向け。インセンティブオプション対応。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('ai_saas_team_prem')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">チームプレミアム</span>
-          <span class="pricing-card-price">¥100,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">30IDまで利用可能。大規模事務所・税理士法人向け。インセンティブオプション対応。</div>
-      </div>
-      <div class="pricing-agency-note">👥 チームプランのお問い合わせ・請求書払いは<br>easy.you.me@gmail.com までご連絡ください。</div>
+      <!-- 4パックカード -->
+      <div class="pricing-pack-grid">
 
-      <!-- インセンティブオプション -->
-      <div class="pricing-section-title" style="margin-top:24px;">インセンティブオプション（AI SaaS版チームプランに追加）</div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">チームプランに追加できるオプションです。スタッフの処理件数をカウントし、1,000件ごとにインセンティブを付与します。オーナーアカウントに1つ追加するだけで全スタッフに適用されます。</div>
-      <div class="pricing-card" onclick="startCheckout('incentive_lite')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">インセンティブ ライト</span>
-          <span class="pricing-card-price">¥5,000<span>/月</span></span>
+        <!-- ベーシック -->
+        <div class="pack-card" onclick="startCheckout('basic')">
+          <div class="pack-badge entry">入口</div>
+          <div class="pack-name">ベーシック</div>
+          <div class="pack-price">¥2,980<span>/月</span></div>
+          <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
+          <ul class="pack-features">
+            <li class="feat-yes">AI仕訳</li>
+            <li class="feat-yes">CSV出力（主要4ソフト）</li>
+            <li class="feat-yes">取引先マスタ学習</li>
+            <li class="feat-yes">ワークスペース無制限</li>
+            <li class="feat-more">— オートメーション以上で：自動取込ほか</li>
+          </ul>
         </div>
-        <div class="pricing-card-desc">チームライトプランに追加できます。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('incentive_std')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">インセンティブ スタンダード</span>
-          <span class="pricing-card-price">¥10,000<span>/月</span></span>
+
+        <!-- オートメーション -->
+        <div class="pack-card" onclick="startCheckout('automation')">
+          <div class="pack-name">オートメーション</div>
+          <div class="pack-price">¥14,800<span>/月</span></div>
+          <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
+          <ul class="pack-features">
+            <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
+            <li class="feat-yes">自動取込（メール/Dropbox/Drive）</li>
+            <li class="feat-yes">自動エクスポート</li>
+            <li class="feat-yes">自動ルール学習</li>
+            <li class="feat-yes">自動承認</li>
+            <li class="feat-more">— コンプリート以上で：突合</li>
+          </ul>
         </div>
-        <div class="pricing-card-desc">チームスタンダードプランに追加できます。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('incentive_prem')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">インセンティブ プレミアム</span>
-          <span class="pricing-card-price">¥20,000<span>/月</span></span>
+
+        <!-- コンプリート（おすすめ） -->
+        <div class="pack-card popular" onclick="startCheckout('complete')">
+          <div class="pack-badge recommend">おすすめ</div>
+          <div class="pack-name">コンプリート</div>
+          <div class="pack-price">¥24,800<span>/月</span></div>
+          <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
+          <ul class="pack-features">
+            <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
+            <li class="feat-yes">自動取込・エクスポート・学習・承認</li>
+            <li class="feat-yes">突合（差分・重複・欠落チェック）</li>
+            <li class="feat-more">— ダイアログ以上で：対話モード</li>
+          </ul>
         </div>
-        <div class="pricing-card-desc">チームプレミアムプランに追加できます。</div>
+
+        <!-- ダイアログ -->
+        <div class="pack-card" onclick="startCheckout('dialog')">
+          <div class="pack-name">ダイアログ</div>
+          <div class="pack-price">¥98,000<span>/月</span></div>
+          <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
+          <ul class="pack-features">
+            <li class="feat-yes">コンプリートの全機能</li>
+            <li class="feat-yes">対話モード（Slack / LINE / 音声）</li>
+          </ul>
+        </div>
+
       </div>
 
-      <!-- Agent版 -->
-      <div class="pricing-section-title" style="margin-top:28px;">🤖 エージェント版 — 自走する記帳エージェント</div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;">AIが自律的に仕訳・ルール学習・自動インポート・自動承認を行います。精度を確認しながら、お好きな機能を有効化できます。</div>
-      <div class="pricing-card" onclick="startCheckout('agent_lite')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">Agent ライト</span>
-          <span class="pricing-card-price">¥30,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">月200件含む。自動インポート・ルール学習・業種テンプレート対応。</div>
+      <!-- 機能×プラン対応表 -->
+      <div class="feat-section-label">機能・プラン対応表</div>
+      <div class="feat-table-wrap">
+        <table class="feat-table">
+          <thead>
+            <tr>
+              <th>機能</th>
+              <th>ベーシック</th>
+              <th>オートメーション</th>
+              <th>コンプリート</th>
+              <th>ダイアログ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>AI仕訳</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>CSV出力</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>取引先マスタ学習</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>ワークスペース無制限</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>自動取込</td><td class="feat-n">−</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>自動エクスポート</td><td class="feat-n">−</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>自動ルール学習</td><td class="feat-n">−</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>自動承認</td><td class="feat-n">−</td><td class="feat-o">○</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>突合（差分・重複・欠落）</td><td class="feat-n">−</td><td class="feat-n">−</td><td class="feat-o">○</td><td class="feat-o">○</td></tr>
+            <tr><td>対話モード</td><td class="feat-n">−</td><td class="feat-n">−</td><td class="feat-n">−</td><td class="feat-o">○</td></tr>
+          </tbody>
+        </table>
       </div>
-      <div class="pricing-card" onclick="startCheckout('agent_std')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">Agent スタンダード</span>
-          <span class="pricing-card-price">¥80,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">月500件含む。自動承認・Myテンプレート・フルダッシュボード対応。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('agent_premium')">
-        <div class="pricing-card-header">
-          <span class="pricing-card-name">Agent プレミアム</span>
-          <span class="pricing-card-price">¥150,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">月1,500件含む。大規模処理・全自動化機能対応。</div>
-      </div>
-      <div class="pricing-card" onclick="startCheckout('agent_elite')" style="border-color:#185FA5;position:relative;">
-        <div class="pricing-badge">★ 最上位プラン</div>
-        <div class="pricing-card-header" style="margin-top:6px;">
-          <span class="pricing-card-name">Agent エリート</span>
-          <span class="pricing-card-price">¥250,000<span>/月</span></span>
-        </div>
-        <div class="pricing-card-desc">月3,000件含む。対話モード搭載（準備中）・決算自走・年度引継ぎ支援。</div>
-      </div>
-      <div class="pricing-agency-note">🤖 Agent版のお問い合わせは<br>easy.you.me@gmail.com までご連絡ください。</div>
 
-      <!-- ワークスペースオプション -->
-      <div id="workspace-option" style="display:none;"></div>
+      <!-- 代理店注記 -->
+      <div class="pricing-agency-note">代理店プランのお問い合わせは easy.you.me@gmail.com まで</div>
 
     </div>
   </div>

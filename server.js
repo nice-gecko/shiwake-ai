@@ -24,44 +24,106 @@ const INCENTIVE_ALL_PLANS = false; // 本番: 代理店・チームプランの�
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const STRIPE_PLANS = {
-  // ===== AI SaaS版 =====
-  ai_saas_lite:               { price_id: 'price_1TVDERFHQeEbTFygV4V6gpgQ', name: 'ライト',                          edition: 'saas',  limit: 100,  seats: 1,  price_yen: 980 },
-  ai_saas_unlimited:          { price_id: 'price_1TVDETFHQeEbTFygtldA3HrT', name: 'アンリミテッド',                  edition: 'saas',  limit: null, seats: 1,  price_yen: 5800 },
-  ai_saas_team_lite:          { price_id: 'price_1TVDEPFHQeEbTFygV6mYPkpt', name: 'チームライト',                    edition: 'saas',  limit: null, seats: 5,  price_yen: 20000 },
-  ai_saas_team_std:           { price_id: 'price_1TVDEQFHQeEbTFygAbVoJjDN', name: 'チームスタンダード',              edition: 'saas',  limit: null, seats: 15, price_yen: 50000 },
-  ai_saas_team_prem:          { price_id: 'price_1TVDEOFHQeEbTFygtEaOFUgp', name: 'チームプレミアム',                edition: 'saas',  limit: null, seats: 30, price_yen: 100000 },
-  // ===== Agent版 =====
-  agent_lite:                 { price_id: 'price_1TVDELFHQeEbTFygpkygCb35', name: 'Agent ライト',                    edition: 'agent', limit: 200,  seats: 1,  price_yen: 30000,  overage_unit_yen: 20 },
-  agent_std:                  { price_id: 'price_1TVDELFHQeEbTFygfxPsDcsY', name: 'Agent スタンダード',              edition: 'agent', limit: 500,  seats: 1,  price_yen: 80000,  overage_unit_yen: 20 },
-  agent_premium:              { price_id: 'price_1TVDEKFHQeEbTFyglupfKzyD', name: 'Agent プレミアム',                edition: 'agent', limit: 1500, seats: 1,  price_yen: 150000, overage_unit_yen: 20 },
-  // ===== Agent エリート =====
-  agent_elite:                { price_id: 'price_1TVDELFHQeEbTFyglRCfriEn', name: 'Agent エリート',                  edition: 'elite', limit: 3000, seats: 1,  price_yen: 250000, overage_unit_yen: 20 },
-  // ===== インセンティブオプション(継続) =====
-  incentive_lite:             { price_id: 'price_1TVDEKFHQeEbTFyg1VHrtyGV', name: 'インセンティブ ライト',           edition: 'option', price_yen: 5000,   is_option: true },
-  incentive_std:              { price_id: 'price_1TVDEKFHQeEbTFygg72epXo2', name: 'インセンティブ スタンダード',     edition: 'option', price_yen: 10000,  is_option: true },
-  incentive_prem:             { price_id: 'price_1TVDEKFHQeEbTFygZqZvBMPH', name: 'インセンティブ プレミアム',       edition: 'option', price_yen: 20000,  is_option: true },
-  // ===== 代理店プラン: AI SaaS版(Bronze 70%基準価格) =====
-  reseller_ai_saas_lite:      { price_id: 'price_1TVDEKFHQeEbTFygRRCL6YfT', name: '【代理店】ライト',               edition: 'saas',  limit: 100,  seats: 1,  price_yen: 686,    is_reseller: true, base_plan_key: 'ai_saas_lite' },
-  reseller_ai_saas_unlimited: { price_id: 'price_1TVDEKFHQeEbTFygVPW6tRSR', name: '【代理店】アンリミテッド',       edition: 'saas',  limit: null, seats: 1,  price_yen: 4060,   is_reseller: true, base_plan_key: 'ai_saas_unlimited' },
-  reseller_ai_saas_team_lite: { price_id: 'price_1TVDEEFHQeEbTFygZnwfIyzl', name: '【代理店】チームライト',         edition: 'saas',  limit: null, seats: 5,  price_yen: 14000,  is_reseller: true, base_plan_key: 'ai_saas_team_lite' },
-  reseller_ai_saas_team_std:  { price_id: 'price_1TVDEHFHQeEbTFygRVa66KZo', name: '【代理店】チームスタンダード',   edition: 'saas',  limit: null, seats: 15, price_yen: 35000,  is_reseller: true, base_plan_key: 'ai_saas_team_std' },
-  reseller_ai_saas_team_prem: { price_id: 'price_1TVDEFFHQeEbTFygchTlpz9V', name: '【代理店】チームプレミアム',     edition: 'saas',  limit: null, seats: 30, price_yen: 70000,  is_reseller: true, base_plan_key: 'ai_saas_team_prem' },
-  // ===== 代理店プラン: Agent版 + Elite =====
-  reseller_agent_lite:        { price_id: 'price_1TVDEEFHQeEbTFygCJxV4QCK', name: '【代理店】Agent ライト',         edition: 'agent', limit: 200,  seats: 1,  price_yen: 21000,  is_reseller: true, base_plan_key: 'agent_lite',    overage_unit_yen: 20 },
-  reseller_agent_std:         { price_id: 'price_1TVDEEFHQeEbTFygtYu3cr3f', name: '【代理店】Agent スタンダード',   edition: 'agent', limit: 500,  seats: 1,  price_yen: 56000,  is_reseller: true, base_plan_key: 'agent_std',     overage_unit_yen: 20 },
-  reseller_agent_premium:     { price_id: 'price_1TVDEFFHQeEbTFyg4SyAaLwQ', name: '【代理店】Agent プレミアム',     edition: 'agent', limit: 1500, seats: 1,  price_yen: 105000, is_reseller: true, base_plan_key: 'agent_premium', overage_unit_yen: 20 },
-  reseller_agent_elite:       { price_id: 'price_1TVDEEFHQeEbTFygRHKkZ2UP', name: '【代理店】Agent エリート',       edition: 'elite', limit: 3000, seats: 1,  price_yen: 175000, is_reseller: true, base_plan_key: 'agent_elite',   overage_unit_yen: 20 },
-  // ===== 代理店プラン: インセンティブオプション =====
-  reseller_incentive_lite:    { price_id: 'price_1TVDEFFHQeEbTFygrCNjeNWS', name: '【代理店】インセンティブ ライト',     edition: 'option', price_yen: 3500,  is_option: true, is_reseller: true, base_plan_key: 'incentive_lite' },
-  reseller_incentive_std:     { price_id: 'price_1TVDEFFHQeEbTFyg1HSgKr6U', name: '【代理店】インセンティブ スタンダード', edition: 'option', price_yen: 7000,  is_option: true, is_reseller: true, base_plan_key: 'incentive_std' },
-  reseller_incentive_prem:    { price_id: 'price_1TVDEFFHQeEbTFygLeO0KDkK', name: '【代理店】インセンティブ プレミアム',   edition: 'option', price_yen: 14000, is_option: true, is_reseller: true, base_plan_key: 'incentive_prem' },
-  // ===== ワークスペース機能 =====
-  workspace_option_10:          { price_id: 'price_1TVt5LFHQeEbTFygLQ8W2d17', name: 'ワークスペース10枠オプション',         edition: 'option', price_yen: 20000, workspace_unlock: 10 },
-  workspace_addon_10:           { price_id: 'price_1TVt5rFHQeEbTFygdm6j6zTL', name: '追加ワークスペース10枠',               edition: 'option', price_yen: 10000, workspace_unlock: 10, is_cumulative: true },
-  // ===== 代理店プラン: ワークスペース機能 =====
-  reseller_workspace_option_10: { price_id: 'price_1TVt6GFHQeEbTFygxirmsks4', name: '【代理店】ワークスペース10枠オプション', edition: 'option', price_yen: 14000, is_reseller: true, base_plan_key: 'workspace_option_10' },
-  reseller_workspace_addon_10:  { price_id: 'price_1TVt87FHQeEbTFygF4tk6fzH', name: '【代理店】追加ワークスペース10枠',       edition: 'option', price_yen: 7000,  is_reseller: true, base_plan_key: 'workspace_addon_10' },
+  // ===== 通常プラン（4パック・累積構成）=====
+  basic: {
+    price_id: 'price_1TXiDvFHQeEbTFyglRdOhzps',
+    name: 'ベーシック', plan_key: 'basic',
+    price_yen: 2980, included_count: 100, staff_limit: 3,
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited'],
+  },
+  automation: {
+    price_id: 'price_1TXiHgFHQeEbTFygtXMGwph3',
+    name: 'オートメーション', plan_key: 'automation',
+    price_yen: 14800, included_count: 100, staff_limit: 10,
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
+              'auto_import','auto_export','auto_rule_learning','auto_approve'],
+  },
+  complete: {
+    price_id: 'price_1TXiKUFHQeEbTFygw8kxhEYJ',
+    name: 'コンプリート', plan_key: 'complete',
+    price_yen: 24800, included_count: 100, staff_limit: 20,
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
+              'auto_import','auto_export','auto_rule_learning','auto_approve',
+              'reconciliation'],
+  },
+  dialog: {
+    price_id: 'price_1TXiR2FHQeEbTFyghWY1lusL',
+    name: 'ダイアログ', plan_key: 'dialog',
+    price_yen: 98000, included_count: 100, staff_limit: null,
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
+              'auto_import','auto_export','auto_rule_learning','auto_approve',
+              'reconciliation','dialog_mode'],
+  },
+  // ===== 代理店プラン（Bronze 70%基準）=====
+  reseller_basic: {
+    price_id: 'price_1TXiRcFHQeEbTFyg9fQLLM6l',
+    name: '【代理店】ベーシック', plan_key: 'reseller_basic',
+    price_yen: 2086, included_count: 100, staff_limit: 3,
+    is_reseller: true, base_plan_key: 'basic',
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited'],
+  },
+  reseller_automation: {
+    price_id: 'price_1TXiSBFHQeEbTFygpMp74UYC',
+    name: '【代理店】オートメーション', plan_key: 'reseller_automation',
+    price_yen: 10360, included_count: 100, staff_limit: 10,
+    is_reseller: true, base_plan_key: 'automation',
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
+              'auto_import','auto_export','auto_rule_learning','auto_approve'],
+  },
+  reseller_complete: {
+    price_id: 'price_1TXiSqFHQeEbTFygE32pUgsp',
+    name: '【代理店】コンプリート', plan_key: 'reseller_complete',
+    price_yen: 17360, included_count: 100, staff_limit: 20,
+    is_reseller: true, base_plan_key: 'complete',
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
+              'auto_import','auto_export','auto_rule_learning','auto_approve',
+              'reconciliation'],
+  },
+  reseller_dialog: {
+    price_id: 'price_1TXiT2FHQeEbTFygcY2xKeTB',
+    name: '【代理店】ダイアログ', plan_key: 'reseller_dialog',
+    price_yen: 68600, included_count: 100, staff_limit: null,
+    is_reseller: true, base_plan_key: 'dialog',
+    modules: ['ai_shiwake','csv_export','partner_master','workspace_unlimited',
+              'auto_import','auto_export','auto_rule_learning','auto_approve',
+              'reconciliation','dialog_mode'],
+  },
 };
+
+// 件数従量の逓減テーブル（全プラン共通）
+const OVERAGE_TIERS = [
+  { upTo: 100,   unit_yen: 0  },   // 1〜100件は込み
+  { upTo: 500,   unit_yen: 18 },   // 101〜500件
+  { upTo: 2000,  unit_yen: 16 },   // 501〜2,000件
+  { upTo: null,  unit_yen: 15 },   // 2,001件〜
+];
+
+// 月次件数 → 逓減課金額計算（graduated方式）
+function calculateOverage(monthlyCount) {
+  if (monthlyCount <= 100) return { overage_count: 0, overage_yen: 0, breakdown: [] };
+  const overage_count = monthlyCount - 100;
+  let remaining = overage_count;
+  let prevUpTo = 100;
+  let overage_yen = 0;
+  const breakdown = [];
+  for (const tier of OVERAGE_TIERS) {
+    if (tier.unit_yen === 0) { prevUpTo = tier.upTo; continue; }
+    const tierMax = tier.upTo === null ? Infinity : tier.upTo;
+    const tierCapacity = tierMax - prevUpTo;
+    const count = Math.min(remaining, tierCapacity);
+    if (count <= 0) break;
+    const subtotal = count * tier.unit_yen;
+    const label = tier.upTo === null
+      ? `${prevUpTo + 1}-`
+      : `${prevUpTo + 1}-${tier.upTo}`;
+    breakdown.push({ tier: label, count, unit_yen: tier.unit_yen, subtotal });
+    overage_yen += subtotal;
+    remaining -= count;
+    prevUpTo = tier.upTo === null ? prevUpTo : tier.upTo;
+    if (remaining <= 0) break;
+  }
+  return { overage_count, overage_yen, breakdown };
+}
 
 // 代理店ランク別 Coupon ID(Stripe で作成済み)
 const RESELLER_COUPONS = {
@@ -168,12 +230,8 @@ async function canUse(uid, feature) {
 
 // ワークスペース上限計算関数(§6.2)
 async function getWorkspaceLimit(uid) {
-  const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,has_workspace_option,workspace_addon_count`);
-  if (!data || !data[0]) return 0;
-  const { plan_key, has_workspace_option, workspace_addon_count } = data[0];
-  const isElite = plan_key === 'agent_elite' || plan_key === 'reseller_agent_elite';
-  const baseLimit = (isElite || has_workspace_option) ? 10 : 1;
-  return baseLimit + (workspace_addon_count || 0) * 10;
+  // 新料金体系（v3.2）: 全プラン ワークスペース無制限
+  return Infinity;
 }
 
 // プラン情報取得関数
@@ -2091,20 +2149,32 @@ const server = http.createServer(async (req, res) => {
         getWorkspaceLimit(uid),
         supabaseQuery(`/workspaces?owner_uid=eq.${uid}&is_archived=eq.false&select=id`)
       ]);
+      let monthlyCount = user.monthly_count || 0;
+      if (user.billing_period_end && new Date(user.billing_period_end) < new Date()) {
+        monthlyCount = 0;
+      }
+      const overageResult = plan ? calculateOverage(monthlyCount) : null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         plan: { key: user.plan_key, ...plan },
         edition: user.edition,
         features: EDITION_FEATURES[user.edition] || EDITION_FEATURES.saas,
         usage: {
-          monthly_count: user.monthly_count || 0,
-          limit: plan?.limit ?? null,
+          monthly_count: monthlyCount,
+          included_count: plan?.included_count ?? 100,
           billing_period_end: user.billing_period_end,
         },
-        workspace_limit: workspaceLimit,
+        workspace_limit: workspaceLimit === Infinity ? 'unlimited' : workspaceLimit,
         has_workspace_option: user.has_workspace_option || false,
         workspace_addon_count: user.workspace_addon_count || 0,
         current_workspace_count: (wsRows || []).length,
+        billing_estimate: overageResult ? {
+          base_yen: plan.price_yen,
+          overage_count: overageResult.overage_count,
+          overage_yen: overageResult.overage_yen,
+          overage_breakdown: overageResult.breakdown,
+          total_yen: plan.price_yen + overageResult.overage_yen,
+        } : null,
       }));
     } catch(e) {
       res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
@@ -2316,17 +2386,11 @@ const server = http.createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const { uid, email, plan_key } = JSON.parse(body);
-        const plan = STRIPE_PLANS[plan_key] || STRIPE_PLANS.light;
-        // エリートユーザーがworkspace_option_10を購入しようとした場合を防止(§10.2 重要3)
-        const isWorkspaceOptionKey = plan_key === 'workspace_option_10' || plan_key === 'reseller_workspace_option_10';
-        if (isWorkspaceOptionKey) {
-          const userData = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key`);
-          const currentPlanKey = userData?.[0]?.plan_key;
-          if (currentPlanKey === 'agent_elite' || currentPlanKey === 'reseller_agent_elite') {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'elite_already_includes_workspace', message: 'エリートプランには10枠が標準装備されています' }));
-            return;
-          }
+        const plan = STRIPE_PLANS[plan_key];
+        if (!plan) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'invalid_plan_key' }));
+          return;
         }
         if (!STRIPE_SECRET_KEY) {
           // 無料期間中：課金スキップ
@@ -2350,7 +2414,7 @@ const server = http.createServer(async (req, res) => {
           line_items: [{ price: plan.price_id, quantity: 1 }],
           success_url: STRIPE_SUCCESS_URL,
           cancel_url: STRIPE_CANCEL_URL,
-          metadata: { firebase_uid: uid, plan_key: plan_key || 'light' },
+          metadata: { firebase_uid: uid, plan_key: plan_key },
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ url: session.url }));
@@ -2376,79 +2440,39 @@ const server = http.createServer(async (req, res) => {
           const customerId = session.customer;
           const subscriptionId = session.subscription;
           const planKey = session.metadata?.plan_key || null;
-          const isIncentiveOption = planKey && STRIPE_PLANS[planKey]?.is_option === true;
           const isResellerPlan = planKey && STRIPE_PLANS[planKey]?.is_reseller === true;
-          const isWorkspaceOption = planKey === 'workspace_option_10' || planKey === 'reseller_workspace_option_10';
-          const isWorkspaceAddon = planKey === 'workspace_addon_10' || planKey === 'reseller_workspace_addon_10';
-          const isWorkspacePlan = isWorkspaceOption || isWorkspaceAddon;
 
           if (uid) {
-            if (isWorkspacePlan) {
-              // ワークスペースオプション/追加枠購入(§10.2 重要2: 冪等性)
-              const existing = await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(subscriptionId)}&select=*`);
-              const existingRecord = existing?.[0];
-              if (existingRecord?.status === 'active') {
-                console.log(`ワークスペースサブスク購入スキップ(冪等): ${subscriptionId}`);
-              } else {
-                if (existingRecord) {
-                  await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(subscriptionId)}`, 'PATCH', {
-                    status: 'active', updated_at: new Date().toISOString()
-                  });
-                } else {
-                  await supabaseQuery('/workspace_addon_subscriptions', 'POST', {
-                    subscription_id: subscriptionId, uid, plan_key: planKey,
-                    status: 'active', created_at: new Date().toISOString(), updated_at: new Date().toISOString()
-                  });
-                }
-                if (isWorkspaceOption) {
-                  await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { has_workspace_option: true });
-                  console.log(`ワークスペース10枠オプション購入: ${uid} plan=${planKey}`);
-                } else {
-                  const userData = await supabaseQuery(`/users?id=eq.${uid}&select=workspace_addon_count`);
-                  const current = userData?.[0]?.workspace_addon_count || 0;
-                  await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { workspace_addon_count: current + 1 });
-                  console.log(`追加ワークスペース10枠購入: ${uid} plan=${planKey} count=${current + 1}`);
-                }
+            // 通常/代理店プラン購入: billing_period・edition・is_reseller を保存
+            let billingPeriodStart = null, billingPeriodEnd = null;
+            if (subscriptionId) {
+              try {
+                const sub = await stripeRequest(`/subscriptions/${subscriptionId}`);
+                billingPeriodStart = sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null;
+                billingPeriodEnd   = sub.current_period_end   ? new Date(sub.current_period_end   * 1000).toISOString() : null;
+              } catch(e) {
+                console.warn('subscription取得失敗:', e.message);
               }
-            } else if (isIncentiveOption) {
-              // インセンティブオプション購入: incentive_planのみ更新
-              await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', {
-                incentive_plan: planKey,
-                incentive_purchased_at: new Date().toISOString()
-              });
-              console.log(`インセンティブオプション購入: ${uid} plan=${planKey}`);
-            } else {
-              // 通常/代理店プラン購入: billing_period・edition・is_reseller を保存
-              let billingPeriodStart = null, billingPeriodEnd = null;
-              if (subscriptionId) {
-                try {
-                  const sub = await stripeRequest(`/subscriptions/${subscriptionId}`);
-                  billingPeriodStart = sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null;
-                  billingPeriodEnd   = sub.current_period_end   ? new Date(sub.current_period_end   * 1000).toISOString() : null;
-                } catch(e) {
-                  console.warn('subscription取得失敗:', e.message);
-                }
-              }
-              const plan = STRIPE_PLANS[planKey];
-              const edition = plan?.edition || 'saas';
-              const isAgentPlan = planKey && planKey.startsWith('agent_');
-              const patchData = {
-                is_paid: true,
-                is_free_trial: false,
-                stripe_customer_id: customerId,
-                stripe_plan: planKey,
-                plan_key: planKey,
-                edition: edition,
-                is_reseller: isResellerPlan ? true : false,
-                billing_period_start: billingPeriodStart,
-                billing_period_end: billingPeriodEnd,
-                monthly_count: 0,
-                paid_at: new Date().toISOString()
-              };
-              if (isAgentPlan) patchData.graduated_rookie_at = new Date().toISOString();
-              await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patchData);
-              console.log(`プラン契約: ${uid} → ${planKey} (${edition})${isResellerPlan ? ' [代理店]' : ''}${isAgentPlan ? ' [agent→graduated]' : ''}`);
             }
+            const plan = STRIPE_PLANS[planKey];
+            const edition = plan?.edition || 'saas';
+            const isAgentPlan = planKey && planKey.startsWith('agent_');
+            const patchData = {
+              is_paid: true,
+              is_free_trial: false,
+              stripe_customer_id: customerId,
+              stripe_plan: planKey,
+              plan_key: planKey,
+              edition: edition,
+              is_reseller: isResellerPlan ? true : false,
+              billing_period_start: billingPeriodStart,
+              billing_period_end: billingPeriodEnd,
+              monthly_count: 0,
+              paid_at: new Date().toISOString()
+            };
+            if (isAgentPlan) patchData.graduated_rookie_at = new Date().toISOString();
+            await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patchData);
+            console.log(`プラン契約: ${uid} → ${planKey} (${edition})${isResellerPlan ? ' [代理店]' : ''}${isAgentPlan ? ' [agent→graduated]' : ''}`);
           }
         }
         if (event.type === 'customer.subscription.updated') {
@@ -2873,9 +2897,28 @@ const server = http.createServer(async (req, res) => {
         // workspace_id を解決(invites テーブルに workspace_id 列なし、所有確認のみ)
         try { await resolveWorkspaceId(owner_uid, workspace_id); } catch(e) { handleWsError(e, res); return; }
         // オーナー確認
-        const ownerData = await supabaseQuery(`/users?id=eq.${owner_uid}&select=role,email,display_name`);
+        const ownerData = await supabaseQuery(`/users?id=eq.${owner_uid}&select=role,email,display_name,plan_key`);
         const owner = ownerData?.[0];
         if (!owner || owner.role === 'staff') { res.writeHead(403); res.end(JSON.stringify({ error: 'owner only' })); return; }
+        // スタッフ上限チェック（staff_limit が数値の場合のみ）
+        const staffLimit = STRIPE_PLANS[owner.plan_key]?.staff_limit;
+        if (typeof staffLimit === 'number') {
+          const [staffRows, pendingRows, sameEmailPending] = await Promise.all([
+            supabaseQuery(`/users?owner_id=eq.${owner_uid}&role=eq.staff&select=id`),
+            supabaseQuery(`/invites?owner_id=eq.${owner_uid}&status=eq.pending&select=id`),
+            supabaseQuery(`/invites?owner_id=eq.${owner_uid}&email=eq.${encodeURIComponent(email)}&status=eq.pending&select=id`),
+          ]);
+          const staffCount = (staffRows || []).length;
+          // 同emailのpending招待はこの後DELETEされ再発行されるため差し引いて二重カウント回避
+          const pendingCount = (pendingRows || []).length - (sameEmailPending || []).length;
+          if (staffCount + pendingCount >= staffLimit) {
+            res.writeHead(400); res.end(JSON.stringify({
+              error: 'staff_limit_exceeded',
+              current: staffCount + pendingCount,
+              limit: staffLimit,
+            })); return;
+          }
+        }
         // 招待コード生成（UUID相当）
         const code = Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)+Date.now().toString(36);
         // 既存の招待があれば削除
