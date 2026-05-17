@@ -151,16 +151,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ws-usage-bar-fill{height:100%;border-radius:4px;background:#185FA5;transition:width 0.3s;}
 .ws-usage-bar-fill.warn{background:#d97706;}
 .ws-usage-bar-fill.danger{background:#dc2626;}
-.ws-usage-cta{margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
-.ws-usage-cta-msg{font-size:12px;color:#dc2626;font-weight:500;}
-.ws-usage-cta-btn{padding:5px 12px;font-size:12px;font-weight:600;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
-.ws-usage-cta-btn:hover{background:#b91c1c;}
-/* WS上限エラーバナー(作成フォーム内) */
-.ws-limit-error{background:#FEF2F2;border:1px solid #fca5a5;border-radius:10px;padding:14px 16px;margin-bottom:12px;}
-.ws-limit-error-title{font-size:13px;font-weight:600;color:#dc2626;margin-bottom:4px;}
-.ws-limit-error-desc{font-size:12px;color:#555;margin-bottom:10px;line-height:1.5;}
-.ws-limit-error-btn{display:inline-block;padding:7px 14px;font-size:12px;font-weight:600;background:#dc2626;color:#fff;border:none;border-radius:7px;cursor:pointer;}
-.ws-limit-error-btn:hover{background:#b91c1c;}
 /* ワークスペースオプションセクション(料金ページ) */
 .ws-option-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;}
 .ws-option-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 15px;position:relative;}
@@ -1645,76 +1635,6 @@ function updateFabBadge() {
     el.style.display = '';
   }
 
-  function renderWsOptionSection() {
-    const el = document.getElementById('workspace-option');
-    if (!el) return;
-    const planKey = window._userPlanKey || '';
-    // agent_premium/elite とその代理店版のみ表示
-    const wsEligible = ['agent_premium','agent_elite',
-      'reseller_agent_premium','reseller_agent_elite'].includes(planKey);
-    if (!wsEligible) { el.style.display = 'none'; return; }
-
-    const isElite    = planKey === 'agent_elite' || planKey === 'reseller_agent_elite';
-    const isReseller = planKey.startsWith('reseller_');
-    const hasOption  = window._hasWsOption  ?? false;
-    const addonCount = window._wsAddonCount ?? 0;
-    const optionPlanKey = isReseller ? 'reseller_workspace_option_10' : 'workspace_option_10';
-    const addonPlanKey  = isReseller ? 'reseller_workspace_addon_10'  : 'workspace_addon_10';
-    const optionPrice   = isReseller ? '¥14,000' : '¥20,000';
-    const addonPrice    = isReseller ? '¥7,000'  : '¥10,000';
-
-    // カード1: WS10枠オプション
-    let card1Html;
-    if (isElite) {
-      card1Html = `<div class="ws-option-card">
-        <div class="ws-option-card-head"><span class="ws-option-card-name">ワークスペース10枠オプション</span></div>
-        <div class="ws-option-price">${optionPrice}<span>/月</span></div>
-        <div class="ws-option-included">エリートプランに含まれています</div>
-      </div>`;
-    } else if (hasOption) {
-      card1Html = `<div class="ws-option-card">
-        <div class="ws-option-card-head">
-          <span class="ws-option-card-name">ワークスペース10枠オプション</span>
-          <span class="ws-option-subscribed-badge">加入中</span>
-        </div>
-        <div class="ws-option-price">${optionPrice}<span>/月</span></div>
-        <button class="ws-option-btn" disabled>加入済み</button>
-      </div>`;
-    } else {
-      card1Html = `<div class="ws-option-card">
-        <div class="ws-option-card-head"><span class="ws-option-card-name">ワークスペース10枠オプション</span></div>
-        <div class="ws-option-price">${optionPrice}<span>/月</span></div>
-        <button class="ws-option-btn" onclick="startCheckout('${optionPlanKey}')">加入する</button>
-      </div>`;
-    }
-
-    // カード2: 追加10枠
-    const canAddon = isElite || hasOption;
-    let card2Html;
-    if (canAddon) {
-      card2Html = `<div class="ws-option-card">
-        <div class="ws-option-card-head"><span class="ws-option-card-name">追加ワークスペース10枠</span></div>
-        <div class="ws-option-price">${addonPrice}<span>/月</span></div>
-        <div class="ws-option-desc">現在 ${addonCount} 個</div>
-        <button class="ws-option-btn" onclick="startCheckout('${addonPlanKey}')">+1個追加</button>
-      </div>`;
-    } else {
-      card2Html = `<div class="ws-option-card disabled">
-        <div class="ws-option-card-head"><span class="ws-option-card-name">追加ワークスペース10枠</span></div>
-        <div class="ws-option-price">${addonPrice}<span>/月</span></div>
-        <div class="ws-option-desc">現在 ${addonCount} 個</div>
-        <button class="ws-option-btn" disabled>+1個追加</button>
-        <div class="ws-option-prereq">先にWS10枠オプションへの加入が必要です</div>
-      </div>`;
-    }
-
-    el.style.display = '';
-    el.innerHTML = `
-      <div class="pricing-section-title" style="margin-top:28px;">クライアントごとに完全分離 ― ワークスペース10枠オプション</div>
-      <div style="font-size:12px;color:#888;margin-bottom:8px;line-height:1.6;">複数顧問先の管理に。仕訳ルール・取引先マスタを WS 単位で分離します。</div>
-      <div class="ws-option-cards">${card1Html}${card2Html}</div>`;
-  }
-
   // 認証状態の監視
   onAuthStateChanged(auth, async (user) => {
     const loginScreen = document.getElementById('loginScreen');
@@ -1793,7 +1713,6 @@ function updateFabBadge() {
           } catch(e) { window._userEdition = 'saas'; }
 
           renderPlanStatusBanner();
-          renderWsOptionSection();
 
           // Agent/Elite サイドバーメニュー出し分け
           const isAgentEdition = ['agent','elite'].includes(window._userEdition);
@@ -7554,21 +7473,13 @@ async function loadWsManageList() {
       const pct = limit > 0 ? Math.min(100, Math.round(used / limit * 100)) : 100;
       const remaining = limit - used;
       const fillClass = used >= limit ? 'danger' : remaining <= 3 ? 'warn' : '';
-      let ctaHtml = '';
-      if (used >= limit) {
-        ctaHtml = `<div class="ws-usage-cta">
-          <span class="ws-usage-cta-msg">上限に達しています</span>
-          <button class="ws-usage-cta-btn" onclick="closeWsManage();showSection('pricing','workspace-option')">追加10枠を購入</button>
-        </div>`;
-      }
       usageEl.className = 'ws-usage-bar-wrap';
       usageEl.innerHTML = `
         <div class="ws-usage-bar-label">
           <span>ワークスペース</span>
           <span style="font-weight:600;color:${used>=limit?'#dc2626':remaining<=3?'#d97706':'#1a1a1a'};">現在 ${used} / ${limit} 個</span>
         </div>
-        <div class="ws-usage-bar-track"><div class="ws-usage-bar-fill ${fillClass}" style="width:${pct}%;"></div></div>
-        ${ctaHtml}`;
+        <div class="ws-usage-bar-track"><div class="ws-usage-bar-fill ${fillClass}" style="width:${pct}%;"></div></div>`;
     }
     renderWsManageList(active, archived);
   } catch(e) {
@@ -7719,22 +7630,7 @@ async function submitCreateWorkspace() {
     });
     const d = await r.json();
     if (!d.id) {
-      if (d.error === 'workspace_limit_exceeded') {
-        const cur = d.current_count ?? '?', lim = d.limit ?? '?';
-        const formEl = document.getElementById('wsCreateForm');
-        const errHtml = `<div class="ws-limit-error" id="wsLimitError">
-          <div class="ws-limit-error-title">ワークスペースの上限に達しています（現在 ${cur}/${lim}）</div>
-          <div class="ws-limit-error-desc">追加するには「追加ワークスペース10枠」をご購入ください。</div>
-          <button class="ws-limit-error-btn" onclick="closeWsManage();showSection('pricing','workspace-option')">追加10枠を購入する</button>
-        </div>`;
-        if (formEl) {
-          const existing = document.getElementById('wsLimitError');
-          if (existing) existing.remove();
-          formEl.insertAdjacentHTML('beforebegin', errHtml);
-        }
-      } else {
-        alert(d.error || '作成に失敗しました');
-      }
+      alert(d.error || '作成に失敗しました');
       return;
     }
     showToast('✓ ワークスペースを作成しました', 2000);
@@ -7785,21 +7681,7 @@ async function restoreWorkspace(id, name) {
     });
     const d = await r.json();
     if (!r.ok) {
-      if (d.error === 'workspace_limit_exceeded') {
-        const cur = d.current_count ?? '?', lim = d.limit ?? '?';
-        const body = document.getElementById('wsManageBody');
-        if (body) {
-          const existing = document.getElementById('wsRestoreLimitError');
-          if (existing) existing.remove();
-          body.insertAdjacentHTML('afterbegin', `<div class="ws-limit-error" id="wsRestoreLimitError">
-            <div class="ws-limit-error-title">ワークスペースの上限に達しています（現在 ${cur}/${lim}）</div>
-            <div class="ws-limit-error-desc">追加するには「追加ワークスペース10枠」をご購入ください。</div>
-            <button class="ws-limit-error-btn" onclick="closeWsManage();showSection('pricing','workspace-option')">追加10枠を購入する</button>
-          </div>`);
-        }
-      } else {
-        alert(d.error || '復元に失敗しました');
-      }
+      alert(d.error || '復元に失敗しました');
       return;
     }
     showToast('✓ 復元しました', 2000);
