@@ -8909,7 +8909,7 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, autoAppr
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
           <div class="unlock-card-title">${iconIntake}自動インポート</div>
-          <div style="font-size:11px;color:#888;margin-top:2px;">アップグレードで利用可能</div>
+          <div style="font-size:11px;color:#92400e;margin-top:2px;">アップグレードで利用可能</div>
         </div>
         <span class="unlock-status-badge locked">🔒 プラン限定</span>
       </div>
@@ -8937,7 +8937,7 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, autoAppr
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
           <div class="unlock-card-title">${iconExport}自動エクスポート</div>
-          <div style="font-size:11px;color:#888;margin-top:2px;">アップグレードで利用可能</div>
+          <div style="font-size:11px;color:#92400e;margin-top:2px;">アップグレードで利用可能</div>
         </div>
         <span class="unlock-status-badge locked">🔒 プラン限定</span>
       </div>
@@ -8965,7 +8965,7 @@ function renderUnlockCards(wrap, { autoExportEnabled, autoIntakeActive, autoAppr
       <div class="unlock-card-top">
         <div class="unlock-card-title-wrap">
           <div class="unlock-card-title">${iconApproval}自動承認</div>
-          <div style="font-size:11px;color:#888;margin-top:2px;">アップグレードで利用可能</div>
+          <div style="font-size:11px;color:#92400e;margin-top:2px;">アップグレードで利用可能</div>
         </div>
         <span class="unlock-status-badge locked">🔒 プラン限定</span>
       </div>
@@ -9512,7 +9512,7 @@ function _showPlanGateForTab(tab, planName) {
   const titleEl = document.getElementById('planGateTitle');
   const descEl  = document.getElementById('planGateDesc');
   if (titleEl) titleEl.textContent = msg.title + 'はご利用中のプランでは使用できません';
-  if (descEl)  descEl.textContent  = msg.desc + planName + 'プラン以上でご利用いただけます。プランをアップグレードしてください。';
+  if (descEl)  descEl.innerHTML   = msg.desc + planName + 'プラン以上でご利用いただけます。<br>プランをアップグレードしてください。';
   // モバイル: サイドバーを閉じる
   document.querySelector('.sidebar')?.classList.remove('open');
   document.getElementById('sidebarOverlay')?.classList.remove('show');
