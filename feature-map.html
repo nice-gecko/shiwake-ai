@@ -20,7 +20,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 .plan-tab{padding:9px 24px;border:none;background:transparent;color:#888;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2.5px solid transparent;transition:color 0.15s;line-height:1;white-space:nowrap;}
 .plan-tab:hover{color:#333;}
 .plan-tab.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:700;}
-.plan-tab[data-plan="elite"].active{color:#7c3aed;border-bottom-color:#7c3aed;}
+.plan-tab[data-plan="dialog"].active{color:#7c3aed;border-bottom-color:#7c3aed;}
 .plan-desc-bar{margin:0 -24px;padding:8px 32px 10px 24px;border-top:1px solid #f0efe9;display:flex;align-items:baseline;gap:16px;}
 .plan-desc-text{font-size:12px;color:#555;flex:1;line-height:1.5;}
 .plan-desc-price{font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;}
@@ -162,9 +162,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
     </button>
   </div>
   <div class="plan-tabs" role="tablist">
-    <button class="plan-tab active" data-plan="saas" role="tab" aria-selected="true">AI SaaS</button>
-    <button class="plan-tab" data-plan="agent" role="tab" aria-selected="false">Agent</button>
-    <button class="plan-tab" data-plan="elite" role="tab" aria-selected="false">Elite</button>
+    <button class="plan-tab active" data-plan="basic" role="tab" aria-selected="true">ベーシック</button>
+    <button class="plan-tab" data-plan="automation" role="tab" aria-selected="false">オートメーション</button>
+    <button class="plan-tab" data-plan="complete" role="tab" aria-selected="false">コンプリート</button>
+    <button class="plan-tab" data-plan="dialog" role="tab" aria-selected="false">ダイアログ</button>
   </div>
   <div class="plan-desc-bar">
     <div class="plan-desc-text" id="planDescText"></div>
@@ -186,7 +187,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
   <div class="legend-item"><div class="swatch sw-active"></div>使える</div>
   <div class="legend-item"><div class="swatch sw-simple"></div>使える（簡易）</div>
   <div class="legend-item"><div class="swatch sw-dimmed"></div>使えない（上位プランで利用可）</div>
-  <div class="legend-item"><div class="swatch sw-elite"></div>Elite限定</div>
+  <div class="legend-item"><div class="swatch sw-elite"></div>ダイアログ限定</div>
 </div>
 <div class="map-wrapper" id="mapWrapper">
   <div class="map-container">
@@ -211,15 +212,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
         <!-- ROW 1 -->
         <div class="map-row">
           <div class="map-left">
-            <div class="fn" id="fn-staff" data-key="staff" data-saas="active" data-agent="hidden" data-elite="hidden" data-label="スタッフ管理" data-badge-saas="AI SaaS" data-badge-agent="—" data-badge-elite="—" data-desc="チームメンバーの招待・権限設定・担当範囲の管理を行います。代理店が複数スタッフで顧客対応を分担するための機能で、AI SaaSプラン（代理店向け）専用の機能です。" role="button" tabindex="0">
+            <div class="fn" id="fn-staff" data-key="staff" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="スタッフ管理" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="チームメンバーの招待・権限設定・担当範囲の管理を行います。代理店が複数スタッフで顧客対応を分担するための機能で、AI SaaSプラン（代理店向け）専用の機能です。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">スタッフ管理</div><div class="fn-hint">権限・担当を代理店向けに管理</div></div>
             </div>
           </div>
           <div class="map-center-col">
-            <button class="spine-node lv1" data-key="import" data-saas="dimmed" data-agent="active" data-elite="active" data-label="証憑の自動取り込み" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="メール添付・Dropbox・Google Drive などのクラウドストレージと連携し、証憑ファイルを自動収集します。">
+            <button class="spine-node lv1" data-key="import" data-basic="dimmed" data-automation="active" data-complete="active" data-dialog="active" data-label="証憑の自動取り込み" data-badge-basic="オートメーション以上で利用可" data-badge-automation="オートメーション以上" data-badge-complete="オートメーション以上" data-badge-dialog="オートメーション以上" data-desc="メール添付・Dropbox・Google Drive などのクラウドストレージと連携し、証憑ファイルを自動収集します。">
               <div class="spine-node-label">証憑の自動取り込み</div>
               <div class="spine-node-sub">メール・クラウドから証憑を自動収集</div>
-              <div class="spine-node-plan-tag">Agent / Elite</div>
+              <div class="spine-node-plan-tag">オートメーション以上</div>
             </button>
           </div>
           <div class="map-right"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
@@ -229,14 +230,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
         <div class="map-row">
           <div class="map-left"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
           <div class="map-center-col">
-            <button class="spine-node lv2" data-key="foundation" data-saas="active" data-agent="active" data-elite="active" data-label="AI仕訳" data-badge-saas="全プラン共通" data-badge-agent="全プラン共通" data-badge-elite="全プラン共通" data-desc="AIが領収書・請求書・レシートを読み取り、勘定科目と摘要を自動提案します。修正を重ねるごとにマスタが成長し、提案精度が向上します。すべてのプランに含まれる基盤機能です。">
+            <button class="spine-node lv2" data-key="foundation" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="AI仕訳" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="AIが領収書・請求書・レシートを読み取り、勘定科目と摘要を自動提案します。修正を重ねるごとにマスタが成長し、提案精度が向上します。すべてのプランに含まれる基盤機能です。">
               <div class="spine-node-label">AI仕訳</div>
               <div class="spine-node-sub">仕訳生成・マスタ学習・CSV出力</div>
               <div class="spine-node-plan-tag">全プラン共通</div>
             </button>
           </div>
           <div class="map-right">
-            <div class="fn fn-special" data-key="incentive" data-saas="active" data-agent="hidden" data-elite="hidden" data-label="スタッフインセンティブ" data-badge-saas="AI SaaS オプション" data-badge-agent="—" data-badge-elite="—" data-desc="スタッフの仕訳精度に連動して報酬が上がる、業界初のインセンティブ設計。モチベーションと品質を同時に上げる。追加料金：+¥5,000〜¥20,000/月" role="button" tabindex="0">
+            <div class="fn fn-special" data-key="incentive" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="スタッフインセンティブ" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="スタッフの仕訳精度に連動して報酬が上がる、業界初のインセンティブ設計。モチベーションと品質を同時に上げる。追加料金：+¥5,000〜¥20,000/月" role="button" tabindex="0">
               <span class="fn-special-badge">オプション</span>
               <div class="fn-inner"><div class="fn-label">スタッフインセンティブ</div><div class="fn-hint">スタッフ報酬を仕訳精度に連動</div></div>
             </div>
@@ -246,19 +247,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
         <!-- ROW 3 -->
         <div class="map-row">
           <div class="map-left">
-            <div class="fn" data-key="mytemplate" data-saas="dimmed" data-agent="active" data-elite="active" data-label="Myテンプレート" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="自社独自の勘定科目ルール・摘要パターンをテンプレートとして保存・共有できます。" role="button" tabindex="0">
+            <div class="fn" data-key="mytemplate" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="Myテンプレート" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="自社独自の勘定科目ルール・摘要パターンをテンプレートとして保存・共有できます。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">Myテンプレート</div><div class="fn-hint">自社ルールを保存・チーム共有</div></div>
             </div>
           </div>
           <div class="map-center-col">
-            <button class="spine-node lv3" data-key="learning" data-saas="dimmed" data-agent="active" data-elite="active" data-label="ルールを自分で育てる" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="担当者の修正パターンを自動的に学習し、次回から提案精度を向上させます。学習したルールはワークスペース内で共有され、チーム全体の精度が底上げされます。">
+            <button class="spine-node lv3" data-key="learning" data-basic="dimmed" data-automation="active" data-complete="active" data-dialog="active" data-label="ルールを自分で育てる" data-badge-basic="オートメーション以上で利用可" data-badge-automation="オートメーション以上" data-badge-complete="オートメーション以上" data-badge-dialog="オートメーション以上" data-desc="担当者の修正パターンを自動的に学習し、次回から提案精度を向上させます。学習したルールはワークスペース内で共有され、チーム全体の精度が底上げされます。">
               <div class="spine-node-label">ルールを自分で育てる</div>
               <div class="spine-node-sub">修正パターンを蓄積・精度向上</div>
-              <div class="spine-node-plan-tag">Agent / Elite</div>
+              <div class="spine-node-plan-tag">オートメーション以上</div>
             </button>
           </div>
           <div class="map-right">
-            <div class="fn" data-key="workspace" data-saas="dimmed" data-agent="active" data-elite="active" data-label="ワークスペース" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="複数クライアント・事業所を1画面で切り替え管理できます。" role="button" tabindex="0">
+            <div class="fn" data-key="workspace" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="ワークスペース" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="複数クライアント・事業所を1画面で切り替え管理できます。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">ワークスペース</div><div class="fn-hint">複数クライアントを一元管理</div></div>
             </div>
           </div>
@@ -268,14 +269,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
         <div class="map-row">
           <div class="map-left"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
           <div class="map-center-col">
-            <button class="spine-node lv4" data-key="approval" data-saas="dimmed" data-agent="active" data-elite="active" data-label="仕訳を自動で承認" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="信頼度スコアが閾値を超えた仕訳を自動承認します。ヒューマンレビューの工数を大幅に削減し、処理スループットを向上させます。">
+            <button class="spine-node lv4" data-key="approval" data-basic="dimmed" data-automation="active" data-complete="active" data-dialog="active" data-label="仕訳を自動で承認" data-badge-basic="オートメーション以上で利用可" data-badge-automation="オートメーション以上" data-badge-complete="オートメーション以上" data-badge-dialog="オートメーション以上" data-desc="信頼度スコアが閾値を超えた仕訳を自動承認します。ヒューマンレビューの工数を大幅に削減し、処理スループットを向上させます。">
               <div class="spine-node-label">仕訳を自動で承認</div>
               <div class="spine-node-sub">信頼度の高い仕訳を自動で確定</div>
-              <div class="spine-node-plan-tag">Agent / Elite</div>
+              <div class="spine-node-plan-tag">オートメーション以上</div>
             </button>
           </div>
           <div class="map-right">
-            <div class="fn" data-key="metrics" data-saas="dimmed" data-agent="active" data-elite="active" data-label="信頼度メトリクス" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="各仕訳に対するAIの確信度をスコア（0〜100）で表示します。" role="button" tabindex="0">
+            <div class="fn" data-key="metrics" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="信頼度メトリクス" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="各仕訳に対するAIの確信度をスコア（0〜100）で表示します。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">信頼度メトリクス</div><div class="fn-hint">AI確信度スコアで検証を効率化</div></div>
             </div>
           </div>
@@ -284,15 +285,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
         <!-- ROW 5 -->
         <div class="map-row">
           <div class="map-left">
-            <div class="fn" data-key="industry" data-saas="dimmed" data-agent="active" data-elite="active" data-label="業種テンプレート" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="飲食・建設・小売・医療など業種別の勘定科目マッピングを一括適用できます。" role="button" tabindex="0">
+            <div class="fn" data-key="industry" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="業種テンプレート" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="飲食・建設・小売・医療など業種別の勘定科目マッピングを一括適用できます。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">業種テンプレート</div><div class="fn-hint">業種別の科目マッピングを一括適用</div></div>
             </div>
           </div>
           <div class="map-center-col">
-            <button class="spine-node lv5" data-key="export" data-saas="dimmed" data-agent="active" data-elite="active" data-label="仕訳データを自動エクスポート" data-badge-saas="Agent以上で利用可" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="承認済み仕訳を会計ソフト対応のCSVへスケジュール出力します。freee・弥生・MFクラウドなど主要フォーマットに対応。">
+            <button class="spine-node lv5" data-key="export" data-basic="dimmed" data-automation="active" data-complete="active" data-dialog="active" data-label="仕訳データを自動エクスポート" data-badge-basic="オートメーション以上で利用可" data-badge-automation="オートメーション以上" data-badge-complete="オートメーション以上" data-badge-dialog="オートメーション以上" data-desc="承認済み仕訳を会計ソフト対応のCSVへスケジュール出力します。freee・弥生・MFクラウドなど主要フォーマットに対応。">
               <div class="spine-node-label">仕訳データを自動エクスポート</div>
               <div class="spine-node-sub">会計ソフト向けCSVをスケジュール出力</div>
-              <div class="spine-node-plan-tag">Agent / Elite</div>
+              <div class="spine-node-plan-tag">オートメーション以上</div>
             </button>
           </div>
           <div class="map-right"><div class="fn hidden" aria-hidden="true" style="width:185px;"></div></div>
@@ -301,12 +302,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
         <!-- ROW 5b: 突合（照合） -->
         <div class="map-row">
           <div class="map-left">
-            <div class="fn" data-key="bank-formats" data-saas="active" data-agent="active" data-elite="active" data-label="銀行・カードCSV対応" data-badge-saas="全プラン共通" data-badge-agent="全プラン共通" data-badge-elite="全プラン共通" data-desc="主要銀行・カード会社のCSVフォーマットをプリインストール。取引先マスタにエイリアスを蓄積し、照合精度が使うほど向上します。" role="button" tabindex="0">
+            <div class="fn" data-key="bank-formats" data-basic="active" data-automation="active" data-complete="active" data-dialog="active" data-label="銀行・カードCSV対応" data-badge-basic="全プラン共通" data-badge-automation="全プラン共通" data-badge-complete="全プラン共通" data-badge-dialog="全プラン共通" data-desc="主要銀行・カード会社のCSVフォーマットをプリインストール。取引先マスタにエイリアスを蓄積し、照合精度が使うほど向上します。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">銀行・カードCSV対応</div><div class="fn-hint">主要行フォーマットをプリインストール</div></div>
             </div>
           </div>
           <div class="map-center-col">
-            <button class="spine-node lv5b" data-key="reconciliation" data-saas="active" data-agent="active" data-elite="active" data-label="突合（照合）" data-badge-saas="全プラン共通" data-badge-agent="全プラン共通" data-badge-elite="全プラン共通" data-desc="銀行明細・カード明細・請求書と仕訳データを自動照合。重複・欠落・未払いを検知し、帳簿の正確性を検証します。通帳を軸にした照合ビューで、差額がゼロになるまで追跡できます。">
+            <button class="spine-node lv5b" data-key="reconciliation" data-basic="dimmed" data-automation="dimmed" data-complete="active" data-dialog="active" data-label="突合（照合）" data-badge-basic="コンプリート以上で利用可" data-badge-automation="コンプリート以上で利用可" data-badge-complete="コンプリート以上" data-badge-dialog="コンプリート以上" data-desc="銀行明細・カード明細・請求書と仕訳データを自動照合。重複・欠落・未払いを検知し、帳簿の正確性を検証します。通帳を軸にした照合ビューで、差額がゼロになるまで追跡できます。">
               <div class="spine-node-label">突合（照合）</div>
               <div class="spine-node-sub">銀行・カード・請求書と仕訳を自動照合</div>
               <div class="spine-node-plan-tag">全プラン共通</div>
@@ -318,20 +319,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
         <!-- ROW 6 -->
         <div class="map-row">
           <div class="map-left">
-            <div class="fn" data-key="anomaly" data-saas="simple" data-agent="active" data-elite="active" data-label="異常検知" data-badge-saas="AI SaaS（簡易）" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="金額・勘定科目の統計的外れ値をリアルタイムで検知・警告します。Agent以上では機械学習による高精度な異常スコアリングが利用できます。" role="button" tabindex="0">
+            <div class="fn" data-key="anomaly" data-basic="simple" data-automation="active" data-complete="active" data-dialog="active" data-label="異常検知" data-badge-basic="ベーシック（簡易）" data-badge-automation="オートメーション以上" data-badge-complete="オートメーション以上" data-badge-dialog="オートメーション以上" data-desc="金額・勘定科目の統計的外れ値をリアルタイムで検知・警告します。Agent以上では機械学習による高精度な異常スコアリングが利用できます。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">異常検知</div><div class="fn-hint">外れ値・不整合をリアルタイム警告</div></div>
             </div>
           </div>
           <div class="map-center-col">
-            <button class="spine-node lv6" data-key="autonomy" data-saas="dimmed" data-agent="dimmed" data-elite="active" data-label="Slack/LINEで対話・自走" data-badge-saas="Elite限定" data-badge-agent="Elite限定" data-badge-elite="Elite" data-desc="AIが不明点を自ら問い合わせ、仕訳〜レビュー〜出力までをほぼ完全自動で実行します。">
-              <span class="spine-badge">Elite</span>
+            <button class="spine-node lv6" data-key="autonomy" data-basic="dimmed" data-automation="dimmed" data-complete="dimmed" data-dialog="active" data-label="Slack/LINEで対話・自走" data-badge-basic="ダイアログで利用可" data-badge-automation="ダイアログで利用可" data-badge-complete="ダイアログで利用可" data-badge-dialog="ダイアログ限定" data-desc="AIが不明点を自ら問い合わせ、仕訳〜レビュー〜出力までをほぼ完全自動で実行します。">
+              <span class="spine-badge">ダイアログ</span>
               <div class="spine-node-label">Slack/LINEで対話・自走</div>
               <div class="spine-node-sub">AIが能動的に問い合わせ・完全自動処理</div>
-              <div class="spine-node-plan-tag">Elite限定</div>
+              <div class="spine-node-plan-tag">ダイアログ限定</div>
             </button>
           </div>
           <div class="map-right">
-            <div class="fn" data-key="dashboard" data-saas="simple" data-agent="active" data-elite="active" data-label="ダッシュボード" data-badge-saas="AI SaaS（簡易）" data-badge-agent="Agent / Elite" data-badge-elite="Agent / Elite" data-desc="仕訳件数・コスト傾向・AI精度をグラフで可視化します。Agent以上では詳細トレンド・カテゴリ別分析・エクスポートが利用できます。" role="button" tabindex="0">
+            <div class="fn" data-key="dashboard" data-basic="simple" data-automation="active" data-complete="active" data-dialog="active" data-label="ダッシュボード" data-badge-basic="ベーシック（簡易）" data-badge-automation="オートメーション以上" data-badge-complete="オートメーション以上" data-badge-dialog="オートメーション以上" data-desc="仕訳件数・コスト傾向・AI精度をグラフで可視化します。Agent以上では詳細トレンド・カテゴリ別分析・エクスポートが利用できます。" role="button" tabindex="0">
               <div class="fn-inner"><div class="fn-label">ダッシュボード</div><div class="fn-hint">仕訳状況・コスト傾向を可視化</div></div>
             </div>
           </div>
@@ -353,15 +354,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku
 <script>
 (function(){
 'use strict';
-var currentPlan='saas';
+var currentPlan='basic';
 var planDescs={
-  saas:{text:'自分で操作して仕訳を確認・修正するプラン',price:'¥980〜¥100,000/月',color:'#185FA5'},
-  agent:{text:'AIが自走し、仕訳・取り込み・エクスポートまで自動化するプラン',price:'¥30,000〜¥150,000/月',color:'#1094B0'},
-  elite:{text:'Slack/LINEで対話しながら、AIが締めまで自走するプラン',price:'¥250,000/月',color:'#7c3aed'}
+  basic:{text:'AIが仕訳を提案。確認・修正しながら自分専用に育てる入口プラン',price:'¥2,980/月〜',color:'#185FA5'},
+  automation:{text:'取り込みから仕訳・承認・エクスポートまでAIが自走するプラン',price:'¥14,800/月〜',color:'#1094B0'},
+  complete:{text:'突合まで対応し、AIが気づいて知らせるプラン',price:'¥24,800/月〜',color:'#1094B0'},
+  dialog:{text:'Slack/LINEで対話しながらAIが締めまで自走する最上位プラン',price:'¥98,000/月〜',color:'#7c3aed'}
 };
 var planDescText=document.getElementById('planDescText');
 var planDescPrice=document.getElementById('planDescPrice');
-function updatePlanDesc(){var d=planDescs[currentPlan];planDescText.textContent=d.text;planDescPrice.textContent=d.price;planDescPrice.style.color=d.color;}
+function updatePlanDesc(){var d=planDescs[currentPlan];if(!d)return;planDescText.textContent=d.text;planDescPrice.textContent=d.price;planDescPrice.style.color=d.color;}
 
 var tabs=document.querySelectorAll('.plan-tab');
 tabs.forEach(function(tab){
@@ -488,7 +490,7 @@ var popupBadge=document.getElementById('popupBadge');
 var popupTitle=document.getElementById('popupTitle');
 var popupDesc=document.getElementById('popupDesc');
 var popupClose=document.getElementById('popupClose');
-var badgeClassMap={saas:'badge-saas',agent:'badge-agent',elite:'badge-elite'};
+var badgeClassMap={basic:'badge-saas',automation:'badge-agent',complete:'badge-agent',dialog:'badge-elite'};
 
 function showPopup(el){
   var state=el.dataset[currentPlan];if(state==='hidden')return;
@@ -516,9 +518,10 @@ popupClose.addEventListener('click',hidePopup);
 
 /* PRICE POPUP */
 var ppData={
-  saas:{rows:[{grade:'ライト',qty:'100件・1ID',feature:'個人向け基本プラン',price:980},{grade:'アンリミテッド',qty:'無制限・1ID',feature:'件数上限なし',price:5800},{grade:'チームライト',qty:'無制限・5ID',feature:'複数スタッフ対応',price:20000},{grade:'チームスタンダード',qty:'無制限・15ID',feature:'中規模事務所向け',price:50000},{grade:'チームプレミアム',qty:'無制限・30ID',feature:'大規模事務所向け',price:100000}]},
-  agent:{rows:[{grade:'ライト',qty:'200件',feature:'超過¥20/件',price:30000},{grade:'スタンダード',qty:'500件',feature:'超過¥20/件',price:80000},{grade:'プレミアム',qty:'1,500件',feature:'超過¥20/件',price:150000}]},
-  elite:{rows:[{grade:'Elite',qty:'3,000件',feature:'超過¥20/件・対話モード付き',price:250000}]}
+  basic:{rows:[{grade:'ベーシック',qty:'100件込み・3ID',feature:'AI仕訳・CSV出力・取引先マスタ学習・WS無制限',price:2980}]},
+  automation:{rows:[{grade:'オートメーション',qty:'1,000件込み・10ID',feature:'+自動取込・自動エクスポート・自動ルール学習・自動承認（超過¥18〜¥15/件・逓減）',price:14800}]},
+  complete:{rows:[{grade:'コンプリート',qty:'2,500件込み・20ID',feature:'+突合（差分・重複・欠落）（超過¥18〜¥15/件・逓減）',price:24800}]},
+  dialog:{rows:[{grade:'ダイアログ',qty:'件数無制限・ID無制限',feature:'+対話モード（Slack/LINE/音声）',price:98000}]}
 };
 var ppCurrentTier='normal';
 var ppTierRates={normal:1,bronze:0.70,silver:0.65,gold:0.60};
@@ -527,11 +530,11 @@ var ppWrap=document.getElementById('pricePopupWrap');
 var ppPopup=document.getElementById('pricePopup');
 var ppTable=document.getElementById('ppTable');
 var ppHideTimer=null;
-var ppPlanColors={saas:'#185FA5',agent:'#1094B0',elite:'#7c3aed'};
+var ppPlanColors={basic:'#185FA5',automation:'#1094B0',complete:'#1094B0',dialog:'#7c3aed'};
 function fmtMoney(n){return '¥'+n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')+'/月';}
 function renderPricePopup(){
-  var data=ppData[currentPlan];var rate=ppTierRates[ppCurrentTier];var col4=ppTierLabels[ppCurrentTier];
-  var col2=currentPlan==='saas'?'件数/ID':'含む件数';
+  var data=ppData[currentPlan];if(!data)return;var rate=ppTierRates[ppCurrentTier];var col4=ppTierLabels[ppCurrentTier];
+  var col2='含む件数・ID';
   ppPopup.style.borderColor=ppPlanColors[currentPlan];
   var h='<thead><tr><th>グレード</th><th>'+col2+'</th><th>主な特徴</th><th>'+col4+'</th></tr></thead><tbody>';
   data.rows.forEach(function(r){h+='<tr><td>'+r.grade+'</td><td>'+r.qty+'</td><td>'+r.feature+'</td><td class="pp-price-col" style="color:'+ppPlanColors[currentPlan]+'">'+fmtMoney(Math.round(r.price*rate))+'</td></tr>';});
