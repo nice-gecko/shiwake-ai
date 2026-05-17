@@ -2139,7 +2139,7 @@ const server = http.createServer(async (req, res) => {
     const uid = new URL(req.url, 'http://localhost').searchParams.get('uid');
     if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
     try {
-      const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,edition,monthly_count,billing_period_end,has_workspace_option,workspace_addon_count`);
+      const data = await supabaseQuery(`/users?id=eq.${uid}&select=plan_key,edition,monthly_count,billing_period_end`);
       const user = data?.[0];
       if (!user || !user.plan_key) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -2167,8 +2167,6 @@ const server = http.createServer(async (req, res) => {
           billing_period_end: user.billing_period_end,
         },
         workspace_limit: workspaceLimit === Infinity ? 'unlimited' : workspaceLimit,
-        has_workspace_option: user.has_workspace_option || false,
-        workspace_addon_count: user.workspace_addon_count || 0,
         current_workspace_count: (wsRows || []).length,
         billing_estimate: overageResult ? {
           base_yen: plan.price_yen,
@@ -2509,39 +2507,13 @@ const server = http.createServer(async (req, res) => {
           const deletedSub = event.data.object;
           const deletedSubId = deletedSub.id;
           const customerId = deletedSub.customer;
-          // ワークスペースサブスクかどうかを subscription_id で判定(§10.2 重要2: 冪等性)
-          const addonRows = await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(deletedSubId)}&select=*`);
-          const addonRecord = addonRows?.[0];
-          if (addonRecord) {
-            if (addonRecord.status === 'active') {
-              await supabaseQuery(`/workspace_addon_subscriptions?subscription_id=eq.${encodeURIComponent(deletedSubId)}`, 'PATCH', {
-                status: 'cancelled', updated_at: new Date().toISOString()
-              });
-              const { uid, plan_key: addonPlanKey } = addonRecord;
-              const isOpt10 = addonPlanKey === 'workspace_option_10' || addonPlanKey === 'reseller_workspace_option_10';
-              const isAdd10 = addonPlanKey === 'workspace_addon_10' || addonPlanKey === 'reseller_workspace_addon_10';
-              if (isOpt10) {
-                await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { has_workspace_option: false });
-                console.log(`ワークスペース10枠オプション解約: ${uid}`);
-              } else if (isAdd10) {
-                const userData = await supabaseQuery(`/users?id=eq.${uid}&select=workspace_addon_count`);
-                const current = userData?.[0]?.workspace_addon_count || 0;
-                await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { workspace_addon_count: Math.max(0, current - 1) });
-                console.log(`追加ワークスペース10枠解約: ${uid} count→${Math.max(0, current - 1)}`);
-              }
-            } else {
-              console.log(`ワークスペースサブスク解約スキップ(冪等): ${deletedSubId} already ${addonRecord.status}`);
-            }
-          } else {
-            // 既存プランの解約処理(ワークスペースサブスク以外)
-            await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
-              is_paid: false,
-              plan_key: null,
-              edition: null,
-              is_reseller: false,
-            });
-            console.log(`サブスク解約: ${customerId}`);
-          }
+          await supabaseQuery(`/users?stripe_customer_id=eq.${customerId}`, 'PATCH', {
+            is_paid: false,
+            plan_key: null,
+            edition: null,
+            is_reseller: false,
+          });
+          console.log(`サブスク解約: ${customerId}`);
         }
         res.writeHead(200); res.end(JSON.stringify({ ok: true }));
       } catch(e) {

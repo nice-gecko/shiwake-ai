@@ -1706,8 +1706,6 @@ function updateFabBadge() {
             window._userFeatures       = pd.features || {};
             window._userUsage          = pd.usage    || {};
             window._wsLimit            = pd.workspace_limit        ?? 1;
-            window._hasWsOption        = pd.has_workspace_option    ?? false;
-            window._wsAddonCount       = pd.workspace_addon_count   ?? 0;
             window._wsCurrentCount     = pd.current_workspace_count ?? 0;
             window._userBillingEstimate = pd.billing_estimate       || null;
           } catch(e) { window._userEdition = 'saas'; }
