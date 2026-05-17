@@ -2506,15 +2506,48 @@ function updateFabBadge() {
         .feat-table thead th{font-size:11px;font-weight:600;color:#555;background:#f8f8f8;}
         .feat-table .feat-o{color:#22a06b;font-weight:700;}
         .feat-table .feat-n{color:#ccc;}
+        .pricing-toggle-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+        .pricing-toggle-label{font-size:13px;color:#888;transition:color 0.15s;}
+        .pricing-toggle-label.tog-active{color:#185FA5;font-weight:600;}
+        .pricing-toggle-switch{position:relative;display:inline-block;width:40px;height:22px;}
+        .pricing-toggle-switch input{opacity:0;width:0;height:0;}
+        .pricing-toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ddd;border-radius:22px;transition:background 0.2s;}
+        .pricing-toggle-slider:before{position:absolute;content:'';height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:transform 0.2s;}
+        .pricing-toggle-switch input:checked + .pricing-toggle-slider{background:#185FA5;}
+        .pricing-toggle-switch input:checked + .pricing-toggle-slider:before{transform:translateX(18px);}
       </style>
+
+      <!-- 代理店価格トグル -->
+      <div class="pricing-toggle-wrap">
+        <span class="pricing-toggle-label tog-active" id="togLabelNormal">通常価格</span>
+        <label class="pricing-toggle-switch">
+          <input type="checkbox" id="pricingResellerToggle" onchange="onPricingToggle(this.checked)">
+          <span class="pricing-toggle-slider"></span>
+        </label>
+        <span class="pricing-toggle-label" id="togLabelReseller">代理店価格</span>
+      </div>
+      <script>
+        var _pricingReseller = false;
+        function onPricingToggle(checked) {
+          _pricingReseller = checked;
+          document.getElementById('togLabelNormal').classList.toggle('tog-active', !checked);
+          document.getElementById('togLabelReseller').classList.toggle('tog-active', checked);
+          document.querySelectorAll('.pack-price[data-normal]').forEach(function(el) {
+            el.innerHTML = (checked ? el.dataset.reseller : el.dataset.normal) + '<span>/月</span>';
+          });
+        }
+        function startCheckoutToggle(normalKey, resellerKey) {
+          startCheckout(_pricingReseller ? resellerKey : normalKey);
+        }
+      </script>
 
       <!-- 4パックカード -->
       <div class="pricing-pack-grid">
 
         <!-- ベーシック -->
-        <div class="pack-card" onclick="startCheckout('basic')">
+        <div class="pack-card" onclick="startCheckoutToggle('basic','reseller_basic')">
           <div class="pack-name">ベーシック</div>
-          <div class="pack-price">¥2,980<span>/月</span></div>
+          <div class="pack-price" data-normal="¥2,980" data-reseller="¥2,086">¥2,980<span>/月</span></div>
           <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳</li>
@@ -2526,9 +2559,9 @@ function updateFabBadge() {
         </div>
 
         <!-- オートメーション -->
-        <div class="pack-card" onclick="startCheckout('automation')">
+        <div class="pack-card" onclick="startCheckoutToggle('automation','reseller_automation')">
           <div class="pack-name">オートメーション</div>
-          <div class="pack-price">¥14,800<span>/月</span></div>
+          <div class="pack-price" data-normal="¥14,800" data-reseller="¥10,360">¥14,800<span>/月</span></div>
           <div class="pack-sub">1,000件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
@@ -2541,10 +2574,10 @@ function updateFabBadge() {
         </div>
 
         <!-- コンプリート（おすすめ） -->
-        <div class="pack-card popular" onclick="startCheckout('complete')">
+        <div class="pack-card popular" onclick="startCheckoutToggle('complete','reseller_complete')">
           <div class="pack-badge recommend">おすすめ</div>
           <div class="pack-name">コンプリート</div>
-          <div class="pack-price">¥24,800<span>/月</span></div>
+          <div class="pack-price" data-normal="¥24,800" data-reseller="¥17,360">¥24,800<span>/月</span></div>
           <div class="pack-sub">2,500件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
@@ -2555,9 +2588,9 @@ function updateFabBadge() {
         </div>
 
         <!-- ダイアログ -->
-        <div class="pack-card" onclick="startCheckout('dialog')">
+        <div class="pack-card" onclick="startCheckoutToggle('dialog','reseller_dialog')">
           <div class="pack-name">ダイアログ</div>
-          <div class="pack-price">¥98,000<span>/月</span></div>
+          <div class="pack-price" data-normal="¥98,000" data-reseller="¥68,600">¥98,000<span>/月</span></div>
           <div class="pack-sub">件数無制限</div>
           <ul class="pack-features">
             <li class="feat-yes">コンプリートの全機能</li>
