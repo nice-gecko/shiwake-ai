@@ -1624,16 +1624,6 @@ function updateFabBadge() {
     }
 
     let billingHtml = '';
-    const estimate = window._userBillingEstimate;
-    if (estimate) {
-      const overageText = estimate.overage_count > 0
-        ? `基本 ¥${estimate.base_yen.toLocaleString()} ＋ 超過 ${estimate.overage_count.toLocaleString()}件 ¥${estimate.overage_yen.toLocaleString()}`
-        : `基本 ¥${estimate.base_yen.toLocaleString()} ＋ 超過なし`;
-      billingHtml = `<div class="sbps-billing">
-        <span class="sbps-billing-overage">${overageText}</span><br>
-        <span class="sbps-billing-total">今月の請求見込み ¥${estimate.total_yen.toLocaleString()}</span>
-      </div>`;
-    }
 
     let upgradeHtml = '';
     const nextPlan = getNextPlan(planKey);
