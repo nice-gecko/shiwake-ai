@@ -2432,6 +2432,14 @@ function updateFabBadge() {
         .pricing-toggle-slider:before{position:absolute;content:'';height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:transform 0.2s;}
         .pricing-toggle-switch input:checked + .pricing-toggle-slider{background:#185FA5;}
         .pricing-toggle-switch input:checked + .pricing-toggle-slider:before{transform:translateX(18px);}
+        .reseller-rank-wrap{display:none;margin-bottom:14px;}
+        .reseller-rank-wrap.show{display:flex;gap:8px;}
+        .reseller-rank-btn{flex:1;padding:8px 6px;border-radius:8px;border:1.5px solid #ddd;background:#fff;cursor:pointer;text-align:center;transition:border-color 0.15s,background 0.15s;}
+        .reseller-rank-btn.active{border-color:#185FA5;background:#EBF4FD;}
+        .reseller-rank-btn .rank-name{font-size:14px;font-weight:700;color:#1a1a1a;display:block;}
+        .reseller-rank-btn.active .rank-name{color:#185FA5;}
+        .reseller-rank-btn .rank-rate{font-size:11px;color:#888;display:block;margin-top:2px;}
+        .reseller-rank-btn.active .rank-rate{color:#185FA5;}
       </style>
 
       <!-- 代理店価格トグル -->
@@ -2445,12 +2453,25 @@ function updateFabBadge() {
       </div>
       <script>
         var _pricingReseller = false;
+        var _resellerRank = 'bronze';
         function onPricingToggle(checked) {
           _pricingReseller = checked;
           document.getElementById('togLabelNormal').classList.toggle('tog-active', !checked);
           document.getElementById('togLabelReseller').classList.toggle('tog-active', checked);
+          var rankWrap = document.getElementById('resellerRankWrap');
+          if (rankWrap) rankWrap.classList.toggle('show', checked);
           document.querySelectorAll('.pack-price[data-normal]').forEach(function(el) {
-            el.innerHTML = (checked ? el.dataset.reseller : el.dataset.normal) + '<span>/月</span>';
+            el.innerHTML = (checked ? (el.dataset[_resellerRank] || el.dataset.reseller) : el.dataset.normal) + '<span>/月</span>';
+          });
+        }
+        function selectResellerRank(rank) {
+          _resellerRank = rank;
+          ['bronze','silver','gold'].forEach(function(r) {
+            var btn = document.getElementById('rankBtn' + r.charAt(0).toUpperCase() + r.slice(1));
+            if (btn) btn.classList.toggle('active', r === rank);
+          });
+          document.querySelectorAll('.pack-price[data-normal]').forEach(function(el) {
+            el.innerHTML = (el.dataset[rank] || el.dataset.reseller) + '<span>/月</span>';
           });
         }
         function startCheckoutToggle(normalKey, resellerKey) {
@@ -2458,13 +2479,29 @@ function updateFabBadge() {
         }
       </script>
 
+      <!-- 代理店ランク選択 -->
+      <div class="reseller-rank-wrap" id="resellerRankWrap">
+        <button class="reseller-rank-btn active" id="rankBtnBronze" onclick="selectResellerRank('bronze')">
+          <span class="rank-name">Bronze</span>
+          <span class="rank-rate">卸値70%（マージン30%）</span>
+        </button>
+        <button class="reseller-rank-btn" id="rankBtnSilver" onclick="selectResellerRank('silver')">
+          <span class="rank-name">Silver</span>
+          <span class="rank-rate">卸値65%（マージン35%）</span>
+        </button>
+        <button class="reseller-rank-btn" id="rankBtnGold" onclick="selectResellerRank('gold')">
+          <span class="rank-name">Gold</span>
+          <span class="rank-rate">卸値60%（マージン40%）</span>
+        </button>
+      </div>
+
       <!-- 4パックカード -->
       <div class="pricing-pack-grid">
 
         <!-- ベーシック -->
         <div class="pack-card" onclick="startCheckoutToggle('basic','reseller_basic')">
           <div class="pack-name">ベーシック</div>
-          <div class="pack-price" data-normal="¥2,980" data-reseller="¥2,086">¥2,980<span>/月</span></div>
+          <div class="pack-price" data-normal="¥2,980" data-reseller="¥2,086" data-bronze="¥2,086" data-silver="¥1,937" data-gold="¥1,788">¥2,980<span>/月</span></div>
           <div class="pack-sub">100件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳</li>
@@ -2478,7 +2515,7 @@ function updateFabBadge() {
         <!-- オートメーション -->
         <div class="pack-card" onclick="startCheckoutToggle('automation','reseller_automation')">
           <div class="pack-name">オートメーション</div>
-          <div class="pack-price" data-normal="¥14,800" data-reseller="¥10,360">¥14,800<span>/月</span></div>
+          <div class="pack-price" data-normal="¥14,800" data-reseller="¥10,360" data-bronze="¥10,360" data-silver="¥9,620" data-gold="¥8,880">¥14,800<span>/月</span></div>
           <div class="pack-sub">1,000件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
@@ -2494,7 +2531,7 @@ function updateFabBadge() {
         <div class="pack-card popular" onclick="startCheckoutToggle('complete','reseller_complete')">
           <div class="pack-badge recommend">おすすめ</div>
           <div class="pack-name">コンプリート</div>
-          <div class="pack-price" data-normal="¥24,800" data-reseller="¥17,360">¥24,800<span>/月</span></div>
+          <div class="pack-price" data-normal="¥24,800" data-reseller="¥17,360" data-bronze="¥17,360" data-silver="¥16,120" data-gold="¥14,880">¥24,800<span>/月</span></div>
           <div class="pack-sub">2,500件/月込 ＋ 超過 ¥18〜¥15/件（逓減）</div>
           <ul class="pack-features">
             <li class="feat-yes">AI仕訳・CSV・マスタ・WS</li>
@@ -2507,7 +2544,7 @@ function updateFabBadge() {
         <!-- ダイアログ -->
         <div class="pack-card" onclick="startCheckoutToggle('dialog','reseller_dialog')">
           <div class="pack-name">ダイアログ</div>
-          <div class="pack-price" data-normal="¥98,000" data-reseller="¥68,600">¥98,000<span>/月</span></div>
+          <div class="pack-price" data-normal="¥98,000" data-reseller="¥68,600" data-bronze="¥68,600" data-silver="¥63,700" data-gold="¥58,800">¥98,000<span>/月</span></div>
           <div class="pack-sub">件数無制限</div>
           <ul class="pack-features">
             <li class="feat-yes">コンプリートの全機能</li>
