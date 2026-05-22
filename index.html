@@ -1253,7 +1253,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-confirm-btn:hover{background:#144e8c!important;}
 .recon-status-icon{font-size:12px;font-weight:700;width:16px;text-align:center;flex-shrink:0;}
 .recon-status-icon.matched{color:#16a34a;opacity:0.6;}
-.recon-status-icon.candidate{color:#1d4ed8;}
+.recon-status-icon.candidate{color:#B45309;}
 .recon-status-icon.unmatched{color:#dc2626;}
 .recon-src-tag-sm{font-size:10px;padding:1px 6px;border-radius:4px;background:#e0dfd8;color:#555;white-space:nowrap;flex-shrink:0;}
 .recon-src-tag-sm.shiwake{background:#EBF4FD;color:#185FA5;}
@@ -1294,6 +1294,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .recon-status-icon.resolved{color:#16a34a;opacity:0.6;}
 .recon-action-btn{font-size:10px;padding:2px 8px;border-radius:5px;border:1px solid #ddd;background:#fff;cursor:pointer;color:#555;white-space:nowrap;flex-shrink:0;}
 .recon-action-btn:hover{background:#f4f2ec;}
+/* ===== P4: 突合パネル/ボタン共通化（P1B-α/P2-α/P2-β のインラインスタイル集約）===== */
+.recon-card-detail-panel,
+.recon-n1-detail-panel,
+.recon-n1-cand-panel{background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;}
+.recon-n1-cand-panel{background:#FFFCF5;border-color:#FAC775;}
+.recon-card-expand-btn,
+.recon-n1-expand-btn,
+.recon-n1-cand-btn{font-size:11px;padding:2px 8px;border:1px solid #ddd;background:#fff;border-radius:5px;cursor:pointer;margin-left:6px;}
+.recon-n1-cand-btn{border-color:#FAC775;}
+.recon-detail-row{display:grid;grid-template-columns:50px 1fr 90px 70px;gap:6px;padding:3px 0;border-bottom:1px dotted #e5e7eb;}
+.recon-detail-row.no-status{grid-template-columns:50px 1fr 90px;}
+.recon-detail-row .nowrap{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.recon-detail-row .ta-r{text-align:right;}
+.recon-detail-row .muted{color:#888;}
+.recon-card-detail-panel .muted,
+.recon-n1-detail-panel .muted,
+.recon-n1-cand-panel .muted{color:#888;}
+.recon-detail-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;padding-top:6px;border-top:1px solid #ddd;font-weight:600;}
+.recon-cand-group{margin-bottom:8px;padding:6px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:5px;}
+.recon-cand-group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-weight:600;}
+.recon-cand-group-items{margin:0;padding:0 0 0 14px;list-style:disc;font-size:11px;color:#555;}
+.recon-cand-group-items .muted{color:#999;}
+.recon-cand-adopt-btn{font-size:11px;padding:3px 10px;background:#1D9E75;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+.recon-cand-adopt-btn:hover{background:#168a64;}
+.recon-diff-note{color:#888;font-size:11px;}
+.recon-match-row.n1-candidate{background:#FFF8E6;border:1px solid #FAC775;}
+.recon-match-row.n1-candidate .recon-status-icon{color:#B45309;}
+.recon-match-row.n1-candidate .recon-b-partner{color:#854F0B;}
+.recon-row.row-candidate{background:#FFFCF5;}
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23185FA5'/><text x='16' y='22' text-anchor='middle' font-size='18' fill='white'>仕</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -9222,18 +9251,24 @@ function _renderReconRows(entries, aliases) {
   (aliases||[]).forEach(a => { aliasMap[a.alias] = a.canonical_name; });
   const BADGE_LBL  = { matched:'一致', candidate:'候補あり', unmatched:'未照合', resolved:'解決済み' };
   bodyA.innerHTML = entries.map(e => {
-    const isMatched = (e.match_status === 'matched' || e.match_status === 'resolved' || e.match_status === 'candidate');
-    const icon    = isMatched ? '✓' : '✕';
-    const icnCls  = isMatched ? 'matched' : 'unmatched';
+    // P4 (a): match_status に応じて A列アイコンを3-way に分離
+    const isMatchedOrResolved = (e.match_status === 'matched' || e.match_status === 'resolved');
+    const isCandidate         = (e.match_status === 'candidate');
+    const isUnmatched         = (e.match_status === 'unmatched');
+    let icon, icnCls, rowCls;
+    if      (isMatchedOrResolved) { icon = '✓'; icnCls = 'matched';   rowCls = ''; }
+    else if (isCandidate)         { icon = '⚠'; icnCls = 'candidate'; rowCls = ' row-candidate'; }
+    else                          { icon = '✕'; icnCls = 'unmatched'; rowCls = ' row-unmatched'; }
     const amtSign = e.direction === 'credit' ? '+' : '-';
     const amt     = `${amtSign}¥${Number(e.amount).toLocaleString()}`;
     const amtCls  = e.direction === 'credit' ? 'credit' : 'debit';
     const desc    = escapeHtml(e.description || '—');
     const norm    = (e.description||'').trim();
     const hasAlias= norm && aliasMap[norm];
-    const aliasBtn= (!isMatched && !hasAlias)
+    // P4 (c): 取引先登録ボタンは unmatched 行 + エイリアス未登録の時のみ
+    //   matched/resolved/candidate では非表示（既存挙動を維持しつつ明示）
+    const aliasBtn= (isUnmatched && !hasAlias)
       ? `<button class="recon-alias-btn" data-alias="${escapeHtml(norm)}" onclick="openAliasModal(this.dataset.alias)">取引先登録</button>` : '';
-    const rowCls  = isMatched ? '' : ' row-unmatched';
     const shortDate = escapeHtml(e.entry_date.replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
     return `<div class="recon-row${rowCls}" data-id="${escapeHtml(e.id)}">` +
       `<span class="recon-status-icon ${icnCls}">${icon}</span>` +
@@ -9253,45 +9288,45 @@ function _renderReconRows(entries, aliases) {
       // P2-β: N:1（複数仕訳の候補ありで人間判断待ち）
       if (st === 'candidate' && Array.isArray(e.candidate_combinations) && e.candidate_combinations.length > 0) {
         const nCombos = e.candidate_combinations.length;
-        return `<div class="recon-match-row" data-id="${escapeHtml(e.id)}" style="background:#FFF8E6;border:1px solid #FAC775;">` +
-          `<span class="recon-status-icon" style="color:#B45309;">⚠</span>` +
+        return `<div class="recon-match-row n1-candidate" data-id="${escapeHtml(e.id)}">` +
+          `<span class="recon-status-icon">⚠</span>` +
           `<div class="recon-b-detail">` +
-            `<span class="recon-b-partner" style="color:#854F0B;">候補 ${nCombos}組あり</span>` +
-            `<button class="recon-n1-cand-btn" data-eid="${escapeHtml(e.id)}" onclick="toggleN1Candidate(this.dataset.eid, ${nCombos})" style="font-size:11px;padding:2px 8px;border:1px solid #FAC775;background:#fff;border-radius:5px;cursor:pointer;margin-left:6px;">▼ 候補を見る</button>` +
+            `<span class="recon-b-partner">候補 ${nCombos}組あり</span>` +
+            `<button class="recon-n1-cand-btn" data-eid="${escapeHtml(e.id)}" onclick="toggleN1Candidate(this.dataset.eid, ${nCombos})">▼ 候補を見る</button>` +
           `</div>` +
           `</div>` +
-          `<div class="recon-n1-cand-panel" id="n1-cand-${escapeHtml(e.id)}" data-eid="${escapeHtml(e.id)}" data-combos='${escapeHtml(JSON.stringify(e.candidate_combinations))}' style="display:none;background:#FFFCF5;border:1px solid #FAC775;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;"></div>`;
+          `<div class="recon-n1-cand-panel" id="n1-cand-${escapeHtml(e.id)}" data-eid="${escapeHtml(e.id)}" data-combos='${escapeHtml(JSON.stringify(e.candidate_combinations))}' style="display:none;"></div>`;
       }
 
       if (st === 'matched' || st === 'resolved' || st === 'candidate') {
         // P2-α: 1:N（カード引落 → カード明細N件合計照合）
         if (e.linked_card_source_id) {
           const diffNote = (e.amount_difference != null && Number(e.amount_difference) !== 0)
-            ? ` <span style="color:#888;font-size:11px;">(差 ¥${Number(e.amount_difference).toLocaleString()})</span>`
+            ? ` <span class="recon-diff-note">(差 ¥${Number(e.amount_difference).toLocaleString()})</span>`
             : '';
           return `<div class="recon-match-row matched" data-id="${escapeHtml(e.id)}">` +
             `<span class="recon-status-icon matched">✓</span>` +
             `<div class="recon-b-detail">` +
               `<span class="recon-b-partner">カード明細と照合${diffNote}</span>` +
-              `<button class="recon-card-expand-btn" data-eid="${escapeHtml(e.id)}" data-csrc="${escapeHtml(e.linked_card_source_id)}" onclick="toggleCardDetail(this.dataset.eid, this.dataset.csrc)" style="font-size:11px;padding:2px 8px;border:1px solid #ddd;background:#fff;border-radius:5px;cursor:pointer;margin-left:6px;">▼ 明細</button>` +
+              `<button class="recon-card-expand-btn" data-eid="${escapeHtml(e.id)}" data-csrc="${escapeHtml(e.linked_card_source_id)}" onclick="toggleCardDetail(this.dataset.eid, this.dataset.csrc)">▼ 明細</button>` +
             `</div>` +
             `</div>` +
-            `<div class="recon-card-detail-panel" id="card-detail-${escapeHtml(e.id)}" style="display:none;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;"></div>`;
+            `<div class="recon-card-detail-panel" id="card-detail-${escapeHtml(e.id)}" style="display:none;"></div>`;
         }
         // P2-β: N:1（自動 matched で複数仕訳に紐付いた）
         if (Array.isArray(e.linked_record_ids) && e.linked_record_ids.length > 0) {
           const nRec = e.linked_record_ids.length;
           const diffN = Number(e.amount_difference) || 0;
           const total = (Number(e.amount) || 0) + diffN;
-          const diffNote = diffN !== 0 ? ` <span style="color:#888;font-size:11px;">(差 ¥${diffN.toLocaleString()})</span>` : '';
+          const diffNote = diffN !== 0 ? ` <span class="recon-diff-note">(差 ¥${diffN.toLocaleString()})</span>` : '';
           return `<div class="recon-match-row matched" data-id="${escapeHtml(e.id)}">` +
             `<span class="recon-status-icon matched">✓</span>` +
             `<div class="recon-b-detail">` +
               `<span class="recon-b-partner">仕訳 ${nRec}件と照合（合計 ¥${total.toLocaleString()}）${diffNote}</span>` +
-              `<button class="recon-n1-expand-btn" data-eid="${escapeHtml(e.id)}" data-ids='${escapeHtml(JSON.stringify(e.linked_record_ids))}' onclick="toggleN1Detail(this.dataset.eid, this.dataset.ids)" style="font-size:11px;padding:2px 8px;border:1px solid #ddd;background:#fff;border-radius:5px;cursor:pointer;margin-left:6px;">▼ 内訳</button>` +
+              `<button class="recon-n1-expand-btn" data-eid="${escapeHtml(e.id)}" data-ids='${escapeHtml(JSON.stringify(e.linked_record_ids))}' onclick="toggleN1Detail(this.dataset.eid, this.dataset.ids)">▼ 内訳</button>` +
             `</div>` +
             `</div>` +
-            `<div class="recon-n1-detail-panel" id="n1-detail-${escapeHtml(e.id)}" style="display:none;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;"></div>`;
+            `<div class="recon-n1-detail-panel" id="n1-detail-${escapeHtml(e.id)}" style="display:none;"></div>`;
         }
         const name = rec ? escapeHtml(rec.partner_name || rec.memo || '照合済み') : '照合済み';
         const rAmt = `¥${Number(rec ? rec.amount : e.amount).toLocaleString()}`;
@@ -9666,7 +9701,7 @@ async function toggleN1Detail(entryId, idsJson) {
       if (!r.ok) { panel.innerHTML = '<span style="color:#c00;">読み込み失敗</span>'; return; }
       const recs = await r.json();
       if (!Array.isArray(recs) || recs.length === 0) {
-        panel.innerHTML = '<span style="color:#888;">仕訳なし</span>';
+        panel.innerHTML = '<span class="muted">仕訳なし</span>';
       } else {
         let total = 0;
         const html = recs.map(rec => {
@@ -9674,12 +9709,12 @@ async function toggleN1Detail(entryId, idsJson) {
           total += amt;
           const dt = escapeHtml((rec.shiwake_date||'').replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
           const name = escapeHtml(rec.partner_name || rec.memo || '—');
-          return `<div style="display:grid;grid-template-columns:50px 1fr 90px;gap:6px;padding:3px 0;border-bottom:1px dotted #e5e7eb;">` +
-            `<span>${dt}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>` +
-            `<span style="text-align:right;">¥${amt.toLocaleString()}</span></div>`;
+          return `<div class="recon-detail-row no-status">` +
+            `<span>${dt}</span><span class="nowrap">${name}</span>` +
+            `<span class="ta-r">¥${amt.toLocaleString()}</span></div>`;
         }).join('');
         panel.innerHTML = html +
-          `<div style="display:flex;justify-content:flex-end;margin-top:6px;padding-top:6px;border-top:1px solid #ddd;font-weight:600;">合計 ¥${total.toLocaleString()} / ${recs.length}件</div>`;
+          `<div class="recon-detail-footer">合計 ¥${total.toLocaleString()} / ${recs.length}件</div>`;
       }
       panel.dataset.loaded = '1';
     } catch(e) {
@@ -9716,19 +9751,19 @@ async function toggleN1Candidate(entryId, nCombos) {
         const ids = c.record_ids || [];
         const total = Number(c.total) || 0;
         const diff  = Number(c.diff)  || 0;
-        const diffNote = diff !== 0 ? ` <span style="color:#888;">(差 ¥${diff.toLocaleString()})</span>` : '';
+        const diffNote = diff !== 0 ? ` <span class="recon-diff-note">(差 ¥${diff.toLocaleString()})</span>` : '';
         const items = ids.map(id => {
           const rc = recMap[id];
-          if (!rc) return `<li style="margin-left:14px;color:#999;">${escapeHtml(id)} (取得失敗)</li>`;
+          if (!rc) return `<li class="muted">${escapeHtml(id)} (取得失敗)</li>`;
           const dt = escapeHtml((rc.shiwake_date||'').replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
-          return `<li style="margin-left:14px;">${dt} ${escapeHtml(rc.partner_name || rc.memo || '—')} ¥${(Number(rc.amount)||0).toLocaleString()}</li>`;
+          return `<li>${dt} ${escapeHtml(rc.partner_name || rc.memo || '—')} ¥${(Number(rc.amount)||0).toLocaleString()}</li>`;
         }).join('');
-        return `<div style="margin-bottom:8px;padding:6px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:5px;">` +
-          `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">` +
-            `<span style="font-weight:600;">組${idx+1}: 合計 ¥${total.toLocaleString()}${diffNote}</span>` +
-            `<button data-eid="${escapeHtml(entryId)}" data-ids='${escapeHtml(JSON.stringify(ids))}' onclick="selectN1Combination(this.dataset.eid, this.dataset.ids)" style="font-size:11px;padding:3px 10px;background:#1D9E75;color:#fff;border:none;border-radius:5px;cursor:pointer;">採用</button>` +
+        return `<div class="recon-cand-group">` +
+          `<div class="recon-cand-group-head">` +
+            `<span>組${idx+1}: 合計 ¥${total.toLocaleString()}${diffNote}</span>` +
+            `<button class="recon-cand-adopt-btn" data-eid="${escapeHtml(entryId)}" data-ids='${escapeHtml(JSON.stringify(ids))}' onclick="selectN1Combination(this.dataset.eid, this.dataset.ids)">採用</button>` +
           `</div>` +
-          `<ul style="margin:0;padding:0;list-style:disc;font-size:11px;color:#555;">${items}</ul>` +
+          `<ul class="recon-cand-group-items">${items}</ul>` +
           `</div>`;
       }).join('');
       panel.innerHTML = html;
@@ -9782,7 +9817,7 @@ async function toggleCardDetail(entryId, cardSrcId) {
       if (!r.ok) { panel.innerHTML = '<span style="color:#c00;">読み込み失敗</span>'; return; }
       const rows = await r.json();
       if (!Array.isArray(rows) || rows.length === 0) {
-        panel.innerHTML = '<span style="color:#888;">明細なし</span>';
+        panel.innerHTML = '<span class="muted">明細なし</span>';
       } else {
         let total = 0;
         const STATUS_LBL = { matched:'✓一致', resolved:'✓解決', unmatched:'未照合' };
@@ -9792,14 +9827,13 @@ async function toggleCardDetail(entryId, cardSrcId) {
           const dt = escapeHtml((row.entry_date||'').replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
           const desc = escapeHtml(row.description || '—');
           const lbl  = STATUS_LBL[row.match_status] || row.match_status || '';
-          return `<div style="display:grid;grid-template-columns:50px 1fr 90px 70px;gap:6px;padding:3px 0;border-bottom:1px dotted #e5e7eb;">` +
-            `<span>${dt}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${desc}</span>` +
-            `<span style="text-align:right;">¥${amt.toLocaleString()}</span>` +
-            `<span style="color:#888;">${lbl}</span></div>`;
+          return `<div class="recon-detail-row">` +
+            `<span>${dt}</span><span class="nowrap">${desc}</span>` +
+            `<span class="ta-r">¥${amt.toLocaleString()}</span>` +
+            `<span class="muted">${lbl}</span></div>`;
         }).join('');
         panel.innerHTML = html +
-          `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;padding-top:6px;border-top:1px solid #ddd;font-weight:600;">` +
-          `合計 ¥${total.toLocaleString()} / ${rows.length}件</div>`;
+          `<div class="recon-detail-footer">合計 ¥${total.toLocaleString()} / ${rows.length}件</div>`;
       }
       panel.dataset.loaded = '1';
     } catch(e) {

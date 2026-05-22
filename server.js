@@ -5505,6 +5505,15 @@ const server = http.createServer(async (req, res) => {
         });
         if (!matched) { res.writeHead(400); res.end(JSON.stringify({ error: 'invalid combination' })); return; }
 
+        // P4 (d): shiwake_records の存在チェック（採用時に削除済みでないか）
+        const workspace_id = srcRows[0].workspace_id;
+        const existingRecs = await supabaseQuery(
+          `/shiwake_records?id=in.(${record_ids.map(encodeURIComponent).join(',')})&workspace_id=eq.${workspace_id}&select=id`
+        );
+        if (!existingRecs || existingRecs.length !== record_ids.length) {
+          res.writeHead(410); res.end(JSON.stringify({ error: 'one or more shiwake_records no longer exist' })); return;
+        }
+
         await supabaseQuery(`/reconciliation_entries?id=eq.${entryId}`, 'PATCH', {
           match_status: 'matched',
           linked_record_ids: matched.record_ids,
