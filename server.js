@@ -1123,8 +1123,14 @@ function parseCsvByFormat(buffer, formatDef) {
 
   // c. 行分割
   const allLines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  // d. header_rows をスキップ
-  const lines = allLines.slice(formatDef.header_rows || 0);
+  // d. header_rows をスキップ（generic のみ動的ヘッダ判定で回帰回避）
+  let skipRows = formatDef.header_rows || 0;
+  if (formatDef.id === 'generic_bank' || formatDef.id === 'generic_card') {
+    const dateIdx = formatDef.columns?.date?.index ?? 0;
+    const firstDateField = (parseCsvLine(allLines[0] || '')[dateIdx] || '').trim();
+    skipRows = /^\d{4}[\/-]\d{2}[\/-]\d{2}$/.test(firstDateField) ? 0 : 1;
+  }
+  const lines = allLines.slice(skipRows);
 
   const cols = formatDef.columns || {};
   const toInt = s => parseInt((s || '').replace(/[,¥￥\s]/g, ''), 10) || 0;
