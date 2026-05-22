@@ -9233,6 +9233,20 @@ function _renderReconRows(entries, aliases) {
       const eInfo = escapeHtml(`${e.entry_date}　${e.description||''}　${bAmt}`);
 
       if (st === 'matched' || st === 'resolved' || st === 'candidate') {
+        // P2-α: 1:N（カード引落 → カード明細N件合計照合）
+        if (e.linked_card_source_id) {
+          const diffNote = (e.amount_difference != null && Number(e.amount_difference) !== 0)
+            ? ` <span style="color:#888;font-size:11px;">(差 ¥${Number(e.amount_difference).toLocaleString()})</span>`
+            : '';
+          return `<div class="recon-match-row matched" data-id="${escapeHtml(e.id)}">` +
+            `<span class="recon-status-icon matched">✓</span>` +
+            `<div class="recon-b-detail">` +
+              `<span class="recon-b-partner">カード明細と照合${diffNote}</span>` +
+              `<button class="recon-card-expand-btn" data-eid="${escapeHtml(e.id)}" data-csrc="${escapeHtml(e.linked_card_source_id)}" onclick="toggleCardDetail(this.dataset.eid, this.dataset.csrc)" style="font-size:11px;padding:2px 8px;border:1px solid #ddd;background:#fff;border-radius:5px;cursor:pointer;margin-left:6px;">▼ 明細</button>` +
+            `</div>` +
+            `</div>` +
+            `<div class="recon-card-detail-panel" id="card-detail-${escapeHtml(e.id)}" style="display:none;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;"></div>`;
+        }
         const name = rec ? escapeHtml(rec.partner_name || rec.memo || '照合済み') : '照合済み';
         const rAmt = `¥${Number(rec ? rec.amount : e.amount).toLocaleString()}`;
         const eInfoShort = escapeHtml(`${e.description||''}　${bAmt}`);
@@ -9526,6 +9540,52 @@ window.switchTab = function(tab) {
   if (typeof _origSwitchTab_v270 === 'function') _origSwitchTab_v270(tab);
   if (tab === 'reconciliation') loadReconciliation();
 };
+
+// v2.7.1 P2-α: 1:N（カード引落 → カード明細N件）展開トグル
+async function toggleCardDetail(entryId, cardSrcId) {
+  const panel = document.getElementById(`card-detail-${entryId}`);
+  if (!panel) return;
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    return;
+  }
+  if (!panel.dataset.loaded) {
+    const uid = window._firebaseUser?.uid;
+    if (!uid) { showToast('ログインが必要です'); return; }
+    panel.innerHTML = '<span style="color:#888;">読み込み中…</span>';
+    panel.style.display = 'block';
+    try {
+      const r = await fetch(`/api/reconciliation/entries/${encodeURIComponent(cardSrcId)}?uid=${encodeURIComponent(uid)}`);
+      if (!r.ok) { panel.innerHTML = '<span style="color:#c00;">読み込み失敗</span>'; return; }
+      const rows = await r.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        panel.innerHTML = '<span style="color:#888;">明細なし</span>';
+      } else {
+        let total = 0;
+        const STATUS_LBL = { matched:'✓一致', resolved:'✓解決', unmatched:'未照合' };
+        const html = rows.map(row => {
+          const amt = Number(row.amount) || 0;
+          total += amt;
+          const dt = escapeHtml((row.entry_date||'').replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
+          const desc = escapeHtml(row.description || '—');
+          const lbl  = STATUS_LBL[row.match_status] || row.match_status || '';
+          return `<div style="display:grid;grid-template-columns:50px 1fr 90px 70px;gap:6px;padding:3px 0;border-bottom:1px dotted #e5e7eb;">` +
+            `<span>${dt}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${desc}</span>` +
+            `<span style="text-align:right;">¥${amt.toLocaleString()}</span>` +
+            `<span style="color:#888;">${lbl}</span></div>`;
+        }).join('');
+        panel.innerHTML = html +
+          `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;padding-top:6px;border-top:1px solid #ddd;font-weight:600;">` +
+          `合計 ¥${total.toLocaleString()} / ${rows.length}件</div>`;
+      }
+      panel.dataset.loaded = '1';
+    } catch(e) {
+      panel.innerHTML = '<span style="color:#c00;">通信エラー</span>';
+    }
+  } else {
+    panel.style.display = 'block';
+  }
+}
 
 // v3.2: plan gate wrapper（チェーン最外 — gate 失敗時はチェーンを切る）
 const _PLAN_GATE_REQUIRED_PLAN = {

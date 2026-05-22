@@ -1244,8 +1244,76 @@ async function extractStatementWithSonnet(apiKey, mediaType, base64Data, documen
   return rows;
 }
 
-// マッチングロジック（Lv1/Lv2/Lv3）
-function runReconciliationMatch(entries, records, aliases) {
+// P2-α: 1:N マッチング用ヘルパー =====
+
+// 通帳の出金行がカード引落かどうかキーワード判定
+const CARD_SETTLEMENT_KEYWORDS = ['visa','master','jcb','amex','アメックス','ダイナース','カード','クレジット','card'];
+function detectCardSettlementRow(description) {
+  if (!description) return false;
+  const norm = normalizeForMatch(description);
+  return CARD_SETTLEMENT_KEYWORDS.some(kw => norm.includes(normalizeForMatch(kw)));
+}
+
+// workspace 配下のカード明細ソース + 合計額を一括取得（match 1回につき 1度だけ呼ぶキャッシュ）
+async function loadCardSourceAggregates(workspace_id) {
+  const sources = await supabaseQuery(
+    `/reconciliation_sources?workspace_id=eq.${workspace_id}&source_type=eq.card&select=id,period_year,period_month`
+  );
+  if (!sources || sources.length === 0) return [];
+  const aggregates = [];
+  for (const s of sources) {
+    const entries = await supabaseQuery(
+      `/reconciliation_entries?source_id=eq.${s.id}&select=amount,direction`
+    );
+    let total = 0;
+    for (const e of (entries || [])) {
+      const a = Number(e.amount) || 0;
+      // カード明細は通常 debit のみだが念のため credit はマイナス計上で純額化
+      total += e.direction === 'credit' ? -a : a;
+    }
+    aggregates.push({
+      id: s.id,
+      period_year:  s.period_year,
+      period_month: s.period_month,
+      total_amount: total,
+    });
+  }
+  return aggregates;
+}
+
+// 通帳引落エントリに合致するカード明細ソースを探す（同月 or 前月 / 差±10円以内）
+function findMatchingCardSource(cardSourceAggregates, debitEntry) {
+  const d = new Date(debitEntry.entry_date);
+  if (isNaN(d.getTime())) return null;
+  const ey = d.getFullYear();
+  const em = d.getMonth() + 1; // 1-12
+  const py = em === 1 ? ey - 1 : ey;
+  const pm = em === 1 ? 12 : em - 1;
+  const inPeriod = s =>
+    (s.period_year === ey && s.period_month === em) ||
+    (s.period_year === py && s.period_month === pm);
+
+  const target = Number(debitEntry.amount) || 0;
+  const candidates = cardSourceAggregates
+    .filter(inPeriod)
+    .map(s => ({
+      card_source:  s,
+      total_amount: s.total_amount,
+      diff:         s.total_amount - target,
+    }))
+    .filter(c => Math.abs(c.diff) <= 10);
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff));
+  return candidates[0];
+}
+
+// マッチングロジック（1:N → Lv1/Lv2）
+async function runReconciliationMatch(entries, records, aliases, workspace_id) {
+  // 1:N (P2-α): カード明細ソースを事前ロード
+  const cardSourceAggregates = workspace_id
+    ? await loadCardSourceAggregates(workspace_id)
+    : [];
+
   // エイリアス→正式名マップ
   const aliasMap = {};
   for (const a of aliases) {
@@ -1254,6 +1322,21 @@ function runReconciliationMatch(entries, records, aliases) {
 
   const results = [];
   for (const entry of entries) {
+    // ===== 1:N マッチング（カード引落の合計照合）=====
+    if (entry.direction === 'debit' && detectCardSettlementRow(entry.description)) {
+      const cardMatch = findMatchingCardSource(cardSourceAggregates, entry);
+      if (cardMatch) {
+        results.push({
+          id: entry.id,
+          match_status: 'matched',
+          matched_record_id: null,
+          linked_card_source_id: cardMatch.card_source.id,
+          amount_difference:     cardMatch.diff,
+        });
+        continue; // 既存 Lv1/Lv2 にフォールバックさせない
+      }
+    }
+
     const entryDate   = new Date(entry.entry_date);
     const entryAmount = Number(entry.amount);
     const entryDesc   = normalizeForMatch(entry.description);
@@ -5150,16 +5233,18 @@ const server = http.createServer(async (req, res) => {
           supabaseQuery(`/partner_aliases?workspace_id=eq.${workspace_id}&select=*`),
         ]);
 
-        const matchResults = runReconciliationMatch(entries || [], records || [], aliases || []);
+        const matchResults = await runReconciliationMatch(entries || [], records || [], aliases || [], workspace_id);
 
         let matched = 0, unmatched = 0;
         for (const r of matchResults) {
           if (r.match_status === 'matched') matched++;
           else                              unmatched++;
           if (r.match_status !== 'unmatched') {
+            const patch = { match_status: r.match_status, matched_record_id: r.matched_record_id };
+            if (r.linked_card_source_id !== undefined) patch.linked_card_source_id = r.linked_card_source_id;
+            if (r.amount_difference    !== undefined) patch.amount_difference    = r.amount_difference;
             await supabaseQuery(
-              `/reconciliation_entries?id=eq.${r.id}`, 'PATCH',
-              { match_status: r.match_status, matched_record_id: r.matched_record_id }
+              `/reconciliation_entries?id=eq.${r.id}`, 'PATCH', patch
             );
           }
         }
