@@ -1307,7 +1307,73 @@ function findMatchingCardSource(cardSourceAggregates, debitEntry) {
   return candidates[0];
 }
 
-// マッチングロジック（1:N → Lv1/Lv2）
+// P2-β: N:1 マッチング =====
+// 通帳1行 vs 同一取引先の未照合 shiwake_records 複数件の組み合わせ照合
+// 戻り値: null / { status:'matched', record_ids, diff } / { status:'candidate', combinations }
+function findNToOneMatch(entry, records, aliasMap) {
+  const entryDesc = normalizeForMatch(entry.description);
+  if (!entryDesc) return null;
+  const resolvedName = aliasMap[entryDesc] ? normalizeForMatch(aliasMap[entryDesc]) : null;
+  const compareName = resolvedName || entryDesc;
+
+  const entryDate = new Date(entry.entry_date);
+  if (isNaN(entryDate.getTime())) return null;
+  const targetAmount = Number(entry.amount) || 0;
+  if (targetAmount <= 0) return null;
+
+  // a-b. 取引先 + 日付±60日でフィルタ
+  let candidates = records.filter(rec => {
+    const recName = normalizeForMatch(rec.partner_name || rec.memo || '');
+    if (!recName) return false;
+    const nameMatch = compareName.includes(recName) || recName.includes(compareName);
+    if (!nameMatch) return false;
+    const recDate = new Date(rec.shiwake_date);
+    if (isNaN(recDate.getTime())) return false;
+    const dayDiff = Math.abs((entryDate - recDate) / 86400000);
+    return dayDiff <= 60;
+  });
+
+  // c. 2件未満は N:1 対象外
+  if (candidates.length < 2) return null;
+
+  // d. 16件以上は日付近接で 15件に絞る（2^15=32768 通りで上限）
+  if (candidates.length > 15) {
+    candidates.sort((a, b) =>
+      Math.abs(new Date(a.shiwake_date) - entryDate) - Math.abs(new Date(b.shiwake_date) - entryDate)
+    );
+    candidates = candidates.slice(0, 15);
+  }
+
+  // e. 全部分集合（サイズ 2 以上）を列挙、合計 ±10円以内を抽出
+  const N = candidates.length;
+  const matches = [];
+  for (let mask = 1; mask < (1 << N); mask++) {
+    // popcount
+    let count = 0, t = mask;
+    while (t) { count++; t &= t - 1; }
+    if (count < 2) continue;
+    let sum = 0;
+    const ids = [];
+    for (let i = 0; i < N; i++) {
+      if (mask & (1 << i)) {
+        sum += Number(candidates[i].amount) || 0;
+        ids.push(candidates[i].id);
+      }
+    }
+    if (Math.abs(sum - targetAmount) <= 10) {
+      matches.push({ record_ids: ids, total: sum, diff: sum - targetAmount });
+    }
+  }
+
+  // f. 厳格モード判定
+  if (matches.length === 0) return null;
+  if (matches.length === 1) {
+    return { status: 'matched', record_ids: matches[0].record_ids, diff: matches[0].diff };
+  }
+  return { status: 'candidate', combinations: matches };
+}
+
+// マッチングロジック（1:N → Lv1/Lv2 → N:1）
 async function runReconciliationMatch(entries, records, aliases, workspace_id) {
   // 1:N (P2-α): カード明細ソースを事前ロード
   const cardSourceAggregates = workspace_id
@@ -1364,11 +1430,39 @@ async function runReconciliationMatch(entries, records, aliases, workspace_id) {
 
     if (lv1Match) {
       results.push({ id: entry.id, match_status: 'matched',   matched_record_id: lv1Match.id });
-    } else if (lv2Match) {
-      results.push({ id: entry.id, match_status: 'matched', matched_record_id: lv2Match.id });
-    } else {
-      results.push({ id: entry.id, match_status: 'unmatched', matched_record_id: null });
+      continue;
     }
+    if (lv2Match) {
+      results.push({ id: entry.id, match_status: 'matched', matched_record_id: lv2Match.id });
+      continue;
+    }
+
+    // ===== N:1 マッチング (P2-β): カード引落でない debit を対象 =====
+    if (entry.direction === 'debit' && !detectCardSettlementRow(entry.description)) {
+      const n1 = findNToOneMatch(entry, records, aliasMap);
+      if (n1) {
+        if (n1.status === 'matched') {
+          results.push({
+            id: entry.id,
+            match_status: 'matched',
+            matched_record_id: null,
+            linked_record_ids: n1.record_ids,
+            amount_difference: n1.diff,
+          });
+        } else {
+          // candidate
+          results.push({
+            id: entry.id,
+            match_status: 'candidate',
+            matched_record_id: null,
+            candidate_combinations: n1.combinations,
+          });
+        }
+        continue;
+      }
+    }
+
+    results.push({ id: entry.id, match_status: 'unmatched', matched_record_id: null });
   }
   return results;
 }
@@ -5235,14 +5329,17 @@ const server = http.createServer(async (req, res) => {
 
         const matchResults = await runReconciliationMatch(entries || [], records || [], aliases || [], workspace_id);
 
-        let matched = 0, unmatched = 0;
+        let matched = 0, candidate = 0, unmatched = 0;
         for (const r of matchResults) {
-          if (r.match_status === 'matched') matched++;
-          else                              unmatched++;
+          if      (r.match_status === 'matched')   matched++;
+          else if (r.match_status === 'candidate') candidate++;
+          else                                     unmatched++;
           if (r.match_status !== 'unmatched') {
             const patch = { match_status: r.match_status, matched_record_id: r.matched_record_id };
-            if (r.linked_card_source_id !== undefined) patch.linked_card_source_id = r.linked_card_source_id;
-            if (r.amount_difference    !== undefined) patch.amount_difference    = r.amount_difference;
+            if (r.linked_card_source_id   !== undefined) patch.linked_card_source_id   = r.linked_card_source_id;
+            if (r.linked_record_ids       !== undefined) patch.linked_record_ids       = r.linked_record_ids;
+            if (r.candidate_combinations  !== undefined) patch.candidate_combinations  = r.candidate_combinations;
+            if (r.amount_difference       !== undefined) patch.amount_difference       = r.amount_difference;
             await supabaseQuery(
               `/reconciliation_entries?id=eq.${r.id}`, 'PATCH', patch
             );
@@ -5250,7 +5347,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ matched, unmatched, total: matchResults.length }));
+        res.end(JSON.stringify({ matched, candidate, unmatched, total: matchResults.length }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -5287,6 +5384,49 @@ const server = http.createServer(async (req, res) => {
         await supabaseQuery(`/reconciliation_entries?id=eq.${entryId}`, 'PATCH', patch);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // ===== v2.7.2 P2-β: N:1 候補組採用 =====
+  // POST /api/reconciliation/entries/:id/select-combination → 厳格モードで候補組を選択
+  if (req.method === 'POST' && /^\/api\/reconciliation\/entries\/[a-zA-Z0-9_-]+\/select-combination$/.test(reqPath)) {
+    const entryId = reqPath.slice('/api/reconciliation/entries/'.length).replace('/select-combination', '');
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, record_ids } = JSON.parse(body || '{}');
+        if (!uid || !Array.isArray(record_ids) || record_ids.length < 2) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'uid and record_ids (array, length>=2) required' })); return;
+        }
+
+        const entryRows = await supabaseQuery(`/reconciliation_entries?id=eq.${entryId}&select=id,source_id,candidate_combinations`);
+        if (!entryRows || entryRows.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'entry not found' })); return; }
+        const srcRows = await supabaseQuery(`/reconciliation_sources?id=eq.${entryRows[0].source_id}&select=id,workspace_id`);
+        if (!srcRows || srcRows.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'source not found' })); return; }
+        const wsRows = await supabaseQuery(`/workspaces?id=eq.${srcRows[0].workspace_id}&owner_uid=eq.${uid}&select=id`);
+        if (!wsRows || wsRows.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+
+        // candidate_combinations から id 集合一致を探す（順序非依存）
+        const combinations = entryRows[0].candidate_combinations || [];
+        const requestedSet = new Set(record_ids.map(String));
+        const matched = combinations.find(c => {
+          const ids = c.record_ids || [];
+          if (ids.length !== requestedSet.size) return false;
+          return ids.every(id => requestedSet.has(String(id)));
+        });
+        if (!matched) { res.writeHead(400); res.end(JSON.stringify({ error: 'invalid combination' })); return; }
+
+        await supabaseQuery(`/reconciliation_entries?id=eq.${entryId}`, 'PATCH', {
+          match_status: 'matched',
+          linked_record_ids: matched.record_ids,
+          amount_difference: matched.diff,
+          candidate_combinations: null,
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, record_ids: matched.record_ids, diff: matched.diff }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -5451,11 +5591,12 @@ const server = http.createServer(async (req, res) => {
       const rows = entries || [];
       const total = rows.length;
       const matched   = rows.filter(r => r.match_status === 'matched').length;
+      const candidate = rows.filter(r => r.match_status === 'candidate').length;
       const unmatched = rows.filter(r => r.match_status === 'unmatched').length;
       const resolved  = rows.filter(r => r.match_status === 'resolved').length;
       const reconciliation_rate = total > 0 ? Math.round((matched + resolved) / total * 100) : 0;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_entries: total, matched_count: matched, unmatched_count: unmatched, resolved_count: resolved, reconciliation_rate }));
+      res.end(JSON.stringify({ total_entries: total, matched_count: matched, candidate_count: candidate, unmatched_count: unmatched, resolved_count: resolved, reconciliation_rate }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
   }

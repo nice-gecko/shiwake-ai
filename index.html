@@ -9232,6 +9232,19 @@ function _renderReconRows(entries, aliases) {
       const bAmt = `${e.direction === 'credit' ? '+' : '-'}¥${Number(e.amount).toLocaleString()}`;
       const eInfo = escapeHtml(`${e.entry_date}　${e.description||''}　${bAmt}`);
 
+      // P2-β: N:1（複数仕訳の候補ありで人間判断待ち）
+      if (st === 'candidate' && Array.isArray(e.candidate_combinations) && e.candidate_combinations.length > 0) {
+        const nCombos = e.candidate_combinations.length;
+        return `<div class="recon-match-row" data-id="${escapeHtml(e.id)}" style="background:#FFF8E6;border:1px solid #FAC775;">` +
+          `<span class="recon-status-icon" style="color:#B45309;">⚠</span>` +
+          `<div class="recon-b-detail">` +
+            `<span class="recon-b-partner" style="color:#854F0B;">候補 ${nCombos}組あり</span>` +
+            `<button class="recon-n1-cand-btn" data-eid="${escapeHtml(e.id)}" onclick="toggleN1Candidate(this.dataset.eid, ${nCombos})" style="font-size:11px;padding:2px 8px;border:1px solid #FAC775;background:#fff;border-radius:5px;cursor:pointer;margin-left:6px;">▼ 候補を見る</button>` +
+          `</div>` +
+          `</div>` +
+          `<div class="recon-n1-cand-panel" id="n1-cand-${escapeHtml(e.id)}" data-eid="${escapeHtml(e.id)}" data-combos='${escapeHtml(JSON.stringify(e.candidate_combinations))}' style="display:none;background:#FFFCF5;border:1px solid #FAC775;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;"></div>`;
+      }
+
       if (st === 'matched' || st === 'resolved' || st === 'candidate') {
         // P2-α: 1:N（カード引落 → カード明細N件合計照合）
         if (e.linked_card_source_id) {
@@ -9246,6 +9259,21 @@ function _renderReconRows(entries, aliases) {
             `</div>` +
             `</div>` +
             `<div class="recon-card-detail-panel" id="card-detail-${escapeHtml(e.id)}" style="display:none;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;"></div>`;
+        }
+        // P2-β: N:1（自動 matched で複数仕訳に紐付いた）
+        if (Array.isArray(e.linked_record_ids) && e.linked_record_ids.length > 0) {
+          const nRec = e.linked_record_ids.length;
+          const diffN = Number(e.amount_difference) || 0;
+          const total = (Number(e.amount) || 0) + diffN;
+          const diffNote = diffN !== 0 ? ` <span style="color:#888;font-size:11px;">(差 ¥${diffN.toLocaleString()})</span>` : '';
+          return `<div class="recon-match-row matched" data-id="${escapeHtml(e.id)}">` +
+            `<span class="recon-status-icon matched">✓</span>` +
+            `<div class="recon-b-detail">` +
+              `<span class="recon-b-partner">仕訳 ${nRec}件と照合（合計 ¥${total.toLocaleString()}）${diffNote}</span>` +
+              `<button class="recon-n1-expand-btn" data-eid="${escapeHtml(e.id)}" data-ids='${escapeHtml(JSON.stringify(e.linked_record_ids))}' onclick="toggleN1Detail(this.dataset.eid, this.dataset.ids)" style="font-size:11px;padding:2px 8px;border:1px solid #ddd;background:#fff;border-radius:5px;cursor:pointer;margin-left:6px;">▼ 内訳</button>` +
+            `</div>` +
+            `</div>` +
+            `<div class="recon-n1-detail-panel" id="n1-detail-${escapeHtml(e.id)}" style="display:none;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px;margin:4px 0 8px;font-size:12px;"></div>`;
         }
         const name = rec ? escapeHtml(rec.partner_name || rec.memo || '照合済み') : '照合済み';
         const rAmt = `¥${Number(rec ? rec.amount : e.amount).toLocaleString()}`;
@@ -9372,7 +9400,8 @@ async function runReconMatch(sourceId) {
       body: JSON.stringify({ uid, source_id: sid, workspace_id: wsId })
     });
     const d = await r.json();
-    showToast(`照合完了: 一致 ${d.matched}件 / 未照合 ${d.unmatched}件`, 3000);
+    const candTxt = d.candidate ? ` / 候補 ${d.candidate}件` : '';
+    showToast(`照合完了: 一致 ${d.matched}件${candTxt} / 未照合 ${d.unmatched}件`, 3000);
     await _loadReconSource(sid);
   } catch(e) {
     showToast('照合に失敗しました');
@@ -9540,6 +9569,124 @@ window.switchTab = function(tab) {
   if (typeof _origSwitchTab_v270 === 'function') _origSwitchTab_v270(tab);
   if (tab === 'reconciliation') loadReconciliation();
 };
+
+// v2.7.2 P2-β: N:1（仕訳N件まとめて照合）の内訳展開トグル
+async function toggleN1Detail(entryId, idsJson) {
+  const panel = document.getElementById(`n1-detail-${entryId}`);
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  if (!panel.dataset.loaded) {
+    const uid  = window._firebaseUser?.uid;
+    const wsId = window._currentWorkspaceId;
+    let ids;
+    try { ids = JSON.parse(idsJson); } catch(e) { panel.innerHTML = '<span style="color:#c00;">ID破損</span>'; panel.style.display = 'block'; return; }
+    if (!uid || !wsId || !Array.isArray(ids) || ids.length === 0) {
+      panel.innerHTML = '<span style="color:#c00;">読み込み不可</span>'; panel.style.display = 'block'; return;
+    }
+    panel.innerHTML = '<span style="color:#888;">読み込み中…</span>';
+    panel.style.display = 'block';
+    try {
+      const r = await fetch(`/api/reconciliation/matched-records?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}&ids=${encodeURIComponent(ids.join(','))}`);
+      if (!r.ok) { panel.innerHTML = '<span style="color:#c00;">読み込み失敗</span>'; return; }
+      const recs = await r.json();
+      if (!Array.isArray(recs) || recs.length === 0) {
+        panel.innerHTML = '<span style="color:#888;">仕訳なし</span>';
+      } else {
+        let total = 0;
+        const html = recs.map(rec => {
+          const amt = Number(rec.amount) || 0;
+          total += amt;
+          const dt = escapeHtml((rec.shiwake_date||'').replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
+          const name = escapeHtml(rec.partner_name || rec.memo || '—');
+          return `<div style="display:grid;grid-template-columns:50px 1fr 90px;gap:6px;padding:3px 0;border-bottom:1px dotted #e5e7eb;">` +
+            `<span>${dt}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>` +
+            `<span style="text-align:right;">¥${amt.toLocaleString()}</span></div>`;
+        }).join('');
+        panel.innerHTML = html +
+          `<div style="display:flex;justify-content:flex-end;margin-top:6px;padding-top:6px;border-top:1px solid #ddd;font-weight:600;">合計 ¥${total.toLocaleString()} / ${recs.length}件</div>`;
+      }
+      panel.dataset.loaded = '1';
+    } catch(e) {
+      panel.innerHTML = '<span style="color:#c00;">通信エラー</span>';
+    }
+  } else {
+    panel.style.display = 'block';
+  }
+}
+
+// v2.7.2 P2-β: N:1 候補一覧パネルのトグル + 採用フロー
+async function toggleN1Candidate(entryId, nCombos) {
+  const panel = document.getElementById(`n1-cand-${entryId}`);
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  if (!panel.dataset.loaded) {
+    const uid  = window._firebaseUser?.uid;
+    const wsId = window._currentWorkspaceId;
+    let combos;
+    try { combos = JSON.parse(panel.dataset.combos || '[]'); } catch(e) { combos = []; }
+    if (!uid || !wsId || combos.length === 0) {
+      panel.innerHTML = '<span style="color:#c00;">候補データ破損</span>'; panel.style.display = 'block'; return;
+    }
+    // 全候補に出現する record_id を一括取得して表示用マップを作る
+    const allIds = [...new Set(combos.flatMap(c => c.record_ids || []))];
+    panel.innerHTML = '<span style="color:#888;">読み込み中…</span>';
+    panel.style.display = 'block';
+    try {
+      const r = await fetch(`/api/reconciliation/matched-records?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}&ids=${encodeURIComponent(allIds.join(','))}`);
+      const recs = r.ok ? await r.json() : [];
+      const recMap = {};
+      (recs || []).forEach(rc => { recMap[rc.id] = rc; });
+      const html = combos.map((c, idx) => {
+        const ids = c.record_ids || [];
+        const total = Number(c.total) || 0;
+        const diff  = Number(c.diff)  || 0;
+        const diffNote = diff !== 0 ? ` <span style="color:#888;">(差 ¥${diff.toLocaleString()})</span>` : '';
+        const items = ids.map(id => {
+          const rc = recMap[id];
+          if (!rc) return `<li style="margin-left:14px;color:#999;">${escapeHtml(id)} (取得失敗)</li>`;
+          const dt = escapeHtml((rc.shiwake_date||'').replace(/^\d{4}-(\d{1,2})-(\d{2})$/, (_, m, d) => `${+m}/${d}`));
+          return `<li style="margin-left:14px;">${dt} ${escapeHtml(rc.partner_name || rc.memo || '—')} ¥${(Number(rc.amount)||0).toLocaleString()}</li>`;
+        }).join('');
+        return `<div style="margin-bottom:8px;padding:6px 8px;background:#fff;border:1px solid #e5e7eb;border-radius:5px;">` +
+          `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">` +
+            `<span style="font-weight:600;">組${idx+1}: 合計 ¥${total.toLocaleString()}${diffNote}</span>` +
+            `<button data-eid="${escapeHtml(entryId)}" data-ids='${escapeHtml(JSON.stringify(ids))}' onclick="selectN1Combination(this.dataset.eid, this.dataset.ids)" style="font-size:11px;padding:3px 10px;background:#1D9E75;color:#fff;border:none;border-radius:5px;cursor:pointer;">採用</button>` +
+          `</div>` +
+          `<ul style="margin:0;padding:0;list-style:disc;font-size:11px;color:#555;">${items}</ul>` +
+          `</div>`;
+      }).join('');
+      panel.innerHTML = html;
+      panel.dataset.loaded = '1';
+    } catch(e) {
+      panel.innerHTML = '<span style="color:#c00;">通信エラー</span>';
+    }
+  } else {
+    panel.style.display = 'block';
+  }
+}
+
+// v2.7.2 P2-β: 候補組の採用
+async function selectN1Combination(entryId, idsJson) {
+  let record_ids;
+  try { record_ids = JSON.parse(idsJson); } catch(e) { showToast('組情報が壊れています'); return; }
+  if (!Array.isArray(record_ids) || record_ids.length < 2) { showToast('組データ不正'); return; }
+  if (!confirm('この組み合わせを採用しますか？')) return;
+  const uid = window._firebaseUser?.uid;
+  if (!uid) { showToast('ログインが必要です'); return; }
+  try {
+    const r = await fetch(`/api/reconciliation/entries/${encodeURIComponent(entryId)}/select-combination`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, record_ids })
+    });
+    const d = await r.json();
+    if (!r.ok) { showToast('エラー: ' + (d.error || '不明')); return; }
+    showToast('✓ 組み合わせを採用しました');
+    await loadReconciliation();
+  } catch(e) {
+    showToast('通信エラーが発生しました');
+  }
+}
 
 // v2.7.1 P2-α: 1:N（カード引落 → カード明細N件）展開トグル
 async function toggleCardDetail(entryId, cardSrcId) {
