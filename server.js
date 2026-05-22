@@ -102,6 +102,16 @@ try {
   console.warn('csv_formats.json の読み込みに失敗 — 突合のフォーマット駆動パースは無効化されます:', e.message);
 }
 
+// 突合機能: PDF/写真→Sonnet 用プロンプト（起動時にメモリへキャッシュ）
+const RECON_PROMPTS = { bank_pdf: '', bank_photo: '', card_pdf: '' };
+for (const key of Object.keys(RECON_PROMPTS)) {
+  try {
+    RECON_PROMPTS[key] = fs.readFileSync(path.join(__dirname, 'data', 'prompts', `${key}_prompt.txt`), 'utf8');
+  } catch(e) {
+    console.warn(`prompts/${key}_prompt.txt の読み込みに失敗 — 該当パイプラインは無効:`, e.message);
+  }
+}
+
 // 件数従量の逓減テーブル（込み件数超過分の相対累積件数に対して適用）
 const OVERAGE_TIERS = [
   { upTo: 400,  unit_yen: 18 },  // 超過 1〜400件
@@ -1165,6 +1175,73 @@ function parseCsvByFormat(buffer, formatDef) {
     entries.push({ date: dateParsed, description, debit, credit });
   }
   return entries;
+}
+
+// PDF/写真を Sonnet で抽出 → parseCsvByFormat と同じ {date, description, debit, credit} 形式に正規化
+async function extractStatementWithSonnet(apiKey, mediaType, base64Data, documentType, institutionName) {
+  const template = RECON_PROMPTS[documentType];
+  if (!template) throw new Error(`no prompt for ${documentType}`);
+
+  // プレースホルダ置換: {bank_name} / {card_name} は institutionName で（両方置換しても無害）
+  const inst = institutionName || '';
+  let prompt = template
+    .replace(/\{bank_name\}/g, inst)
+    .replace(/\{card_name\}/g, inst);
+
+  // {bank_format_notes} は bank_pdf のみ csv_formats.json[banks] の notes を引いて埋める
+  if (documentType === 'bank_pdf') {
+    const bankDef = (CSV_FORMATS.banks || []).find(b => b.name === inst);
+    prompt = prompt.replace(/\{bank_format_notes\}/g, (bankDef && bankDef.notes) || '');
+  }
+
+  const mediaBlock = mediaType === 'application/pdf'
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }
+    : { type: 'image',    source: { type: 'base64', media_type: mediaType,         data: base64Data } };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: [mediaBlock, { type: 'text', text: prompt }] }]
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Sonnet API error: ${data?.error?.message || res.status}`);
+
+  const raw = (data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '').trim();
+  const start = raw.indexOf('['), end = raw.lastIndexOf(']');
+  if (start === -1 || end === -1 || end <= start) throw new Error('Sonnet 応答からJSON配列を抽出できませんでした');
+  let parsed;
+  try {
+    parsed = JSON.parse(raw.slice(start, end + 1));
+  } catch(e) {
+    throw new Error(`Sonnet 応答のJSONパース失敗: ${e.message}`);
+  }
+  if (!Array.isArray(parsed)) throw new Error('Sonnet 応答が配列ではありません');
+
+  // documentType により共通形式 {date, description, debit, credit} に正規化
+  const rows = [];
+  for (const r of parsed) {
+    if (!r || typeof r !== 'object') continue;
+    const date = (r.date || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    let description, debit = 0, credit = 0;
+    if (documentType === 'card_pdf') {
+      description = (r.merchant || '').trim() || null;
+      debit  = Number(r.amount) || 0;
+      credit = 0;
+    } else {
+      // bank_pdf / bank_photo
+      description = (r.description || '').trim() || null;
+      debit  = Number(r.amount_out) || 0;
+      credit = Number(r.amount_in)  || 0;
+    }
+    if (debit === 0 && credit === 0) continue;
+    rows.push({ date, description, debit, credit });
+  }
+  return rows;
 }
 
 // マッチングロジック（Lv1/Lv2/Lv3）
@@ -4956,7 +5033,7 @@ const server = http.createServer(async (req, res) => {
 
   // ===== v2.7.0: 突合機能 Phase B（CSVアップロード＋自動マッチング） =====
 
-  // POST /api/reconciliation/upload-csv → CSVアップロード＋明細一括登録
+  // POST /api/reconciliation/upload-csv → CSV/PDF/写真アップロード＋明細一括登録
   if (req.method === 'POST' && reqPath === '/api/reconciliation/upload-csv') {
     try {
       const { fields, files } = await parseMultipartFormData(req);
@@ -4971,28 +5048,58 @@ const server = http.createServer(async (req, res) => {
       if (!uid || !workspace_id || !source_type) {
         res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, source_type required' })); return;
       }
-      if (source_type === 'invoice') {
-        res.writeHead(400); res.end(JSON.stringify({ error: 'PDF/写真は次フェーズで対応予定です' })); return;
-      }
       const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
       if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
 
-      const csvFile = files[0];
-      if (!csvFile) { res.writeHead(400); res.end(JSON.stringify({ error: 'csv file required' })); return; }
-
-      const formatDef = resolveCsvFormat(institution_name, source_type);
-      if (!formatDef) {
-        res.writeHead(400); res.end(JSON.stringify({ error: `unsupported source_type: ${source_type}` })); return;
-      }
+      const uploadedFile = files[0];
+      if (!uploadedFile) { res.writeHead(400); res.end(JSON.stringify({ error: 'file required' })); return; }
+      const mimeType = (uploadedFile.mimetype || '').toLowerCase();
 
       let parsedRows;
-      try {
-        parsedRows = parseCsvByFormat(csvFile.buffer, formatDef);
-      } catch(e) {
-        res.writeHead(400); res.end(JSON.stringify({ error: `CSV パース失敗: ${e.message}` })); return;
+
+      if (mimeType === 'application/pdf') {
+        // PDF パイプライン: bank/card → Sonnet
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) { res.writeHead(500); res.end(JSON.stringify({ error: 'API key not configured' })); return; }
+        let documentType;
+        if (source_type === 'bank')      documentType = 'bank_pdf';
+        else if (source_type === 'card') documentType = 'card_pdf';
+        else { res.writeHead(400); res.end(JSON.stringify({ error: 'unsupported source_type for PDF' })); return; }
+        try {
+          parsedRows = await extractStatementWithSonnet(apiKey, 'application/pdf', uploadedFile.buffer.toString('base64'), documentType, institution_name);
+        } catch(e) {
+          res.writeHead(400); res.end(JSON.stringify({ error: `PDF抽出失敗: ${e.message}` })); return;
+        }
+      } else if (mimeType.startsWith('image/')) {
+        // 写真パイプライン: bank のみ → Sonnet（card 写真は非対応）
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) { res.writeHead(500); res.end(JSON.stringify({ error: 'API key not configured' })); return; }
+        if (source_type === 'card') {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'カード明細の写真は現在非対応です（PDFをご利用ください）' })); return;
+        }
+        if (source_type !== 'bank') {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'unsupported source_type for photo' })); return;
+        }
+        try {
+          parsedRows = await extractStatementWithSonnet(apiKey, mimeType, uploadedFile.buffer.toString('base64'), 'bank_photo', institution_name);
+        } catch(e) {
+          res.writeHead(400); res.end(JSON.stringify({ error: `写真抽出失敗: ${e.message}` })); return;
+        }
+      } else {
+        // CSV パイプライン: 既存 P1A 実装
+        const formatDef = resolveCsvFormat(institution_name, source_type);
+        if (!formatDef) {
+          res.writeHead(400); res.end(JSON.stringify({ error: `unsupported source_type: ${source_type}` })); return;
+        }
+        try {
+          parsedRows = parseCsvByFormat(uploadedFile.buffer, formatDef);
+        } catch(e) {
+          res.writeHead(400); res.end(JSON.stringify({ error: `CSV パース失敗: ${e.message}` })); return;
+        }
       }
-      if (parsedRows.length === 0) {
-        res.writeHead(400); res.end(JSON.stringify({ error: 'no valid entries found in CSV' })); return;
+
+      if (!parsedRows || parsedRows.length === 0) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'no valid entries found' })); return;
       }
 
       // ソース登録
