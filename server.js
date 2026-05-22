@@ -1373,6 +1373,92 @@ function findNToOneMatch(entry, records, aliasMap) {
   return { status: 'candidate', combinations: matches };
 }
 
+// P3: 欠落検知（定期支払いの未計上アラート）=====
+// 過去3ヶ月連続で計上があった取引先のうち、target月に shiwake_records が無いものを抽出
+async function detectMissingRegulars(workspace_id, period_year, period_month) {
+  const py = parseInt(period_year,  10);
+  const pm = parseInt(period_month, 10);
+  if (!py || !pm) return { target_period: null, missing: [] };
+
+  const pad2 = n => String(n).padStart(2, '0');
+  const targetYM = `${py}-${pad2(pm)}`;
+
+  // 過去3ヶ月のYM（target月の3ヶ月前から1ヶ月前まで）
+  const last3YMs = [];
+  for (let i = 3; i >= 1; i--) {
+    const d = new Date(py, pm - 1 - i, 1);
+    last3YMs.push(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}`);
+  }
+
+  // 取得範囲: 過去3ヶ月の先頭 〜 target月の末日
+  const startDate = `${last3YMs[0]}-01`;
+  const endLast   = new Date(py, pm, 0); // target月の末日
+  const endDate   = `${py}-${pad2(pm)}-${pad2(endLast.getDate())}`;
+
+  const records = await supabaseQuery(
+    `/shiwake_records?workspace_id=eq.${workspace_id}&shiwake_date=gte.${startDate}&shiwake_date=lte.${endDate}&status=neq.reverted&select=id,shiwake_date,partner_name,memo`
+  );
+
+  // partner_aliases で alias → canonical_name の解決マップを構築
+  const aliases = await supabaseQuery(`/partner_aliases?workspace_id=eq.${workspace_id}&select=alias,canonical_name`);
+  const aliasMap = {};
+  for (const a of (aliases || [])) {
+    aliasMap[normalizeForMatch(a.alias)] = a.canonical_name;
+  }
+  const partnerKey = (raw) => {
+    const norm = normalizeForMatch(raw || '');
+    if (!norm) return '';
+    return aliasMap[norm] ? normalizeForMatch(aliasMap[norm]) : norm;
+  };
+
+  // 取引先キー × 出現月マップを構築
+  const partnerMonths = {};      // key -> Set<YM>
+  const partnerDisplay = {};     // key -> 元の表示名
+  for (const r of (records || [])) {
+    if (!r.shiwake_date) continue;
+    const raw = r.partner_name || r.memo || '';
+    const key = partnerKey(raw);
+    if (!key) continue;
+    const ym = r.shiwake_date.slice(0, 7);
+    if (!partnerMonths[key]) partnerMonths[key] = new Set();
+    partnerMonths[key].add(ym);
+    if (!partnerDisplay[key]) partnerDisplay[key] = raw.trim();
+  }
+
+  // 過去3ヶ月とも計上あり & target月に無い → 欠落候補
+  const missing = [];
+  for (const [key, monthsHit] of Object.entries(partnerMonths)) {
+    const all3 = last3YMs.every(ym => monthsHit.has(ym));
+    if (!all3) continue;
+    if (monthsHit.has(targetYM)) continue; // target月に計上済み
+    missing.push({
+      partner_name:    partnerDisplay[key],
+      last_3months:    last3YMs.slice(),
+      matched_in_bank: false,
+    });
+  }
+  if (missing.length === 0) return { target_period: targetYM, missing: [] };
+
+  // 通帳・カード明細（target月の reconciliation_entries）に取引先名が現れているか確認
+  const targetSources = await supabaseQuery(
+    `/reconciliation_sources?workspace_id=eq.${workspace_id}&period_year=eq.${py}&period_month=eq.${pm}&select=id`
+  );
+  if (targetSources && targetSources.length > 0) {
+    const srcIds = targetSources.map(s => s.id).join(',');
+    const entries = await supabaseQuery(
+      `/reconciliation_entries?source_id=in.(${srcIds})&select=description`
+    );
+    const descNorms = (entries || []).map(e => normalizeForMatch(e.description || '')).filter(Boolean);
+    for (const m of missing) {
+      const pn = normalizeForMatch(m.partner_name);
+      if (!pn) continue;
+      m.matched_in_bank = descNorms.some(d => d.includes(pn) || pn.includes(d));
+    }
+  }
+
+  return { target_period: targetYM, missing };
+}
+
 // マッチングロジック（1:N → Lv1/Lv2 → N:1）
 async function runReconciliationMatch(entries, records, aliases, workspace_id) {
   // 1:N (P2-α): カード明細ソースを事前ロード
@@ -5490,6 +5576,27 @@ const server = http.createServer(async (req, res) => {
       await supabaseQuery(`/partner_aliases?id=eq.${aliasId}`, 'DELETE');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // ===== v2.7.3 P3: 欠落検知（定期支払いの未計上アラート）=====
+  // GET /api/reconciliation/missing-detection?uid=&workspace_id=&period_year=&period_month=
+  if (req.method === 'GET' && reqPath === '/api/reconciliation/missing-detection') {
+    const _p = new URL(req.url, 'http://localhost').searchParams;
+    const uid          = _p.get('uid');
+    const workspace_id = _p.get('workspace_id');
+    const py           = parseInt(_p.get('period_year'),  10);
+    const pm           = parseInt(_p.get('period_month'), 10);
+    if (!uid || !workspace_id || !py || !pm) {
+      res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, period_year, period_month required' })); return;
+    }
+    try {
+      const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
+      if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+      const result = await detectMissingRegulars(workspace_id, py, pm);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
   }

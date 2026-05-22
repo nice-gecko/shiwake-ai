@@ -2899,6 +2899,15 @@ function updateFabBadge() {
         <span class="recon-pill">照合率 <span id="recon-pill-rate">—</span></span>
       </div>
     </div>
+    <!-- v2.7.3 P3: 欠落アラートセクション（紫バッジ） -->
+    <div id="recon-missing-section" style="display:none;background:#F5F3FF;border:1px solid #C4B5FD;border-radius:9px;padding:12px 14px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span style="display:inline-block;width:8px;height:8px;background:#7C3AED;border-radius:50%;"></span>
+        <span style="font-size:13px;font-weight:600;color:#5B21B6;">⚠ 定期支払いの計上漏れ候補 <span id="recon-missing-count">0</span>件</span>
+        <span style="font-size:11px;color:#7C3AED;margin-left:auto;">対象月: <span id="recon-missing-period">—</span></span>
+      </div>
+      <div id="recon-missing-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
     <div class="recon-cols">
       <div class="recon-card-a">
         <div class="recon-col-head">
@@ -9128,6 +9137,8 @@ function _buildReconSourceDropdown(sources) {
     const opt = document.createElement('option');
     opt.value = s.id;
     opt.textContent = label;
+    opt.dataset.py = s.period_year  || '';
+    opt.dataset.pm = s.period_month || '';
     sel.appendChild(opt);
   });
   if (prevVal && sel.querySelector(`option[value="${CSS.escape(prevVal)}"]`)) {
@@ -9170,6 +9181,13 @@ async function _loadReconSource(sourceId) {
     }
     _renderReconRows(_reconEntries, _reconAliases);
     _renderReconFooter(_reconEntries);
+    // v2.7.3 P3: 選択中ソースの period に対して欠落検知
+    const sel = document.getElementById('recon-source-select');
+    const opt = sel ? sel.querySelector(`option[value="${CSS.escape(sourceId)}"]`) : null;
+    const py = opt?.dataset.py || '';
+    const pm = opt?.dataset.pm || '';
+    if (py && pm) await _loadMissingDetection(py, pm);
+    else _clearMissingDetection();
   } catch(e) {
     console.warn('_loadReconSource error:', e);
     if (bodyA) bodyA.innerHTML = '<div class="recon-empty-guide">読み込みに失敗しました</div>';
@@ -9380,6 +9398,10 @@ async function submitReconUpload() {
     closeReconUploadModal();
     showToast(`✓ ${d.total_entries}件の明細を取り込みました`);
     await loadReconciliation();
+    // v2.7.3 P3: アップロードしたソースの period に対しても明示的に欠落検知
+    const upPY = parseInt(document.getElementById('recon-period-year').value, 10);
+    const upPM = parseInt(document.getElementById('recon-period-month').value, 10);
+    if (upPY && upPM) await _loadMissingDetection(upPY, upPM);
     if (d.source_id) await runReconMatch(d.source_id);
   } catch(e) {
     showToast('通信エラーが発生しました');
@@ -9569,6 +9591,60 @@ window.switchTab = function(tab) {
   if (typeof _origSwitchTab_v270 === 'function') _origSwitchTab_v270(tab);
   if (tab === 'reconciliation') loadReconciliation();
 };
+
+// v2.7.3 P3: 欠落検知（定期支払いの未計上アラート）=====
+let _missingIgnoreSet = new Set();        // セッション中だけの非表示（永続化なし）
+let _lastMissingData = null;              // 最後に取得した結果（再描画用）
+
+async function _loadMissingDetection(py, pm) {
+  const uid  = window._firebaseUser?.uid;
+  const wsId = window._currentWorkspaceId;
+  if (!uid || !wsId || !py || !pm) { _clearMissingDetection(); return; }
+  try {
+    const r = await fetch(`/api/reconciliation/missing-detection?uid=${encodeURIComponent(uid)}&workspace_id=${encodeURIComponent(wsId)}&period_year=${encodeURIComponent(py)}&period_month=${encodeURIComponent(pm)}`);
+    if (!r.ok) { _clearMissingDetection(); return; }
+    const data = await r.json();
+    _renderMissingDetection(data);
+  } catch(e) {
+    _clearMissingDetection();
+  }
+}
+
+function _clearMissingDetection() {
+  _lastMissingData = null;
+  const sec = document.getElementById('recon-missing-section');
+  if (sec) sec.style.display = 'none';
+}
+
+function _renderMissingDetection(data) {
+  _lastMissingData = data;
+  const section = document.getElementById('recon-missing-section');
+  const listEl  = document.getElementById('recon-missing-list');
+  const cntEl   = document.getElementById('recon-missing-count');
+  const perEl   = document.getElementById('recon-missing-period');
+  if (!section || !listEl) return;
+  const visible = ((data && data.missing) || []).filter(m => !_missingIgnoreSet.has(m.partner_name));
+  if (visible.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  cntEl.textContent = visible.length;
+  perEl.textContent = (data && data.target_period) || '—';
+  listEl.innerHTML = visible.map(m => {
+    const name = escapeHtml(m.partner_name || '—');
+    const inBank = m.matched_in_bank
+      ? '<span style="font-size:10px;background:#DBEAFE;color:#1e40af;padding:1px 6px;border-radius:8px;margin-left:6px;">通帳に出現あり</span>'
+      : '';
+    return `<span style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #C4B5FD;border-radius:14px;padding:4px 10px;font-size:12px;color:#5B21B6;">` +
+      `<span>${name}</span>${inBank}` +
+      `<button data-name="${name}" onclick="ignoreMissing(this.dataset.name)" title="このセッション中は非表示" style="background:none;border:none;color:#999;font-size:14px;line-height:1;cursor:pointer;padding:0 0 0 4px;">×</button>` +
+      `</span>`;
+  }).join('');
+}
+
+function ignoreMissing(partnerName) {
+  if (!partnerName) return;
+  _missingIgnoreSet.add(partnerName);
+  if (_lastMissingData) _renderMissingDetection(_lastMissingData);
+}
 
 // v2.7.2 P2-β: N:1（仕訳N件まとめて照合）の内訳展開トグル
 async function toggleN1Detail(entryId, idsJson) {
