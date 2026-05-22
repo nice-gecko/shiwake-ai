@@ -3114,6 +3114,34 @@ function updateFabBadge() {
   </div>
 </div>
 
+<!-- v2.7.3 P1B-β: パース失敗時 協力依頼モーダル -->
+<div class="recon-modal-overlay" id="modal-parse-failure-consent" onclick="if(event.target===this)closeParseFailureConsentModal()">
+  <div class="recon-modal">
+    <h3>データ送信のお願い</h3>
+    <div class="recon-modal-row">
+      <p style="font-size:13px;line-height:1.6;margin:0;">パース処理が失敗しました。改善のために、このファイルの内容を開発チームに送信していただけますか？</p>
+    </div>
+    <div class="recon-modal-row" style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px;padding:10px;margin-bottom:8px;">
+      <div style="font-size:12px;color:#0369A1;font-weight:600;margin-bottom:4px;">送信される内容</div>
+      <div style="font-size:12px;color:#075985;line-height:1.6;">・ファイル内容（CSV テキスト）<br>・銀行/カード名、エラー内容</div>
+    </div>
+    <div class="recon-modal-row" style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;padding:10px;">
+      <div style="font-size:12px;color:#92400E;font-weight:600;margin-bottom:4px;">送信されないもの</div>
+      <div style="font-size:12px;color:#78350F;line-height:1.6;">・ご自身の口座番号や氏名<br>（CSV に含まれている場合は送信されます）</div>
+    </div>
+    <div class="recon-modal-row">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#555;cursor:pointer;margin-bottom:0;">
+        <input type="checkbox" id="parse-failure-persist-consent" style="width:auto;padding:0;border-radius:0;flex-shrink:0;">
+        今後も同意する（次回以降は自動送信）
+      </label>
+    </div>
+    <div class="recon-modal-btns">
+      <button class="btn-recon-modal-cancel" onclick="closeParseFailureConsentModal()">いいえ、結構です</button>
+      <button class="btn-recon-modal-ok" onclick="submitParseFailureConsent()">協力する</button>
+    </div>
+  </div>
+</div>
+
 <!-- v2.7.0: 照合取り消し確認モーダル -->
 <div class="recon-modal-overlay" id="modal-recon-undo" onclick="if(event.target===this)closeUndoModal()">
   <div class="recon-modal">
@@ -9412,7 +9440,8 @@ async function submitReconUpload() {
   const wsId = window._currentWorkspaceId;
   if (!uid || !wsId) { showToast('ワークスペースを選択してください'); return; }
   const fileInput = document.getElementById('recon-csv-file');
-  if (!fileInput.files[0]) { showToast('CSVファイルを選択してください'); return; }
+  const fileObj   = fileInput.files[0];
+  if (!fileObj) { showToast('CSVファイルを選択してください'); return; }
   const btn = document.getElementById('btn-recon-upload-submit');
   btn.disabled = true; btn.textContent = 'アップロード中...';
   const fd = new FormData();
@@ -9425,11 +9454,25 @@ async function submitReconUpload() {
   fd.append('account_info', (acctType && acctNum) ? `${acctType} ${acctNum}` : acctNum || acctType);
   fd.append('period_year',      document.getElementById('recon-period-year').value);
   fd.append('period_month',     document.getElementById('recon-period-month').value);
-  fd.append('file', fileInput.files[0]);
+  fd.append('file', fileObj);
   try {
     const r = await fetch('/api/reconciliation/upload-csv', { method: 'POST', body: fd });
     const d = await r.json();
-    if (!r.ok) { showToast('エラー: ' + (d.error||'不明')); return; }
+    if (!r.ok) {
+      // P1B-β: パース失敗時の協力依頼フロー
+      if (d.failure_id && d.can_collect) {
+        const auto = await _checkParseFailureAutoConsent();
+        if (auto) {
+          await _autoConsentParseFailure(d.failure_id, fileObj);
+          showToast('エラー: ' + (d.error || '不明'));
+        } else {
+          openParseFailureConsentModal(d.failure_id, fileObj);
+        }
+      } else {
+        showToast('エラー: ' + (d.error || '不明'));
+      }
+      return;
+    }
     closeReconUploadModal();
     showToast(`✓ ${d.total_entries}件の明細を取り込みました`);
     await loadReconciliation();
@@ -9443,6 +9486,82 @@ async function submitReconUpload() {
   } finally {
     btn.disabled = false; btn.textContent = 'アップロード';
   }
+}
+
+// v2.7.3 P1B-β: パース失敗ログ協力フロー =====
+let _pendingFailureId   = null;
+let _pendingFailureFile = null;
+
+function openParseFailureConsentModal(failureId, file) {
+  _pendingFailureId   = failureId;
+  _pendingFailureFile = file;
+  const cb = document.getElementById('parse-failure-persist-consent');
+  if (cb) cb.checked = false;
+  document.getElementById('modal-parse-failure-consent').classList.add('show');
+}
+
+function closeParseFailureConsentModal() {
+  document.getElementById('modal-parse-failure-consent').classList.remove('show');
+  _pendingFailureId   = null;
+  _pendingFailureFile = null;
+}
+
+async function submitParseFailureConsent() {
+  if (!_pendingFailureId || !_pendingFailureFile) { closeParseFailureConsentModal(); return; }
+  const uid = window._firebaseUser?.uid;
+  if (!uid) { closeParseFailureConsentModal(); return; }
+  const persistConsent = !!document.getElementById('parse-failure-persist-consent')?.checked;
+  try {
+    const base64 = await _fileToBase64(_pendingFailureFile);
+    const r = await fetch(`/api/reconciliation/parse-failure/${encodeURIComponent(_pendingFailureId)}/consent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, include_content: true, persist_consent: persistConsent, file_content_base64: base64 })
+    });
+    if (r.ok) showToast('ご協力ありがとうございます');
+    else      showToast('送信に失敗しました');
+  } catch(e) {
+    showToast('送信エラー');
+  } finally {
+    closeParseFailureConsentModal();
+  }
+}
+
+async function _checkParseFailureAutoConsent() {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return false;
+  try {
+    const r = await fetch(`/api/reconciliation/parse-failure/check-consent?uid=${encodeURIComponent(uid)}`);
+    if (!r.ok) return false;
+    const d = await r.json();
+    return d.default_consent === true;
+  } catch(e) { return false; }
+}
+
+async function _autoConsentParseFailure(failureId, file) {
+  const uid = window._firebaseUser?.uid;
+  if (!uid) return;
+  try {
+    const base64 = await _fileToBase64(file);
+    await fetch(`/api/reconciliation/parse-failure/${encodeURIComponent(failureId)}/consent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, include_content: true, persist_consent: false, file_content_base64: base64 })
+    });
+  } catch(_) { /* 自動送信失敗は黙殺 */ }
+}
+
+function _fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => {
+      const r = reader.result || '';
+      const idx = String(r).indexOf(',');
+      resolve(idx >= 0 ? String(r).slice(idx + 1) : String(r));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 async function runReconMatch(sourceId) {

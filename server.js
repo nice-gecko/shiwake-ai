@@ -1373,6 +1373,29 @@ function findNToOneMatch(entry, records, aliasMap) {
   return { status: 'candidate', combinations: matches };
 }
 
+// P1B-β: パース失敗ログ収集ヘルパー =====
+// 失敗時に parse_failure_logs に1行 INSERT して新規 id を返す。失敗しても続行可能（null 返す）。
+async function logParseFailure(payload) {
+  try {
+    const created = await supabaseQuery('/parse_failure_logs', 'POST', {
+      workspace_id:    payload.workspace_id,
+      uid:             payload.uid,
+      source_type:     payload.source_type,
+      institution_name: payload.institution_name || null,
+      mime_type:       payload.mimeType,
+      failure_type:    payload.failure_type,
+      error_message:   payload.error_message || null,
+      file_size:       payload.file_size  || null,
+      file_name:       payload.file_name  || null,
+      user_consented:  false,
+    }, { 'Prefer': 'return=representation' });
+    return created?.[0]?.id || null;
+  } catch(e) {
+    console.warn('logParseFailure error:', e.message);
+    return null;
+  }
+}
+
 // P3: 欠落検知（定期支払いの未計上アラート）=====
 // 過去3ヶ月連続で計上があった取引先のうち、target月に shiwake_records が無いものを抽出
 async function detectMissingRegulars(workspace_id, period_year, period_month) {
@@ -5317,6 +5340,22 @@ const server = http.createServer(async (req, res) => {
       const uploadedFile = files[0];
       if (!uploadedFile) { res.writeHead(400); res.end(JSON.stringify({ error: 'file required' })); return; }
       const mimeType = (uploadedFile.mimetype || '').toLowerCase();
+      const canCollect = mimeType !== 'application/pdf' && !mimeType.startsWith('image/');
+
+      // P1B-β: パース失敗時に parse_failure_logs を記録し、failure_id 入りエラー応答を返す
+      const respondParseFailure = async (status, errMsg, failureType) => {
+        const fid = await logParseFailure({
+          workspace_id, uid, source_type,
+          institution_name,
+          mimeType,
+          failure_type: failureType,
+          error_message: errMsg,
+          file_size: uploadedFile.size || null,
+          file_name: uploadedFile.originalname || null,
+        });
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: errMsg, failure_id: fid, failure_type: failureType, can_collect: canCollect }));
+      };
 
       let parsedRows;
 
@@ -5331,7 +5370,7 @@ const server = http.createServer(async (req, res) => {
         try {
           parsedRows = await extractStatementWithSonnet(apiKey, 'application/pdf', uploadedFile.buffer.toString('base64'), documentType, institution_name);
         } catch(e) {
-          res.writeHead(400); res.end(JSON.stringify({ error: `PDF抽出失敗: ${e.message}` })); return;
+          await respondParseFailure(400, `PDF抽出失敗: ${e.message}`, 'exception'); return;
         }
       } else if (mimeType.startsWith('image/')) {
         // 写真パイプライン: bank のみ → Sonnet（card 写真は非対応）
@@ -5346,7 +5385,7 @@ const server = http.createServer(async (req, res) => {
         try {
           parsedRows = await extractStatementWithSonnet(apiKey, mimeType, uploadedFile.buffer.toString('base64'), 'bank_photo', institution_name);
         } catch(e) {
-          res.writeHead(400); res.end(JSON.stringify({ error: `写真抽出失敗: ${e.message}` })); return;
+          await respondParseFailure(400, `写真抽出失敗: ${e.message}`, 'exception'); return;
         }
       } else {
         // CSV パイプライン: 既存 P1A 実装
@@ -5357,12 +5396,12 @@ const server = http.createServer(async (req, res) => {
         try {
           parsedRows = parseCsvByFormat(uploadedFile.buffer, formatDef);
         } catch(e) {
-          res.writeHead(400); res.end(JSON.stringify({ error: `CSV パース失敗: ${e.message}` })); return;
+          await respondParseFailure(400, `CSV パース失敗: ${e.message}`, 'exception'); return;
         }
       }
 
       if (!parsedRows || parsedRows.length === 0) {
-        res.writeHead(400); res.end(JSON.stringify({ error: 'no valid entries found' })); return;
+        await respondParseFailure(400, 'no valid entries found', 'empty_result'); return;
       }
 
       // ソース登録
@@ -5586,6 +5625,78 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // ===== v2.7.3 P1B-β: パース失敗ログ - 同意送信 =====
+  // POST /api/reconciliation/parse-failure/:id/consent
+  //   body: { uid, include_content: bool, persist_consent: bool, file_content_base64?: string }
+  if (req.method === 'POST' && /^\/api\/reconciliation\/parse-failure\/[a-zA-Z0-9_-]+\/consent$/.test(reqPath)) {
+    const failureId = reqPath.slice('/api/reconciliation/parse-failure/'.length).replace('/consent', '');
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid, include_content, persist_consent, file_content_base64 } = JSON.parse(body || '{}');
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+
+        const logRows = await supabaseQuery(`/parse_failure_logs?id=eq.${failureId}&select=id,workspace_id,mime_type`);
+        if (!logRows || logRows.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'log not found' })); return; }
+        const wsRows = await supabaseQuery(`/workspaces?id=eq.${logRows[0].workspace_id}&owner_uid=eq.${uid}&select=id`);
+        if (!wsRows || wsRows.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
+
+        const patch = { user_consented: !!include_content };
+        // CSV のみ file_content を保存（PDF/画像はバイナリなのでテキスト保存しない）
+        if (include_content && file_content_base64) {
+          const mt = (logRows[0].mime_type || '').toLowerCase();
+          const isCsv = mt !== 'application/pdf' && !mt.startsWith('image/');
+          if (isCsv) {
+            try {
+              const buf = Buffer.from(file_content_base64, 'base64');
+              // UTF-8 試行 → 置換文字を含む場合は Shift_JIS でデコード
+              let text = buf.toString('utf8');
+              if (text.includes('�') && iconvLite) {
+                text = iconvLite.decode(buf, 'Shift_JIS');
+              }
+              patch.file_content = text;
+            } catch(e) {
+              console.warn('parse-failure consent decode error:', e.message);
+            }
+          }
+        }
+
+        await supabaseQuery(`/parse_failure_logs?id=eq.${failureId}`, 'PATCH', patch);
+
+        if (persist_consent) {
+          try {
+            await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', { parse_failure_consent_default: true });
+          } catch(e) {
+            console.warn('persist_consent update error:', e.message);
+          }
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/reconciliation/parse-failure/check-consent?uid=...
+  if (req.method === 'GET' && reqPath === '/api/reconciliation/parse-failure/check-consent') {
+    const _p = new URL(req.url, 'http://localhost').searchParams;
+    const uid = _p.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const rows = await supabaseQuery(`/users?id=eq.${uid}&select=parse_failure_consent_default`);
+      const dc = rows?.[0]?.parse_failure_consent_default === true;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ default_consent: dc }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
 
