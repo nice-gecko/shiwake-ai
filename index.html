@@ -2983,14 +2983,12 @@ function updateFabBadge() {
       <datalist id="datalist-institutions">
         <option value="三井住友銀行"><option value="三菱UFJ銀行"><option value="みずほ銀行">
         <option value="りそな銀行"><option value="ゆうちょ銀行"><option value="楽天銀行">
-        <option value="住信SBIネット銀行"><option value="PayPay銀行"><option value="イオン銀行">
-        <option value="セブン銀行"><option value="横浜銀行"><option value="千葉銀行">
-        <option value="福岡銀行"><option value="静岡銀行"><option value="北海道銀行"><option value="広島銀行">
+        <option value="住信SBIネット銀行"><option value="PayPay銀行">
       </datalist>
       <datalist id="datalist-cards">
         <option value="楽天カード"><option value="三井住友カード"><option value="JCBカード">
-        <option value="アメリカン・エキスプレス"><option value="ダイナースクラブ"><option value="オリコカード">
-        <option value="セゾンカード"><option value="イオンカード"><option value="dカード"><option value="PayPayカード">
+        <option value="アメリカン・エキスプレス"><option value="オリコカード">
+        <option value="セゾンカード"><option value="イオンカード"><option value="dカード">
       </datalist>
     </div>
     <div class="recon-modal-row" id="recon-row-account">
@@ -9361,7 +9359,7 @@ async function runReconMatch(sourceId) {
       body: JSON.stringify({ uid, source_id: sid, workspace_id: wsId })
     });
     const d = await r.json();
-    showToast(`照合完了: 一致 ${d.matched}件 / 候補 ${d.candidate}件 / 未照合 ${d.unmatched}件`, 3000);
+    showToast(`照合完了: 一致 ${d.matched}件 / 未照合 ${d.unmatched}件`, 3000);
     await _loadReconSource(sid);
   } catch(e) {
     showToast('照合に失敗しました');

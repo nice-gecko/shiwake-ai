@@ -4962,11 +4962,10 @@ const server = http.createServer(async (req, res) => {
 
         const matchResults = runReconciliationMatch(entries || [], records || [], aliases || []);
 
-        let matched = 0, candidate = 0, unmatched = 0;
+        let matched = 0, unmatched = 0;
         for (const r of matchResults) {
-          if (r.match_status === 'matched')        matched++;
-          else if (r.match_status === 'candidate') candidate++;
-          else                                     unmatched++;
+          if (r.match_status === 'matched') matched++;
+          else                              unmatched++;
           if (r.match_status !== 'unmatched') {
             await supabaseQuery(
               `/reconciliation_entries?id=eq.${r.id}`, 'PATCH',
@@ -4976,7 +4975,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ matched, candidate, unmatched, total: matchResults.length }));
+        res.end(JSON.stringify({ matched, unmatched, total: matchResults.length }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
@@ -5177,12 +5176,11 @@ const server = http.createServer(async (req, res) => {
       const rows = entries || [];
       const total = rows.length;
       const matched   = rows.filter(r => r.match_status === 'matched').length;
-      const candidate = rows.filter(r => r.match_status === 'candidate').length;
       const unmatched = rows.filter(r => r.match_status === 'unmatched').length;
       const resolved  = rows.filter(r => r.match_status === 'resolved').length;
       const reconciliation_rate = total > 0 ? Math.round((matched + resolved) / total * 100) : 0;
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ total_entries: total, matched_count: matched, candidate_count: candidate, unmatched_count: unmatched, resolved_count: resolved, reconciliation_rate }));
+      res.end(JSON.stringify({ total_entries: total, matched_count: matched, unmatched_count: unmatched, resolved_count: resolved, reconciliation_rate }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
   }
