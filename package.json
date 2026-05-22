@@ -1,7 +1,8 @@
 {
   "dependencies": {
-    "pdf-lib": "^1.17.1",
     "dropbox": "^10.34.0",
-    "googleapis": "^137.0.0"
+    "googleapis": "^137.0.0",
+    "iconv-lite": "^0.6.3",
+    "pdf-lib": "^1.17.1"
   }
 }

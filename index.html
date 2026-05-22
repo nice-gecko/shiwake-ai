@@ -9330,7 +9330,6 @@ async function submitReconUpload() {
   fd.append('account_info', (acctType && acctNum) ? `${acctType} ${acctNum}` : acctNum || acctType);
   fd.append('period_year',      document.getElementById('recon-period-year').value);
   fd.append('period_month',     document.getElementById('recon-period-month').value);
-  fd.append('format_type', 'generic');
   fd.append('file', fileInput.files[0]);
   try {
     const r = await fetch('/api/reconciliation/upload-csv', { method: 'POST', body: fd });

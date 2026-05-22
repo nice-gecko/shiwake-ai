@@ -15,6 +15,10 @@ try { DropboxClass = require('dropbox').Dropbox; } catch(e) { console.warn('drop
 let googleApis;
 try { googleApis = require('googleapis').google; } catch(e) { console.warn('googleapis package not installed — GDrive integration disabled'); }
 
+// iconv-lite (オプション: 突合機能の Shift_JIS CSV デコード用)
+let iconvLite;
+try { iconvLite = require('iconv-lite'); } catch(e) { console.warn('iconv-lite package not installed — Shift_JIS CSV decoding disabled'); }
+
 // インセンティブ設定（後から変更可能）
 const INCENTIVE_THRESHOLD = 1000; // 何枚でギフト券1枚
 const INCENTIVE_AMOUNT    = 500;  // ギフト券の金額（円）
@@ -89,6 +93,14 @@ const STRIPE_PLANS = {
               'reconciliation','dialog_mode'],
   },
 };
+
+// 突合機能: CSVフォーマット定義（起動時にメモリへキャッシュ）
+let CSV_FORMATS = { _meta: {}, banks: [], cards: [], generic: [] };
+try {
+  CSV_FORMATS = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'csv_formats.json'), 'utf8'));
+} catch(e) {
+  console.warn('csv_formats.json の読み込みに失敗 — 突合のフォーマット駆動パースは無効化されます:', e.message);
+}
 
 // 件数従量の逓減テーブル（込み件数超過分の相対累積件数に対して適用）
 const OVERAGE_TIERS = [
@@ -1063,32 +1075,88 @@ function normalizeForMatch(str) {
     .trim();
 }
 
-// generic CSV（日付,摘要,入金,出金）パーサー
-function parseGenericCsv(buffer) {
-  const text = buffer.toString('utf8').replace(/^﻿/, ''); // BOM除去
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  const entries = [];
-  // 先頭行が日付でなければヘッダーとみなしてスキップ
-  let start = 0;
-  if (lines.length > 0 && !/^\d{4}[-\/]/.test(lines[0].split(',')[0].replace(/"/g, '').trim())) {
-    start = 1;
+// CSV 1行を RFC4180 風にパース（"…" 内のカンマ・エスケープ "" を考慮）
+function parseCsvLine(line) {
+  const out = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else cur += c;
+    } else {
+      if (c === ',') { out.push(cur); cur = ''; }
+      else if (c === '"' && cur === '') { inQuotes = true; }
+      else cur += c;
+    }
   }
-  for (let i = start; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
-    if (cols.length < 4) continue;
-    const rawDate    = cols[0];
-    const description = cols[1] || null;
-    const credit = parseInt((cols[2] || '').replace(/,/g, ''), 10) || 0;
-    const debit  = parseInt((cols[3] || '').replace(/,/g, ''), 10) || 0;
-    if (!rawDate || (credit === 0 && debit === 0)) continue;
+  out.push(cur);
+  return out.map(s => s.trim());
+}
+
+// csv_formats.json から金融機関定義を解決
+function resolveCsvFormat(institutionName, sourceType) {
+  if (sourceType !== 'bank' && sourceType !== 'card') return null;
+  const list = sourceType === 'bank' ? (CSV_FORMATS.banks || []) : (CSV_FORMATS.cards || []);
+  if (institutionName) {
+    const hit = list.find(f => f.name === institutionName);
+    if (hit) return hit;
+  }
+  const genericId = sourceType === 'bank' ? 'generic_bank' : 'generic_card';
+  return (CSV_FORMATS.generic || []).find(f => f.id === genericId) || null;
+}
+
+// フォーマット定義に従って CSV をパース → [{date, description, debit, credit}]
+function parseCsvByFormat(buffer, formatDef) {
+  // a. encoding に従ってデコード
+  let text;
+  if (formatDef.encoding === 'Shift_JIS') {
+    if (!iconvLite) throw new Error('iconv-lite が未インストールのため Shift_JIS をデコードできません');
+    text = iconvLite.decode(buffer, 'Shift_JIS');
+  } else {
+    text = buffer.toString('utf8');
+  }
+  // b. BOM 除去（has_bom 指定でも未指定でも安全側で除去）
+  text = text.replace(/^﻿/, '');
+
+  // c. 行分割
+  const allLines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  // d. header_rows をスキップ
+  const lines = allLines.slice(formatDef.header_rows || 0);
+
+  const cols = formatDef.columns || {};
+  const toInt = s => parseInt((s || '').replace(/[,¥￥\s]/g, ''), 10) || 0;
+  const entries = [];
+
+  for (const line of lines) {
+    const fields = parseCsvLine(line);
+    const dateIdx = cols.date?.index ?? 0;
+    const descIdx = cols.description?.index ?? 1;
+    const rawDate = (fields[dateIdx] || '').trim();
+    if (!rawDate) continue;
     const dateParsed = rawDate.replace(/\//g, '-');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParsed)) continue;
-    entries.push({
-      entry_date: dateParsed,
-      description,
-      amount: credit > 0 ? credit : debit,
-      direction: credit > 0 ? 'credit' : 'debit',
-    });
+    const description = (fields[descIdx] || '').trim() || null;
+
+    // e. 金額列パターン分岐
+    let debit = 0, credit = 0;
+    if (formatDef.amount_column_type === 'single_signed' && cols.amount) {
+      const n = toInt(fields[cols.amount.index]);
+      if (n < 0) debit = -n;
+      else if (n > 0) credit = n;
+    } else if (cols.debit && cols.credit) {
+      debit  = toInt(fields[cols.debit.index]);
+      credit = toInt(fields[cols.credit.index]);
+    } else if (cols.amount) {
+      // カード: 利用金額は支出扱い（debit に寄せる）
+      debit  = toInt(fields[cols.amount.index]);
+      credit = 0;
+    }
+    if (debit === 0 && credit === 0) continue;
+
+    entries.push({ date: dateParsed, description, debit, credit });
   }
   return entries;
 }
@@ -4893,10 +4961,12 @@ const server = http.createServer(async (req, res) => {
       const account_info     = fields.account_info || null;
       const period_year  = fields.period_year  ? parseInt(fields.period_year,  10) : null;
       const period_month = fields.period_month ? parseInt(fields.period_month, 10) : null;
-      const format_type  = fields.format_type || 'generic';
 
       if (!uid || !workspace_id || !source_type) {
         res.writeHead(400); res.end(JSON.stringify({ error: 'uid, workspace_id, source_type required' })); return;
+      }
+      if (source_type === 'invoice') {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'PDF/写真は次フェーズで対応予定です' })); return;
       }
       const ws = await supabaseQuery(`/workspaces?id=eq.${workspace_id}&owner_uid=eq.${uid}&select=id`);
       if (!ws || ws.length === 0) { res.writeHead(403); res.end(JSON.stringify({ error: 'access denied' })); return; }
@@ -4904,13 +4974,18 @@ const server = http.createServer(async (req, res) => {
       const csvFile = files[0];
       if (!csvFile) { res.writeHead(400); res.end(JSON.stringify({ error: 'csv file required' })); return; }
 
-      let parsedEntries;
-      if (format_type === 'generic') {
-        parsedEntries = parseGenericCsv(csvFile.buffer);
-      } else {
-        res.writeHead(400); res.end(JSON.stringify({ error: `unsupported format_type: ${format_type}` })); return;
+      const formatDef = resolveCsvFormat(institution_name, source_type);
+      if (!formatDef) {
+        res.writeHead(400); res.end(JSON.stringify({ error: `unsupported source_type: ${source_type}` })); return;
       }
-      if (parsedEntries.length === 0) {
+
+      let parsedRows;
+      try {
+        parsedRows = parseCsvByFormat(csvFile.buffer, formatDef);
+      } catch(e) {
+        res.writeHead(400); res.end(JSON.stringify({ error: `CSV パース失敗: ${e.message}` })); return;
+      }
+      if (parsedRows.length === 0) {
         res.writeHead(400); res.end(JSON.stringify({ error: 'no valid entries found in CSV' })); return;
       }
 
@@ -4921,21 +4996,23 @@ const server = http.createServer(async (req, res) => {
       const source = created?.[0];
       if (!source) throw new Error('failed to create source');
 
-      // 明細を一括INSERT
-      const entryRows = parsedEntries.map(e => ({
+      // 明細を一括INSERT（{date, description, debit, credit} → DB schema へ変換）
+      const entryRows = parsedRows.map(e => ({
         source_id: source.id, workspace_id,
-        entry_date: e.entry_date, description: e.description,
-        amount: e.amount, direction: e.direction, match_status: 'unmatched',
+        entry_date: e.date, description: e.description,
+        amount:    e.credit > 0 ? e.credit : e.debit,
+        direction: e.credit > 0 ? 'credit' : 'debit',
+        match_status: 'unmatched',
       }));
       await supabaseQuery('/reconciliation_entries', 'POST', entryRows, { 'Prefer': 'return=minimal' });
 
       // total_entries 更新
       await supabaseQuery(`/reconciliation_sources?id=eq.${source.id}`, 'PATCH', {
-        total_entries: parsedEntries.length, updated_at: new Date().toISOString(),
+        total_entries: parsedRows.length, updated_at: new Date().toISOString(),
       });
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ source_id: source.id, total_entries: parsedEntries.length }));
+      res.end(JSON.stringify({ source_id: source.id, total_entries: parsedRows.length }));
     } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     return;
   }
