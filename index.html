@@ -3209,16 +3209,16 @@ function updateFabBadge() {
 </div>
 
 <!-- マスタ編集モーダル -->
-<div class="modal-overlay" id="catRuleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;flex-direction:column;">
-  <div class="modal-inner" style="width:360px;">
+<div class="modal-overlay" id="catRuleModal" onclick="if(event.target===this)closeCatRuleModal()">
+  <div class="modal">
     <h3 id="catRuleModalTitle">カテゴリルールを追加</h3>
     <div class="modal-row"><label>ルール名</label><input id="crName" placeholder="例：飲食全般→会議費"></div>
     <div class="modal-row"><label>条件</label><input id="crCondition" placeholder="例：飲食店・居酒屋・カフェ"></div>
     <div class="modal-row"><label>借方科目</label><select id="crDebit"></select></div>
     <div class="modal-row"><label>税区分</label><select id="crTax"></select></div>
-    <div class="modal-footer">
-      <button class="btn-modal-save" onclick="saveCatRuleModal()">保存</button>
+    <div class="modal-btns">
       <button class="btn-modal-cancel" onclick="closeCatRuleModal()">キャンセル</button>
+      <button class="btn-modal-ok" onclick="saveCatRuleModal()">保存</button>
     </div>
   </div>
 </div>
@@ -4348,28 +4348,34 @@ async function updateLearnedRuleAnomalyBadge(){
 
 // ===== カテゴリルール =====
 // v2.8: 正本を localStorage → API(category_rules / WS単位) へ移行。
-//       localStorage はフォールバックとして当面残す（段階的廃止）。
-let catRules=JSON.parse(localStorage.getItem('shiwake_catRules')||'[]');
-function saveCatRules(){localStorage.setItem('shiwake_catRules',JSON.stringify(catRules));}
+//   - 正本は DB(category_rules)。catRules は「現在のWS分」だけを保持する。
+//   - localStorage への書き込みは廃止（WS非依存になり別WSへ漏れるため）。
+//     読み出しは「初回の引き上げ移行」専用のフォールバックとしてのみ残す。
+let catRules=[];
+// 互換用 no-op: 旧コードからの呼び出しを壊さないため残置。localStorage には書き込まない。
+function saveCatRules(){ /* v2.8: localStorage書き込み廃止。正本はDB(category_rules)。 */ }
 
 // DBの category_rules を catRules（{id,name,condition,debit,tax,source}）へ読み込む。
-// 一回限りの引き上げ: DBが0件 かつ localStorage に値があれば migrate を1回呼ぶ。
+// 一回限りの引き上げ: DBが0件 かつ 未移行 かつ localStorage に値があれば migrate を1回だけ呼ぶ。
+// 移行済みフラグ（shiwake_catRules_migrated）で、他の空WSへ legacy ルールが再注入されるのを防ぐ。
 async function loadCatRules(){
   const wsId=window._currentWorkspaceId;
   const uid=window._firebaseUser?.uid;
-  if(!uid||!wsId){ renderCatRules(); return; }
+  if(!uid||!wsId){ catRules=[]; renderCatRules(); return; }
   try{
     let r=await fetch(`/api/category-rules?ws_id=${encodeURIComponent(wsId)}&uid=${encodeURIComponent(uid)}`);
     let d=await r.json();
     let rules=d.rules||[];
-    // 後方互換: DB 0件 かつ localStorage に値があれば一度だけ引き上げ
-    if(rules.length===0){
+    // 後方互換: DB 0件 かつ 未移行 かつ localStorage に値があれば、一度だけこのWSへ引き上げ
+    if(rules.length===0 && localStorage.getItem('shiwake_catRules_migrated')!=='1'){
       let local=[];
       try{ local=JSON.parse(localStorage.getItem('shiwake_catRules')||'[]'); }catch(e){ local=[]; }
       if(Array.isArray(local)&&local.length>0){
         try{
           await fetch('/api/category-rules/migrate',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({uid,ws_id:wsId,rules:local})});
+          // 引き上げは1回限り。以後どのWSでも再注入しない（B2B分離の担保）。
+          localStorage.setItem('shiwake_catRules_migrated','1');
           r=await fetch(`/api/category-rules?ws_id=${encodeURIComponent(wsId)}&uid=${encodeURIComponent(uid)}`);
           d=await r.json();
           rules=d.rules||[];
@@ -4377,10 +4383,10 @@ async function loadCatRules(){
       }
     }
     catRules=rules.map(x=>({id:x.id,name:x.name||'',condition:x.condition||'',debit:x.debit_account||'',tax:x.tax_category||'',source:x.source||'manual'}));
-    saveCatRules(); // フォールバック用にローカルも同期
   }catch(e){
-    // 取得失敗時は localStorage の値をフォールバックとして使用（既存の catRules を維持）
+    // 取得失敗時は現WSのルールが不明なため空にする（誤って別WSのルールを出さない）
     console.warn('loadCatRules error:',e);
+    catRules=[];
   }
   renderCatRules();
 }
@@ -4412,9 +4418,9 @@ function openCatRuleModal(idx){
   // selectを動的生成
   document.getElementById('crDebit').innerHTML=aOpts(r.debit);
   document.getElementById('crTax').innerHTML=tOpts(r.tax);
-  document.getElementById('catRuleModal').style.display='flex';
+  document.getElementById('catRuleModal').classList.add('show');
 }
-function closeCatRuleModal(){document.getElementById('catRuleModal').style.display='none';}
+function closeCatRuleModal(){document.getElementById('catRuleModal').classList.remove('show');}
 function editCatRule(i){openCatRuleModal(i);}
 async function deleteCatRule(i){
   if(!confirm('このルールを削除しますか？'))return;
