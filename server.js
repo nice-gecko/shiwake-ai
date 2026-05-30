@@ -4683,6 +4683,141 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== v2.9: Myテンプレート（その1/2: DB+サーバ）=====
+  // category_rules の束を owner_uid 単位（WS横断）でスナップショット保存し、別WSへ適用する層。
+
+  // GET /api/my-templates?uid=xxx → owner_uid のテンプレ一覧
+  if (req.method === 'GET' && reqPath === '/api/my-templates') {
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      const templates = await supabaseQuery(
+        `/my_templates?owner_uid=eq.${uid}&order=updated_at.desc&select=id,name,description,rules,created_at,updated_at`
+      );
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ templates: templates || [] }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
+  // POST /api/my-templates → 現WS(ws_id)の category_rules をスナップショットして保存
+  //   body: { uid, name, description?, ws_id }
+  if (req.method === 'POST' && reqPath === '/api/my-templates') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, name, description, ws_id } = JSON.parse(body || '{}');
+        if (!uid || !name || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, name, ws_id required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        const catRules = await supabaseQuery(
+          `/category_rules?workspace_id=eq.${ws_id}&is_active=eq.true&order=created_at.asc&select=name,condition,debit_account,tax_category`
+        );
+        const rules = (catRules || []).map(r => ({
+          name: r.name, condition: r.condition, debit_account: r.debit_account, tax_category: r.tax_category
+        }));
+        // rules 空のテンプレは作らせない（保存元WSにカテゴリルールが無い）
+        if (rules.length === 0) { res.writeHead(400); res.end(JSON.stringify({ error: 'no category rules to snapshot' })); return; }
+        const now = new Date().toISOString();
+        const created = await supabaseQuery('/my_templates', 'POST', {
+          id: crypto.randomUUID(),
+          owner_uid: uid,
+          name,
+          description: description || null,
+          rules,
+          created_at: now,
+          updated_at: now
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, template: created?.[0] || null, count: rules.length }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/my-templates/:id/apply → テンプレの rules を現WS(ws_id)へ一括INSERT
+  //   body: { uid, ws_id } source='template' で投入。重複排除は「source='template' を一括replace」。
+  if (req.method === 'POST' && reqPath.startsWith('/api/my-templates/') && reqPath.endsWith('/apply')) {
+    const tplId = reqPath.slice('/api/my-templates/'.length, -('/apply'.length));
+    if (!tplId) { res.writeHead(400); res.end(JSON.stringify({ error: 'template id required' })); return; }
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, ws_id } = JSON.parse(body || '{}');
+        if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        // owner_uid 一致のテンプレのみ取得（他ユーザーのテンプレは適用不可）
+        const tpl = await supabaseQuery(`/my_templates?id=eq.${tplId}&owner_uid=eq.${uid}&select=id,rules`);
+        if (!tpl || tpl.length === 0) { res.writeHead(404); res.end(JSON.stringify({ error: 'template not found' })); return; }
+        const rulesArr = Array.isArray(tpl[0].rules) ? tpl[0].rules : [];
+        // 重複排除: 同WS内の source='template' 行を先に一括削除してから入れ直す（純増防止）。
+        // 注意: 異なるテンプレを続けて適用すると、後勝ちで上書きされる（複数テンプレ共存は将来拡張）。
+        await supabaseQuery(`/category_rules?workspace_id=eq.${ws_id}&source=eq.template`, 'DELETE');
+        if (rulesArr.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, applied: 0 }));
+          return;
+        }
+        const now = new Date().toISOString();
+        const rows = rulesArr.map(r => ({
+          id: crypto.randomUUID(),
+          workspace_id: ws_id,
+          name: r.name || null,
+          condition: r.condition || null,
+          debit_account: r.debit_account || null,
+          tax_category: r.tax_category || null,
+          source: 'template',
+          preset_industry: null,
+          is_active: true,
+          created_at: now,
+          updated_at: now
+        }));
+        await supabaseQuery('/category_rules', 'POST', rows, { 'Prefer': 'return=minimal' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, applied: rows.length }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // PATCH /api/my-templates/:id → name/description の更新のみ（owner_uid 一致）
+  if (req.method === 'PATCH' && reqPath.startsWith('/api/my-templates/')) {
+    const tplId = reqPath.slice('/api/my-templates/'.length);
+    if (!tplId) { res.writeHead(400); res.end(JSON.stringify({ error: 'template id required' })); return; }
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, name, description } = JSON.parse(body || '{}');
+        if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+        const patch = { updated_at: new Date().toISOString() };
+        if (name !== undefined) patch.name = name;
+        if (description !== undefined) patch.description = description;
+        await supabaseQuery(`/my_templates?id=eq.${tplId}&owner_uid=eq.${uid}`, 'PATCH', patch);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // DELETE /api/my-templates/:id → owner_uid 一致で削除（他ユーザーのテンプレは消さない）
+  if (req.method === 'DELETE' && reqPath.startsWith('/api/my-templates/')) {
+    const tplId = reqPath.slice('/api/my-templates/'.length);
+    if (!tplId) { res.writeHead(400); res.end(JSON.stringify({ error: 'template id required' })); return; }
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      await supabaseQuery(`/my_templates?id=eq.${tplId}&owner_uid=eq.${uid}`, 'DELETE');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    return;
+  }
+
   // ===== v2.3.2 Group 4-B: ワークスペース管理 API(CRUD 系) =====
 
   // POST /api/workspaces → 新規ワークスペース作成
