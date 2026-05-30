@@ -1700,6 +1700,7 @@ function updateFabBadge() {
       window._workspacesReady = fetchWorkspaces(user.uid);
       await window._workspacesReady;
       loadMasterFromServer();
+      loadCatRules(); // v2.8: カテゴリルールをDBから読み込み（初回 localStorage 引き上げ含む）
       // role判定：オーナーならスタッフ管理メニューを表示
       const role = window._supabaseUser?.role || 'owner';
       window._userRole = role;
@@ -4233,6 +4234,7 @@ function switchMasterTab(tab){
   document.getElementById('master-pane-category').style.display=tab==='category'?'':'none';
   document.getElementById('master-pane-learned').style.display=tab==='learned'?'':'none';
   if(tab==='learned') loadLearnedRules();
+  if(tab==='category') loadCatRules();
 }
 function onAddRuleClick(){
   if(_masterTab==='category'){openCatRuleModal();}else{openModal();}
@@ -4345,8 +4347,43 @@ async function updateLearnedRuleAnomalyBadge(){
 }
 
 // ===== カテゴリルール =====
+// v2.8: 正本を localStorage → API(category_rules / WS単位) へ移行。
+//       localStorage はフォールバックとして当面残す（段階的廃止）。
 let catRules=JSON.parse(localStorage.getItem('shiwake_catRules')||'[]');
 function saveCatRules(){localStorage.setItem('shiwake_catRules',JSON.stringify(catRules));}
+
+// DBの category_rules を catRules（{id,name,condition,debit,tax,source}）へ読み込む。
+// 一回限りの引き上げ: DBが0件 かつ localStorage に値があれば migrate を1回呼ぶ。
+async function loadCatRules(){
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  if(!uid||!wsId){ renderCatRules(); return; }
+  try{
+    let r=await fetch(`/api/category-rules?ws_id=${encodeURIComponent(wsId)}&uid=${encodeURIComponent(uid)}`);
+    let d=await r.json();
+    let rules=d.rules||[];
+    // 後方互換: DB 0件 かつ localStorage に値があれば一度だけ引き上げ
+    if(rules.length===0){
+      let local=[];
+      try{ local=JSON.parse(localStorage.getItem('shiwake_catRules')||'[]'); }catch(e){ local=[]; }
+      if(Array.isArray(local)&&local.length>0){
+        try{
+          await fetch('/api/category-rules/migrate',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({uid,ws_id:wsId,rules:local})});
+          r=await fetch(`/api/category-rules?ws_id=${encodeURIComponent(wsId)}&uid=${encodeURIComponent(uid)}`);
+          d=await r.json();
+          rules=d.rules||[];
+        }catch(e){ console.warn('catRules migrate error:',e); }
+      }
+    }
+    catRules=rules.map(x=>({id:x.id,name:x.name||'',condition:x.condition||'',debit:x.debit_account||'',tax:x.tax_category||'',source:x.source||'manual'}));
+    saveCatRules(); // フォールバック用にローカルも同期
+  }catch(e){
+    // 取得失敗時は localStorage の値をフォールバックとして使用（既存の catRules を維持）
+    console.warn('loadCatRules error:',e);
+  }
+  renderCatRules();
+}
 
 function renderCatRules(){
   const tbody=document.getElementById('catRuleTbody');
@@ -4379,16 +4416,43 @@ function openCatRuleModal(idx){
 }
 function closeCatRuleModal(){document.getElementById('catRuleModal').style.display='none';}
 function editCatRule(i){openCatRuleModal(i);}
-function deleteCatRule(i){
+async function deleteCatRule(i){
   if(!confirm('このルールを削除しますか？'))return;
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  const rule=catRules[i];
+  if(rule&&rule.id&&uid&&wsId){
+    try{
+      await fetch(`/api/category-rules/${encodeURIComponent(rule.id)}?ws_id=${encodeURIComponent(wsId)}&uid=${encodeURIComponent(uid)}`,{method:'DELETE'});
+      await loadCatRules();
+      return;
+    }catch(e){ console.warn('deleteCatRule error:',e); }
+  }
+  // フォールバック（id無し or 未ログイン）: ローカルのみ削除
   catRules.splice(i,1);saveCatRules();renderCatRules();
 }
-function saveCatRuleModal(){
+async function saveCatRuleModal(){
   const name=document.getElementById('crName').value.trim();
   const condition=document.getElementById('crCondition').value.trim();
   const debit=document.getElementById('crDebit').value;
   const tax=document.getElementById('crTax').value;
   if(!name||!condition)return alert('ルール名と条件を入力してください');
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  const editing=_editingCatIdx>=0?catRules[_editingCatIdx]:null;
+  if(uid&&wsId){
+    try{
+      const payload={uid,ws_id:wsId,name,condition,debit_account:debit,tax_category:tax};
+      if(editing&&editing.id){
+        await fetch(`/api/category-rules/${encodeURIComponent(editing.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      }else{
+        await fetch('/api/category-rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      }
+      await loadCatRules();closeCatRuleModal();
+      return;
+    }catch(e){ console.warn('saveCatRuleModal error:',e); }
+  }
+  // フォールバック（未ログイン）: ローカルのみ更新
   const rule={name,condition,debit,tax};
   if(_editingCatIdx>=0){catRules[_editingCatIdx]=rule;}else{catRules.push(rule);}
   saveCatRules();renderCatRules();closeCatRuleModal();

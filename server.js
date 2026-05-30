@@ -3008,16 +3008,19 @@ const server = http.createServer(async (req, res) => {
         const master = loadMaster(cacheUid, workspace_id);
         const masterKeys = Object.keys(master);
 
-        // ② 学習済みルールのロード + 自動承認設定取得（並列）
+        // ② 学習済みルール + カテゴリルールのロード + 自動承認設定取得（並列）
         let workspaceLearnedRules = [];
+        let workspaceCatRules = [];
         let wsAutoApproveSettings = null;
         if (workspace_id) {
           try {
-            const [rulesRes, wsRes] = await Promise.all([
+            const [rulesRes, wsRes, catRulesRes] = await Promise.all([
               supabaseQuery(`/learned_rules?workspace_id=eq.${workspace_id}&anomaly_flag=is.null&select=id,conditions,result,applied_count,is_active`),
-              supabaseQuery(`/workspaces?id=eq.${workspace_id}&select=owner_uid,auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_paused_at`)
+              supabaseQuery(`/workspaces?id=eq.${workspace_id}&select=owner_uid,auto_approve_learned_enabled,auto_approve_all_enabled,auto_approve_paused_at`),
+              supabaseQuery(`/category_rules?workspace_id=eq.${workspace_id}&is_active=eq.true&select=name,condition,debit_account,tax_category,source`)
             ]);
             workspaceLearnedRules = rulesRes || [];
+            workspaceCatRules = catRulesRes || [];
             const wsData = wsRes?.[0] || null;
             if (wsData?.owner_uid) {
               const planData = await supabaseQuery(`/users?id=eq.${wsData.owner_uid}&select=plan_key`);
@@ -3101,9 +3104,17 @@ const server = http.createServer(async (req, res) => {
               .join('\n');
         }
         // カテゴリルール（ユーザー定義の最優先ルール）
-        if (catRules && Array.isArray(catRules) && catRules.length > 0) {
+        // v2.8: DB(category_rules) を正とし、端末非依存に。移行期の保険として
+        //       DBが0件のときのみ従来のクライアント送信 catRules をフォールバック使用。
+        let effectiveCatRules = [];
+        if (workspaceCatRules && workspaceCatRules.length > 0) {
+          effectiveCatRules = workspaceCatRules.map(r => ({ condition: r.condition, debit: r.debit_account, tax: r.tax_category }));
+        } else if (catRules && Array.isArray(catRules) && catRules.length > 0) {
+          effectiveCatRules = catRules;
+        }
+        if (effectiveCatRules.length > 0) {
           const catRuleText = `\n\n【ユーザー定義カテゴリルール（最優先）】\n以下の条件に合致する取引先は、マスタより優先してこのルールを適用してください：\n` +
-            catRules.map(r => `・${r.condition} → 借方「${r.debit}」・${r.tax}`).join('\n');
+            effectiveCatRules.map(r => `・${r.condition} → 借方「${r.debit}」・${r.tax}`).join('\n');
           masterText = (masterText || '') + catRuleText;
         }
 
@@ -4436,6 +4447,149 @@ const server = http.createServer(async (req, res) => {
     try {
       await resolveWorkspaceId(uid, wsId);
       await supabaseQuery(`/learned_rules?id=eq.${ruleId}&workspace_id=eq.${wsId}`, 'DELETE');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch(e) {
+      if (e.message === 'forbidden') { res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // ===== v2.8: カテゴリルール管理 API（category_rules / WS単位・DB化の器） =====
+
+  // GET /api/category-rules?uid=xxx&ws_id=yyy → カテゴリルール一覧取得
+  if (req.method === 'GET' && reqPath === '/api/category-rules') {
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
+    const wsId = qp.get('ws_id');
+    if (!uid || !wsId) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+    try {
+      await resolveWorkspaceId(uid, wsId);
+      const rules = await supabaseQuery(
+        `/category_rules?workspace_id=eq.${wsId}&order=created_at.asc&select=id,name,condition,debit_account,tax_category,source,preset_industry,is_active,created_at,updated_at`
+      );
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ rules: rules || [] }));
+    } catch(e) {
+      if (e.message === 'forbidden') { res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return; }
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // POST /api/category-rules/migrate → 後方互換: localStorage catRules の一括引き上げ（0件時のみ）
+  if (req.method === 'POST' && reqPath === '/api/category-rules/migrate') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, ws_id, rules } = JSON.parse(body || '{}');
+        if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        // 既に1件以上あれば何もしない（0件のときだけ引き上げる）
+        const existing = await supabaseQuery(`/category_rules?workspace_id=eq.${ws_id}&select=id&limit=1`);
+        if (existing && existing.length > 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, migrated: 0, skipped: true }));
+          return;
+        }
+        const list = Array.isArray(rules) ? rules : [];
+        if (list.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, migrated: 0 }));
+          return;
+        }
+        const now = new Date().toISOString();
+        const rows = list.map(r => ({
+          id: crypto.randomUUID(),
+          workspace_id: ws_id,
+          name: r.name || null,
+          condition: r.condition || null,
+          debit_account: r.debit || r.debit_account || null,
+          tax_category: r.tax || r.tax_category || null,
+          source: 'manual',
+          preset_industry: null,
+          is_active: true,
+          created_at: now,
+          updated_at: now
+        }));
+        await supabaseQuery('/category_rules', 'POST', rows, { 'Prefer': 'return=minimal' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, migrated: rows.length }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // POST /api/category-rules → カテゴリルール1件作成（source 既定 'manual'）
+  if (req.method === 'POST' && reqPath === '/api/category-rules') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, ws_id, name, condition, debit_account, tax_category, source, preset_industry, is_active } = JSON.parse(body || '{}');
+        if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        const now = new Date().toISOString();
+        const created = await supabaseQuery('/category_rules', 'POST', {
+          id: crypto.randomUUID(),
+          workspace_id: ws_id,
+          name: name || null,
+          condition: condition || null,
+          debit_account: debit_account || null,
+          tax_category: tax_category || null,
+          source: source || 'manual',
+          preset_industry: preset_industry || null,
+          is_active: is_active !== undefined ? is_active : true,
+          created_at: now,
+          updated_at: now
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, rule: created?.[0] || null }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // PATCH /api/category-rules/:id → カテゴリルール更新
+  if (req.method === 'PATCH' && reqPath.startsWith('/api/category-rules/')) {
+    const ruleId = reqPath.slice('/api/category-rules/'.length);
+    if (!ruleId) { res.writeHead(400); res.end(JSON.stringify({ error: 'rule id required' })); return; }
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, ws_id, name, condition, debit_account, tax_category, source, preset_industry, is_active } = JSON.parse(body || '{}');
+        if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        const patch = { updated_at: new Date().toISOString() };
+        if (name !== undefined) patch.name = name;
+        if (condition !== undefined) patch.condition = condition;
+        if (debit_account !== undefined) patch.debit_account = debit_account;
+        if (tax_category !== undefined) patch.tax_category = tax_category;
+        if (source !== undefined) patch.source = source;
+        if (preset_industry !== undefined) patch.preset_industry = preset_industry;
+        if (is_active !== undefined) patch.is_active = is_active;
+        await supabaseQuery(`/category_rules?id=eq.${ruleId}&workspace_id=eq.${ws_id}`, 'PATCH', patch);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
+  // DELETE /api/category-rules/:id → カテゴリルール削除
+  if (req.method === 'DELETE' && reqPath.startsWith('/api/category-rules/')) {
+    const ruleId = reqPath.slice('/api/category-rules/'.length);
+    if (!ruleId) { res.writeHead(400); res.end(JSON.stringify({ error: 'rule id required' })); return; }
+    const qp = new URL(req.url, 'http://localhost').searchParams;
+    const uid = qp.get('uid');
+    const wsId = qp.get('ws_id');
+    if (!uid || !wsId) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+    try {
+      await resolveWorkspaceId(uid, wsId);
+      await supabaseQuery(`/category_rules?id=eq.${ruleId}&workspace_id=eq.${wsId}`, 'DELETE');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     } catch(e) {
