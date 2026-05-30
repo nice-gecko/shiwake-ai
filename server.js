@@ -4476,23 +4476,23 @@ const server = http.createServer(async (req, res) => {
   }
 
   // POST /api/category-rules/apply-preset → 業種プリセットを現WSへ一括適用
-  //   body: { uid, ws_id, industry, mode } mode='append'(既定) / 'replace'(同業種のpreset行を削除してから入れる)
+  //   body: { uid, ws_id, industry } 常に「同業種replace」: 同じ ws の source='preset' かつ
+  //   preset_industry=該当業種 の既存行だけを削除してから INSERT（重複純増を防ぐ）。
+  //   別業種の preset 行・source='manual'(手動追加)行には一切触れない。mode は廃止（無視）。
   if (req.method === 'POST' && reqPath === '/api/category-rules/apply-preset') {
     let body = '';
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, ws_id, industry, mode } = JSON.parse(body || '{}');
+        const { uid, ws_id, industry } = JSON.parse(body || '{}');
         if (!uid || !ws_id || !industry) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, ws_id, industry required' })); return; }
         try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
         const preset = INDUSTRY_PRESETS[industry];
         if (!preset || !Array.isArray(preset.rules) || preset.rules.length === 0) {
           res.writeHead(404); res.end(JSON.stringify({ error: 'unknown industry' })); return;
         }
-        // mode='replace' のときは、同じ業種の preset 行を先に削除
-        if (mode === 'replace') {
-          await supabaseQuery(`/category_rules?workspace_id=eq.${ws_id}&source=eq.preset&preset_industry=eq.${encodeURIComponent(industry)}`, 'DELETE');
-        }
+        // 常に同業種replace: 同じ業種の preset 行だけを先に削除（別業種preset・manual行は不可侵）
+        await supabaseQuery(`/category_rules?workspace_id=eq.${ws_id}&source=eq.preset&preset_industry=eq.${encodeURIComponent(industry)}`, 'DELETE');
         const now = new Date().toISOString();
         const rows = preset.rules.map(r => ({
           id: crypto.randomUUID(),
@@ -4509,7 +4509,7 @@ const server = http.createServer(async (req, res) => {
         }));
         await supabaseQuery('/category_rules', 'POST', rows, { 'Prefer': 'return=minimal' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, applied: rows.length, industry, mode: mode === 'replace' ? 'replace' : 'append' }));
+        res.end(JSON.stringify({ ok: true, applied: rows.length, industry, mode: 'replace' }));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     });
     return;
