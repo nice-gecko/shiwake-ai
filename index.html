@@ -579,8 +579,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .master-table tr:last-child td{border-bottom:none;}
 .master-table tr:hover td{background:#fafafa;}
 .master-tabs{display:flex;border-bottom:1px solid #eee;margin-bottom:12px;}
-.master-tab{flex:1;min-width:0;text-align:center;white-space:nowrap;padding:8px 8px;font-size:13px;color:#888;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-weight:500;}
+.master-tab{position:relative;flex:1;min-width:0;text-align:center;white-space:nowrap;padding:8px 8px;font-size:13px;color:#888;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-weight:500;}
 .master-tab.active{color:#185FA5;border-bottom-color:#185FA5;}
+/* タブのホバー説明ツールチップ（CSSベース・複数行対応） */
+.master-tab[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;left:50%;top:calc(100% + 9px);transform:translateX(-50%);width:max-content;max-width:260px;white-space:normal;text-align:left;background:#2b2b2b;color:#fff;font-size:11px;line-height:1.55;font-weight:400;padding:8px 10px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.18);z-index:50;pointer-events:none;}
+.master-tab[data-tooltip]:hover::before{content:"";position:absolute;left:50%;top:calc(100% + 3px);transform:translateX(-50%);border:6px solid transparent;border-bottom-color:#2b2b2b;z-index:50;pointer-events:none;}
+/* 端タブははみ出さないよう左右に寄せる（矢印は中央のまま） */
+#mtab-vendor[data-tooltip]:hover::after{left:0;transform:none;}
+#mtab-learned[data-tooltip]:hover::after{left:auto;right:0;transform:none;}
 .cat-rule-desc{font-size:12px;color:#888;margin-bottom:10px;line-height:1.6;padding:8px 12px;background:#F5F4F0;border-radius:7px;}
 .btn-edit-rule,.btn-del-rule{padding:4px 10px;border:1px solid #ddd;border-radius:5px;font-size:12px;background:#fff;cursor:pointer;color:#555;}
 .btn-del-rule{color:#A32D2D;border-color:#F7C1C1;}
@@ -2388,9 +2394,9 @@ function updateFabBadge() {
       </div>
     </div>
     <div class="master-tabs">
-      <button class="master-tab active" id="mtab-vendor" onclick="switchMasterTab('vendor')">取引先マスタ</button>
-      <button class="master-tab" id="mtab-category" onclick="switchMasterTab('category')">カテゴリルール</button>
-      <button class="master-tab" id="mtab-learned" onclick="switchMasterTab('learned')">自動学習ルール</button>
+      <button class="master-tab active" id="mtab-vendor" onclick="switchMasterTab('vendor')" data-tooltip="承認すると取引先ごとの科目・税区分が自動登録。次回から同じ取引先に自動適用される土台です。">取引先マスタ</button>
+      <button class="master-tab" id="mtab-category" onclick="switchMasterTab('category')" data-tooltip="手動で決める優先ルール。「飲食店→会議費・10%」など条件で科目・税区分を指定。AIが迷うとき最優先で適用。">カテゴリルール</button>
+      <button class="master-tab" id="mtab-learned" onclick="switchMasterTab('learned')" data-tooltip="承認を重ねると、AIが「この取引先はこの科目」というパターンを自動でルール化(90日内に3回で作成)。次回から即判定され速くなります。「⚠修正率高」が付いたものだけ見直しを。">自動学習ルール</button>
     </div>
     <div id="master-pane-vendor">
       <div class="cat-rule-desc">仕訳を承認すると取引先ごとの勘定科目・税区分が登録されます。次回から同じ取引先に自動適用されます。</div>
