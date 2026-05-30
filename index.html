@@ -2409,6 +2409,7 @@ function updateFabBadge() {
       <div class="cat-rule-desc">業種・金額・取引先パターンに応じた勘定科目を自動設定します。AIが判断に迷う場合に優先適用されます。</div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
         <button class="btn-add-master" onclick="openPresetModal()">🏢 業種プリセットを適用</button>
+        <button class="btn-add-master" onclick="openMyTplApplyModal()">📋 Myテンプレートを適用</button>
         <span style="font-size:11px;color:#999;">(任意)</span>
         <button class="btn-clear-master" id="catRuleBulkDelBtn" onclick="bulkDeleteCatRules()" disabled>選択した0件を削除</button>
       </div>
@@ -2416,6 +2417,10 @@ function updateFabBadge() {
         <thead><tr><th style="width:34px;text-align:center;"><input type="checkbox" id="catRuleSelectAll" onclick="toggleSelectAllCatRules(this)" title="全選択"></th><th>ルール名</th><th>条件</th><th>借方</th><th>税区分</th><th></th></tr></thead>
         <tbody id="catRuleTbody"><tr><td colspan="6" class="master-empty">まだ登録されていません。</td></tr></tbody>
       </table>
+      <div style="margin-top:12px;">
+        <button class="btn-add-master" onclick="openMyTplSaveModal()">＋ この設定をMyテンプレートとして保存</button>
+        <div style="color:#999;font-size:11px;margin-top:4px;">今のルール群を型にして、他の顧問先で使い回せます。</div>
+      </div>
     </div>
     <div id="master-pane-learned" style="display:none;">
       <div id="learnedRuleStatusBar" class="learned-rule-status-bar">
@@ -3244,6 +3249,31 @@ function updateFabBadge() {
     <div class="modal-btns">
       <button class="btn-modal-cancel" onclick="closePresetModal()">キャンセル</button>
       <button class="btn-modal-ok" onclick="applyPreset()">この内容で追加</button>
+    </div>
+  </div>
+</div>
+<!-- v2.9: Myテンプレート適用モーダル -->
+<div class="modal-overlay" id="myTplApplyModal" onclick="if(event.target===this)closeMyTplApplyModal()">
+  <div class="modal">
+    <h3>Myテンプレートを適用</h3>
+    <div id="myTplList" style="max-height:240px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div style="background:#EAF2FB;color:#15538f;font-size:12px;line-height:1.7;word-break:keep-all;border-radius:8px;padding:11px 13px;margin-bottom:8px;">適用後はいつでも編集・削除できます。不要な行は消せるので、全部を使う必要はありません。</div>
+    <div style="color:#999;font-size:11px;line-height:1.6;word-break:keep-all;margin-bottom:14px;">Myテンプレートを適用すると、このWSの既存のMyテンプレート分は入れ替わります（手動ルール・業種プリセット分は残ります）。</div>
+    <div class="modal-btns">
+      <button class="btn-modal-cancel" onclick="closeMyTplApplyModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+<!-- v2.9: Myテンプレート保存モーダル -->
+<div class="modal-overlay" id="myTplSaveModal" onclick="if(event.target===this)closeMyTplSaveModal()">
+  <div class="modal">
+    <h3>Myテンプレートとして保存</h3>
+    <div class="modal-row"><label>テンプレート名</label><input id="myTplName" placeholder="例：うちの飲食クライアント標準"></div>
+    <div class="modal-row"><label>補足（任意）</label><input id="myTplDesc" placeholder="メモ（任意）"></div>
+    <div style="color:#999;font-size:11px;line-height:1.6;margin-bottom:14px;">今のWSのカテゴリルールを型にして保存します。他の顧問先で使い回せます。</div>
+    <div class="modal-btns">
+      <button class="btn-modal-cancel" onclick="closeMyTplSaveModal()">キャンセル</button>
+      <button class="btn-modal-ok" onclick="saveMyTpl()">保存</button>
     </div>
   </div>
 </div>
@@ -4471,6 +4501,87 @@ async function bulkDeleteCatRules(){
     await loadCatRules();
     showToast(`✓ ${d.deleted}件削除しました`,2500);
   }catch(e){ console.warn('bulkDeleteCatRules error:',e); alert('一括削除に失敗しました'); }
+}
+
+// ===== v2.9: Myテンプレート（保存/適用 UI・その2/2） =====
+let _myTemplates=[];
+async function openMyTplApplyModal(){
+  const uid=window._firebaseUser?.uid;
+  const box=document.getElementById('myTplList');
+  document.getElementById('myTplApplyModal').classList.add('show');
+  if(!box)return;
+  if(!uid){ box.innerHTML='<div class="master-empty">ログインが必要です</div>'; return; }
+  box.innerHTML='<div style="color:#999;font-size:12px;padding:8px 0;">読み込み中…</div>';
+  try{
+    const r=await fetch(`/api/my-templates?uid=${encodeURIComponent(uid)}`);
+    const d=await r.json();
+    _myTemplates=d.templates||[];
+    if(_myTemplates.length===0){ box.innerHTML='<div class="master-empty">保存されたMyテンプレートはありません</div>'; return; }
+    box.innerHTML=_myTemplates.map(t=>{
+      const n=Array.isArray(t.rules)?t.rules.length:0;
+      const upd=t.updated_at?String(t.updated_at).slice(0,10):'';
+      const meta=`${n}件のルール${t.description?(' ・ '+esc(t.description)):''}${upd?(' ・ 更新 '+esc(upd)):''}`;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f0f0;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:500;">${esc(t.name)}</div>
+          <div style="font-size:11px;color:#999;">${meta}</div>
+        </div>
+        <button class="btn-edit-rule" onclick="applyMyTpl('${t.id}')">適用</button>
+        <button class="btn-del-rule" onclick="deleteMyTpl('${t.id}')">削除</button>
+      </div>`;
+    }).join('');
+  }catch(e){ console.warn('openMyTplApplyModal error:',e); box.innerHTML='<div class="master-empty">取得に失敗しました</div>'; }
+}
+function closeMyTplApplyModal(){document.getElementById('myTplApplyModal').classList.remove('show');}
+async function applyMyTpl(id){
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  if(!uid||!wsId){ alert('ワークスペースが選択されていません'); return; }
+  if(!confirm('このMyテンプレートを現WSに適用します。よろしいですか？\n（このWSの既存のMyテンプレート分は入れ替わります。手動ルール・業種プリセット分は残ります）'))return;
+  try{
+    const r=await fetch(`/api/my-templates/${encodeURIComponent(id)}/apply`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,ws_id:wsId})});
+    const d=await r.json();
+    if(!r.ok||!d.ok){ throw new Error(d.error||'apply failed'); }
+    closeMyTplApplyModal();
+    await loadCatRules();
+    showToast(`✓ Myテンプレートを適用しました（${d.applied}件）`,2500);
+  }catch(e){ console.warn('applyMyTpl error:',e); alert('適用に失敗しました'); }
+}
+async function deleteMyTpl(id){
+  const uid=window._firebaseUser?.uid;
+  if(!uid)return;
+  const t=_myTemplates.find(x=>x.id===id);
+  const nm=t?t.name:'';
+  if(!confirm(`Myテンプレート「${nm}」を削除しますか？\n（適用済みのWSのルールはそのまま残ります）`))return;
+  try{
+    await fetch(`/api/my-templates/${encodeURIComponent(id)}?uid=${encodeURIComponent(uid)}`,{method:'DELETE'});
+    await openMyTplApplyModal();
+    showToast('✓ Myテンプレートを削除しました',2000);
+  }catch(e){ console.warn('deleteMyTpl error:',e); alert('削除に失敗しました'); }
+}
+function openMyTplSaveModal(){
+  document.getElementById('myTplName').value='';
+  document.getElementById('myTplDesc').value='';
+  document.getElementById('myTplSaveModal').classList.add('show');
+}
+function closeMyTplSaveModal(){document.getElementById('myTplSaveModal').classList.remove('show');}
+async function saveMyTpl(){
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  const name=document.getElementById('myTplName').value.trim();
+  const description=document.getElementById('myTplDesc').value.trim();
+  if(!uid||!wsId){ alert('ワークスペースが選択されていません'); return; }
+  if(!name){ return alert('テンプレート名を入力してください'); }
+  if(!Array.isArray(catRules)||catRules.length===0){ return alert('保存するルールがありません'); }
+  try{
+    const r=await fetch('/api/my-templates',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,name,description,ws_id:wsId})});
+    const d=await r.json();
+    if(!r.ok||!d.ok){ throw new Error(d.error||'save failed'); }
+    closeMyTplSaveModal();
+    showToast('✓ Myテンプレートを保存しました',2500);
+  }catch(e){ console.warn('saveMyTpl error:',e); alert('保存に失敗しました'); }
 }
 
 // ===== v2.8: 業種プリセット適用（その2/3） =====
