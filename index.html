@@ -3236,11 +3236,11 @@ function updateFabBadge() {
   <div class="modal">
     <h3>業種プリセットを適用</h3>
     <div class="modal-row"><label>業種</label><select id="presetIndustry"></select></div>
-    <div class="cat-rule-desc" style="margin-bottom:12px;">これは法律を踏まえたおすすめ初期値です。税区分・科目の最終判断はご確認ください。</div>
-    <div id="presetPreview" style="font-size:12px;color:#555;line-height:1.6;max-height:180px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div id="presetPreview" style="max-height:220px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div style="background:#EAF2FB;color:#15538f;font-size:12px;line-height:1.7;word-break:keep-all;border-radius:8px;padding:11px 13px;margin-bottom:14px;">法律を踏まえたおすすめ初期値です。適用後はいつでも編集・削除できます。不要な行は消せるので、全部を使う必要はありません。</div>
     <div class="modal-btns">
       <button class="btn-modal-cancel" onclick="closePresetModal()">キャンセル</button>
-      <button class="btn-modal-ok" onclick="applyPreset()">現WSに追加</button>
+      <button class="btn-modal-ok" onclick="applyPreset()">この内容で追加</button>
     </div>
   </div>
 </div>
@@ -4456,8 +4456,20 @@ function renderPresetPreview(){
   const box=document.getElementById('presetPreview');
   if(!box)return;
   if(!p||!Array.isArray(p.rules)){ box.innerHTML=''; return; }
-  box.innerHTML=`<div style="font-weight:600;margin-bottom:4px;">適用される${p.rules.length}件のルール：</div>`+
-    p.rules.map(r=>`・${esc(r.name)}（${esc(r.condition)}）→ 借方「${esc(r.debit)}」・${esc(r.tax)}`).join('<br>');
+  const th='padding:4px 6px;border-bottom:1px solid #eee;font-weight:600;text-align:left;';
+  const td='padding:4px 6px;border-bottom:1px solid #f3f3f3;word-break:break-all;vertical-align:top;';
+  box.innerHTML=`<div style="font-weight:600;font-size:12px;margin-bottom:6px;">適用される${p.rules.length}件のルール</div>`+
+    `<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;">`+
+    `<colgroup><col style="width:22%"><col style="width:38%"><col style="width:22%"><col style="width:18%"></colgroup>`+
+    `<thead><tr style="color:#888;"><th style="${th}">ルール名</th><th style="${th}">条件</th><th style="${th}">借方</th><th style="${th}">税区分</th></tr></thead>`+
+    `<tbody>`+
+    p.rules.map(r=>`<tr>`+
+      `<td style="${td}font-weight:500;">${esc(r.name)}</td>`+
+      `<td style="${td}color:#555;">${esc(r.condition)}</td>`+
+      `<td style="${td}color:#185FA5;">${esc(r.debit)}</td>`+
+      `<td style="${td}color:#888;">${esc(r.tax)}</td>`+
+    `</tr>`).join('')+
+    `</tbody></table>`;
 }
 function closePresetModal(){document.getElementById('presetModal').classList.remove('show');}
 async function applyPreset(){
