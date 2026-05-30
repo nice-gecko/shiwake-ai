@@ -2407,6 +2407,9 @@ function updateFabBadge() {
     </div>
     <div id="master-pane-category" style="display:none;">
       <div class="cat-rule-desc">業種・金額・取引先パターンに応じた勘定科目を自動設定します。AIが判断に迷う場合に優先適用されます。</div>
+      <div style="margin-bottom:10px;">
+        <button class="btn-add-master" onclick="openPresetModal()">🏢 業種プリセットを適用</button>
+      </div>
       <table class="master-table">
         <thead><tr><th>ルール名</th><th>条件</th><th>借方</th><th>税区分</th><th></th></tr></thead>
         <tbody id="catRuleTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。</td></tr></tbody>
@@ -3228,6 +3231,19 @@ function updateFabBadge() {
     </div>
   </div>
 </div>
+<!-- v2.8: 業種プリセット適用モーダル -->
+<div class="modal-overlay" id="presetModal" onclick="if(event.target===this)closePresetModal()">
+  <div class="modal">
+    <h3>業種プリセットを適用</h3>
+    <div class="modal-row"><label>業種</label><select id="presetIndustry"></select></div>
+    <div class="cat-rule-desc" style="margin-bottom:12px;">これは法律を踏まえたおすすめ初期値です。税区分・科目の最終判断はご確認ください。</div>
+    <div id="presetPreview" style="font-size:12px;color:#555;line-height:1.6;max-height:180px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div class="modal-btns">
+      <button class="btn-modal-cancel" onclick="closePresetModal()">キャンセル</button>
+      <button class="btn-modal-ok" onclick="applyPreset()">現WSに追加</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3 id="modalTitle">取引先ルールを追加</h3>
@@ -3264,7 +3280,7 @@ function updateFabBadge() {
 </div>
 
 <script>
-const ACCTS=["現金","普通預金","当座預金","売掛金","買掛金","仕入高","売上高","給与手当","役員報酬","会議費","交際費","旅費交通費","消耗品費","地代家賃","水道光熱費","通信費","広告宣伝費","支払手数料","未払金","前払費用","仮払金","雑費","雑収入"];
+const ACCTS=["現金","普通預金","当座預金","売掛金","買掛金","仕入高","売上高","給与手当","役員報酬","会議費","交際費","旅費交通費","消耗品費","地代家賃","水道光熱費","通信費","広告宣伝費","支払手数料","外注費","リース料","医薬品費","診療材料費","諸会費","未払金","前払費用","仮払金","雑費","雑収入"];
 const TAXES=["課税仕入(10%)","課税仕入(8%軽減)","非課税","不課税"];
 let files=[],results=[],approved=new Set(),deleted=new Set();
 let abortController=null;
@@ -4405,7 +4421,7 @@ function renderCatRules(){
     return;
   }
   tbody.innerHTML=catRules.map((r,i)=>`<tr>
-    <td style="font-weight:500">${esc(r.name)}</td>
+    <td style="font-weight:500">${r.source==='preset'?'<span style="display:inline-block;font-size:10px;font-weight:600;color:#185FA5;background:#EAF2FB;border-radius:4px;padding:1px 5px;margin-right:5px;">業種</span>':''}${esc(r.name)}</td>
     <td style="font-size:12px;color:#555">${esc(r.condition)}</td>
     <td style="color:#185FA5">${esc(r.debit)}</td>
     <td style="font-size:12px;color:#888">${esc(r.tax)}</td>
@@ -4414,6 +4430,51 @@ function renderCatRules(){
       <button class="btn-del-rule" onclick="deleteCatRule(${i})">削除</button>
     </td>
   </tr>`).join('');
+}
+
+// ===== v2.8: 業種プリセット適用（その2/3） =====
+let _industryPresets=null;
+async function openPresetModal(){
+  try{
+    if(!_industryPresets){
+      const r=await fetch('/api/industry-presets');
+      const d=await r.json();
+      _industryPresets=d.presets||{};
+    }
+  }catch(e){ console.warn('industry-presets load error:',e); alert('業種プリセットの取得に失敗しました'); return; }
+  const sel=document.getElementById('presetIndustry');
+  const keys=Object.keys(_industryPresets).filter(k=>k!=='_meta');
+  if(keys.length===0){ alert('利用できる業種プリセットがありません'); return; }
+  sel.innerHTML=keys.map(k=>`<option value="${esc(k)}">${esc(_industryPresets[k].label||k)}</option>`).join('');
+  sel.onchange=renderPresetPreview;
+  renderPresetPreview();
+  document.getElementById('presetModal').classList.add('show');
+}
+function renderPresetPreview(){
+  const key=document.getElementById('presetIndustry').value;
+  const p=_industryPresets&&_industryPresets[key];
+  const box=document.getElementById('presetPreview');
+  if(!box)return;
+  if(!p||!Array.isArray(p.rules)){ box.innerHTML=''; return; }
+  box.innerHTML=`<div style="font-weight:600;margin-bottom:4px;">適用される${p.rules.length}件のルール：</div>`+
+    p.rules.map(r=>`・${esc(r.name)}（${esc(r.condition)}）→ 借方「${esc(r.debit)}」・${esc(r.tax)}`).join('<br>');
+}
+function closePresetModal(){document.getElementById('presetModal').classList.remove('show');}
+async function applyPreset(){
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  const industry=document.getElementById('presetIndustry').value;
+  if(!uid||!wsId){ alert('ワークスペースが選択されていません'); return; }
+  if(!industry){ return; }
+  try{
+    const r=await fetch('/api/category-rules/apply-preset',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,ws_id:wsId,industry,mode:'append'})});
+    const d=await r.json();
+    if(!r.ok||!d.ok){ throw new Error(d.error||'apply failed'); }
+    closePresetModal();
+    await loadCatRules();
+    showToast(`✓ 業種プリセットを${d.applied}件追加しました`,2500);
+  }catch(e){ console.warn('applyPreset error:',e); alert('プリセット適用に失敗しました'); }
 }
 
 function openCatRuleModal(idx){

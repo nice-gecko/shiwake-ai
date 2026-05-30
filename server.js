@@ -112,6 +112,14 @@ for (const key of Object.keys(RECON_PROMPTS)) {
   }
 }
 
+// v2.8: 業種プリセット定義（起動時にメモリへキャッシュ）
+let INDUSTRY_PRESETS = {};
+try {
+  INDUSTRY_PRESETS = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'industry_presets.json'), 'utf8'));
+} catch(e) {
+  console.warn('industry_presets.json の読み込みに失敗 — 業種プリセット適用は無効化されます:', e.message);
+}
+
 // 件数従量の逓減テーブル（込み件数超過分の相対累積件数に対して適用）
 const OVERAGE_TIERS = [
   { upTo: 400,  unit_yen: 18 },  // 超過 1〜400件
@@ -4457,6 +4465,55 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ===== v2.8: カテゴリルール管理 API（category_rules / WS単位・DB化の器） =====
+
+  // ===== v2.8: 業種プリセット（その2/3） =====
+
+  // GET /api/industry-presets → 業種一覧+ルール定義を返す
+  if (req.method === 'GET' && reqPath === '/api/industry-presets') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ presets: INDUSTRY_PRESETS }));
+    return;
+  }
+
+  // POST /api/category-rules/apply-preset → 業種プリセットを現WSへ一括適用
+  //   body: { uid, ws_id, industry, mode } mode='append'(既定) / 'replace'(同業種のpreset行を削除してから入れる)
+  if (req.method === 'POST' && reqPath === '/api/category-rules/apply-preset') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, ws_id, industry, mode } = JSON.parse(body || '{}');
+        if (!uid || !ws_id || !industry) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, ws_id, industry required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        const preset = INDUSTRY_PRESETS[industry];
+        if (!preset || !Array.isArray(preset.rules) || preset.rules.length === 0) {
+          res.writeHead(404); res.end(JSON.stringify({ error: 'unknown industry' })); return;
+        }
+        // mode='replace' のときは、同じ業種の preset 行を先に削除
+        if (mode === 'replace') {
+          await supabaseQuery(`/category_rules?workspace_id=eq.${ws_id}&source=eq.preset&preset_industry=eq.${encodeURIComponent(industry)}`, 'DELETE');
+        }
+        const now = new Date().toISOString();
+        const rows = preset.rules.map(r => ({
+          id: crypto.randomUUID(),
+          workspace_id: ws_id,
+          name: r.name || null,
+          condition: r.condition || null,
+          debit_account: r.debit || null,
+          tax_category: r.tax || null,
+          source: 'preset',
+          preset_industry: industry,
+          is_active: true,
+          created_at: now,
+          updated_at: now
+        }));
+        await supabaseQuery('/category_rules', 'POST', rows, { 'Prefer': 'return=minimal' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, applied: rows.length, industry, mode: mode === 'replace' ? 'replace' : 'append' }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
 
   // GET /api/category-rules?uid=xxx&ws_id=yyy → カテゴリルール一覧取得
   if (req.method === 'GET' && reqPath === '/api/category-rules') {
