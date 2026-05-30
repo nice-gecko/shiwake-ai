@@ -2408,8 +2408,8 @@ function updateFabBadge() {
     <div id="master-pane-category" style="display:none;">
       <div class="cat-rule-desc">業種・金額・取引先パターンに応じた勘定科目を自動設定します。AIが判断に迷う場合に優先適用されます。</div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
-        <button class="btn-add-master" onclick="openPresetModal()">🏢 業種プリセットを適用</button>
-        <button class="btn-add-master" onclick="openMyTplApplyModal()">📋 Myテンプレートを適用</button>
+        <button class="btn-add-master" style="background:#E6F1FB;color:#185FA5;border:1px solid #B5D4F4;" onclick="openPresetModal()">🏢 業種プリセットを適用</button>
+        <button class="btn-add-master" style="background:#E6F1FB;color:#185FA5;border:1px solid #B5D4F4;" onclick="openMyTplApplyModal()">📋 Myテンプレートを適用</button>
         <span style="font-size:11px;color:#999;">(任意)</span>
         <button class="btn-clear-master" id="catRuleBulkDelBtn" onclick="bulkDeleteCatRules()" disabled>選択した0件を削除</button>
       </div>
@@ -2418,7 +2418,7 @@ function updateFabBadge() {
         <tbody id="catRuleTbody"><tr><td colspan="6" class="master-empty">まだ登録されていません。</td></tr></tbody>
       </table>
       <div style="margin-top:12px;">
-        <button class="btn-add-master" onclick="openMyTplSaveModal()">＋ この設定をMyテンプレートとして保存</button>
+        <button class="btn-add-master" style="background:transparent;color:#888;border:1px solid #ddd;" onclick="openMyTplSaveModal()">＋ この設定をMyテンプレートとして保存</button>
         <div style="color:#999;font-size:11px;margin-top:4px;">今のルール群を型にして、他の顧問先で使い回せます。</div>
       </div>
     </div>
