@@ -2407,12 +2407,13 @@ function updateFabBadge() {
     </div>
     <div id="master-pane-category" style="display:none;">
       <div class="cat-rule-desc">業種・金額・取引先パターンに応じた勘定科目を自動設定します。AIが判断に迷う場合に優先適用されます。</div>
-      <div style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
         <button class="btn-add-master" onclick="openPresetModal()">🏢 業種プリセットを適用</button>
+        <button class="btn-clear-master" id="catRuleBulkDelBtn" onclick="bulkDeleteCatRules()" disabled>選択した0件を削除</button>
       </div>
       <table class="master-table">
-        <thead><tr><th>ルール名</th><th>条件</th><th>借方</th><th>税区分</th><th></th></tr></thead>
-        <tbody id="catRuleTbody"><tr><td colspan="5" class="master-empty">まだ登録されていません。</td></tr></tbody>
+        <thead><tr><th style="width:34px;text-align:center;"><input type="checkbox" id="catRuleSelectAll" onclick="toggleSelectAllCatRules(this)" title="全選択"></th><th>ルール名</th><th>条件</th><th>借方</th><th>税区分</th><th></th></tr></thead>
+        <tbody id="catRuleTbody"><tr><td colspan="6" class="master-empty">まだ登録されていません。</td></tr></tbody>
       </table>
     </div>
     <div id="master-pane-learned" style="display:none;">
@@ -4417,11 +4418,17 @@ async function loadCatRules(){
 function renderCatRules(){
   const tbody=document.getElementById('catRuleTbody');
   if(!tbody)return;
+  const selAll=document.getElementById('catRuleSelectAll');
+  if(selAll){ selAll.checked=false; }
   if(catRules.length===0){
-    tbody.innerHTML='<tr><td colspan="5" class="master-empty">まだ登録されていません。</td></tr>';
+    tbody.innerHTML='<tr><td colspan="6" class="master-empty">まだ登録されていません。</td></tr>';
+    if(selAll) selAll.disabled=true;
+    updateCatRuleSelection();
     return;
   }
+  if(selAll) selAll.disabled=false;
   tbody.innerHTML=catRules.map((r,i)=>`<tr>
+    <td style="text-align:center"><input type="checkbox" class="catRuleChk" data-idx="${i}" onclick="updateCatRuleSelection()"></td>
     <td style="font-weight:500">${r.source==='preset'?'<span style="display:inline-block;font-size:10px;font-weight:600;color:#185FA5;background:#EAF2FB;border-radius:4px;padding:1px 5px;margin-right:5px;">業種</span>':''}${esc(r.name)}</td>
     <td style="font-size:12px;color:#555">${esc(r.condition)}</td>
     <td style="color:#185FA5">${esc(r.debit)}</td>
@@ -4431,6 +4438,38 @@ function renderCatRules(){
       <button class="btn-del-rule" onclick="deleteCatRule(${i})">削除</button>
     </td>
   </tr>`).join('');
+  updateCatRuleSelection();
+}
+
+// 選択状態に応じて一括削除ボタンのラベル/有効状態を更新
+function updateCatRuleSelection(){
+  const checks=Array.from(document.querySelectorAll('.catRuleChk'));
+  const sel=checks.filter(c=>c.checked).length;
+  const btn=document.getElementById('catRuleBulkDelBtn');
+  if(btn){ btn.textContent=`選択した${sel}件を削除`; btn.disabled=(sel===0); }
+  const selAll=document.getElementById('catRuleSelectAll');
+  if(selAll&&checks.length>0){ selAll.checked=(sel===checks.length); }
+}
+function toggleSelectAllCatRules(el){
+  document.querySelectorAll('.catRuleChk').forEach(c=>{ c.checked=el.checked; });
+  updateCatRuleSelection();
+}
+async function bulkDeleteCatRules(){
+  const checks=Array.from(document.querySelectorAll('.catRuleChk')).filter(c=>c.checked);
+  const ids=checks.map(c=>catRules[Number(c.dataset.idx)]?.id).filter(Boolean);
+  if(ids.length===0)return;
+  if(!confirm(`選択した${ids.length}件を削除します。よろしいですか？`))return;
+  const wsId=window._currentWorkspaceId;
+  const uid=window._firebaseUser?.uid;
+  if(!uid||!wsId){ alert('ワークスペースが選択されていません'); return; }
+  try{
+    const r=await fetch('/api/category-rules/bulk-delete',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uid,ws_id:wsId,ids})});
+    const d=await r.json();
+    if(!r.ok||!d.ok){ throw new Error(d.error||'bulk-delete failed'); }
+    await loadCatRules();
+    showToast(`✓ ${d.deleted}件削除しました`,2500);
+  }catch(e){ console.warn('bulkDeleteCatRules error:',e); alert('一括削除に失敗しました'); }
 }
 
 // ===== v2.8: 業種プリセット適用（その2/3） =====

@@ -4656,6 +4656,33 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /api/category-rules/bulk-delete → 複数カテゴリルールを一括削除
+  //   body: { uid, ws_id, ids:[...] } 指定 id 群を現WSのみから削除（他WSの行は消さない）。存在しない id は無視。
+  if (req.method === 'POST' && reqPath === '/api/category-rules/bulk-delete') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { uid, ws_id, ids } = JSON.parse(body || '{}');
+        if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
+        try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
+        // UUID 形式の id のみ許可（インジェクション防止）
+        const uuidRe = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+        const safeIds = Array.isArray(ids) ? ids.filter(x => typeof x === 'string' && uuidRe.test(x)) : [];
+        if (safeIds.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, deleted: 0 }));
+          return;
+        }
+        // workspace_id 絞り込みと併用し、他WSの行は絶対に消さない
+        const deleted = await supabaseQuery(`/category_rules?id=in.(${safeIds.join(',')})&workspace_id=eq.${ws_id}`, 'DELETE');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, deleted: Array.isArray(deleted) ? deleted.length : 0 }));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    });
+    return;
+  }
+
   // ===== v2.3.2 Group 4-B: ワークスペース管理 API(CRUD 系) =====
 
   // POST /api/workspaces → 新規ワークスペース作成
