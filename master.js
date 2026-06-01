@@ -1,62 +1,119 @@
-// 取引先マスタをUID別JSONファイルで管理
+// 取引先マスタを Supabase partner_master テーブルで管理（v2.10 でJSONファイルからDB化）
+// 戻り値の形は従来どおり: { [title]: { debit, credit, tax, memo } }
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const MASTER_DIR = path.join(__dirname, 'masters');
-const LEGACY_FILE = path.join(__dirname, 'master.json');
 
-// mastersディレクトリがなければ作成
-if (!fs.existsSync(MASTER_DIR)) {
-  fs.mkdirSync(MASTER_DIR, { recursive: true });
-}
+// ===== Supabase 小ヘルパー（server.js:357 の supabaseQuery に合わせる） =====
+const SUPABASE_URL = 'https://tmddairlgpyinqfekkfg.supabase.co';
 
-function masterFilePath(uid, workspaceId) {
-  if (!workspaceId) throw new TypeError('workspaceId is required');
-  if (!uid) return LEGACY_FILE;
-  const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const safeWs = workspaceId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return path.join(MASTER_DIR, `master_${safeUid}_${safeWs}.json`);
-}
-
-// 旧パス(masters/master_<uid>.json)が存在する場合、新パスへ自動 rename
-function migrateMasterIfNeeded(uid, workspaceId) {
-  if (!uid || !workspaceId) return;
-  const safeUid = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const oldPath = path.join(MASTER_DIR, `master_${safeUid}.json`);
-  const newPath = masterFilePath(uid, workspaceId);
-  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
-    try {
-      fs.renameSync(oldPath, newPath);
-      console.log(`マスタファイルをマイグレーション: master_${safeUid}.json → master_${safeUid}_${workspaceId}.json`);
-    } catch(e) {
-      console.warn('master migration error:', e.message);
+async function supabaseQuery(path, method = 'GET', body = null, extraHeaders = {}) {
+  const SECRET = process.env.SUPABASE_SECRET_KEY || '';
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SECRET,
+      'Authorization': `Bearer ${SECRET}`,
+      'Prefer': 'return=representation',
+      ...extraHeaders
     }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, opts);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Supabase error: ${err}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// partner_master を workspace_id で読み込み、{ [title]: { debit, credit, tax, memo } } を返す。
+// uid は後方互換のため引数に残すが使用しない。
+async function loadMaster(uid, workspaceId) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
+  const rows = await supabaseQuery(
+    `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=title,debit_account,credit_account,tax_category,memo`
+  );
+  const master = {};
+  for (const r of (rows || [])) {
+    master[r.title] = {
+      debit: r.debit_account || '',
+      credit: r.credit_account || '',
+      tax: r.tax_category || '',
+      memo: r.memo || ''
+    };
+  }
+  return master;
+}
+
+// 1件 upsert。既存行があれば値のみ更新し created_by は絶対に上書きしない。
+async function upsertMaster(workspaceId, title, rule, createdBy) {
+  if (!workspaceId) throw new TypeError('workspaceId is required');
+  if (!title) return;
+  const r = rule || {};
+  const existing = await supabaseQuery(
+    `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&title=eq.${encodeURIComponent(title)}&select=id&limit=1`
+  );
+  const now = new Date().toISOString();
+  if (existing && existing.length > 0) {
+    // 既存 → 値のみ更新（created_by は触らない）
+    await supabaseQuery(
+      `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&title=eq.${encodeURIComponent(title)}`,
+      'PATCH',
+      {
+        debit_account: r.debit ?? null,
+        credit_account: r.credit ?? null,
+        tax_category: r.tax ?? null,
+        memo: r.memo ?? null,
+        updated_at: now
+      },
+      { 'Prefer': 'return=minimal' }
+    );
+  } else {
+    // 新規 → INSERT（created_by を記録）
+    await supabaseQuery('/partner_master', 'POST', {
+      id: crypto.randomUUID(),
+      workspace_id: workspaceId,
+      title: title,
+      debit_account: r.debit ?? null,
+      credit_account: r.credit ?? null,
+      tax_category: r.tax ?? null,
+      memo: r.memo ?? null,
+      created_by: createdBy || null,
+      created_at: now,
+      updated_at: now
+    }, { 'Prefer': 'return=minimal' });
   }
 }
 
-function loadMaster(uid, workspaceId) {
+// 1件削除
+async function deleteMaster(workspaceId, title) {
   if (!workspaceId) throw new TypeError('workspaceId is required');
-  migrateMasterIfNeeded(uid, workspaceId);
-  const filePath = masterFilePath(uid, workspaceId);
-  try {
-    if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    }
-    // UID別ファイルなし → レガシーファイルをフォールバック
-    if (uid && fs.existsSync(LEGACY_FILE)) {
-      return JSON.parse(fs.readFileSync(LEGACY_FILE, 'utf8'));
-    }
-  } catch(e) {}
-  return {};
+  if (!title) return;
+  await supabaseQuery(
+    `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&title=eq.${encodeURIComponent(title)}`,
+    'DELETE',
+    null,
+    { 'Prefer': 'return=minimal' }
+  );
 }
 
-function saveMaster(uid, workspaceId, master) {
+// WS の全行削除
+async function clearMaster(workspaceId) {
   if (!workspaceId) throw new TypeError('workspaceId is required');
-  const filePath = masterFilePath(uid, workspaceId);
-  fs.writeFileSync(filePath, JSON.stringify(master, null, 2), 'utf8');
+  await supabaseQuery(
+    `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}`,
+    'DELETE',
+    null,
+    { 'Prefer': 'return=minimal' }
+  );
 }
 
-function getMasterRoutes(req, res, resolvedWsId) {
+async function getMasterRoutes(req, res, resolvedWsId) {
   const url = new URL(req.url, 'http://localhost');
   const uid = url.searchParams.get('uid');
   const workspaceId = resolvedWsId || url.searchParams.get('workspace_id');
@@ -65,9 +122,14 @@ function getMasterRoutes(req, res, resolvedWsId) {
     res.end(JSON.stringify({ error: 'workspace_id is required' }));
     return;
   }
-  const master = loadMaster(uid, workspaceId);
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(master));
+  try {
+    const master = await loadMaster(uid, workspaceId);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(master));
+  } catch (e) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: e.message }));
+  }
 }
 
 function updateMasterRoute(req, res, resolvedWsId) {
@@ -81,12 +143,15 @@ function updateMasterRoute(req, res, resolvedWsId) {
   }
   let body = '';
   req.on('data', chunk => body += chunk);
-  req.on('end', () => {
+  req.on('end', async () => {
     try {
-      const updates = JSON.parse(body);
-      const master = loadMaster(uid, workspaceId);
-      Object.assign(master, updates);
-      saveMaster(uid, workspaceId, master);
+      const parsed = JSON.parse(body);
+      const createdBy = parsed.created_by || null;
+      for (const title of Object.keys(parsed)) {
+        if (title === 'created_by') continue;
+        await upsertMaster(workspaceId, title, parsed[title], createdBy);
+      }
+      const master = await loadMaster(uid, workspaceId);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, master }));
     } catch(e) {
@@ -98,7 +163,6 @@ function updateMasterRoute(req, res, resolvedWsId) {
 
 function deleteMasterRoute(req, res, resolvedWsId) {
   const url = new URL(req.url, 'http://localhost');
-  const uid = url.searchParams.get('uid');
   const workspaceId = resolvedWsId || url.searchParams.get('workspace_id');
   if (!workspaceId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -107,12 +171,10 @@ function deleteMasterRoute(req, res, resolvedWsId) {
   }
   let body = '';
   req.on('data', chunk => body += chunk);
-  req.on('end', () => {
+  req.on('end', async () => {
     try {
       const { title } = JSON.parse(body);
-      const master = loadMaster(uid, workspaceId);
-      delete master[title];
-      saveMaster(uid, workspaceId, master);
+      await deleteMaster(workspaceId, title);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     } catch(e) {
@@ -123,6 +185,7 @@ function deleteMasterRoute(req, res, resolvedWsId) {
 }
 
 // 戻り値: { matched_id, debit_account, method: 'exact'|'partial'|null }
+// ※無改修（読み込んだオブジェクトに対して動く既存ロジックのまま）
 function findMasterMatch(rawTitle, master) {
   if (!rawTitle || !master) return { matched_id: null, debit_account: null, method: null };
   const t = String(rawTitle).trim();
@@ -138,4 +201,54 @@ function findMasterMatch(rawTitle, master) {
   return { matched_id: null, debit_account: null, method: null };
 }
 
-module.exports = { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute, findMasterMatch };
+// ===== 一回限りの移行: masters/master_*.json を partner_master へ投入 =====
+// ファイル名末尾の uuid を workspace_id として抽出。created_by=NULL（移行分）。
+// 既存行があれば created_by を保持したまま値更新（idempotent）。
+async function migrateMasterFilesToDb() {
+  let files = [];
+  try {
+    files = fs.readdirSync(MASTER_DIR).filter(f => /^master_.*\.json$/.test(f));
+  } catch (e) {
+    return { migrated: 0, skipped_files: [], workspaces: [] };
+  }
+  let migrated = 0;
+  const skipped_files = [];
+  const workspaces = new Set();
+  for (const file of files) {
+    const m = file.match(/_([0-9a-fA-F-]{36})\.json$/);
+    if (!m) { skipped_files.push(file); continue; }
+    const workspaceId = m[1];
+    let data;
+    try {
+      data = JSON.parse(fs.readFileSync(path.join(MASTER_DIR, file), 'utf8'));
+    } catch (e) {
+      skipped_files.push(file);
+      continue;
+    }
+    if (!data || typeof data !== 'object') { skipped_files.push(file); continue; }
+    workspaces.add(workspaceId);
+    for (const title of Object.keys(data)) {
+      const rule = data[title] || {};
+      await upsertMaster(workspaceId, title, {
+        debit: rule.debit,
+        credit: rule.credit,
+        tax: rule.tax,
+        memo: rule.memo
+      }, null);
+      migrated++;
+    }
+  }
+  return { migrated, skipped_files, workspaces: Array.from(workspaces) };
+}
+
+module.exports = {
+  loadMaster,
+  upsertMaster,
+  deleteMaster,
+  clearMaster,
+  getMasterRoutes,
+  updateMasterRoute,
+  deleteMasterRoute,
+  findMasterMatch,
+  migrateMasterFilesToDb
+};

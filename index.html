@@ -4679,7 +4679,7 @@ async function saveCatRuleModal(){
   const editing=_editingCatIdx>=0?catRules[_editingCatIdx]:null;
   if(uid&&wsId){
     try{
-      const payload={uid,ws_id:wsId,name,condition,debit_account:debit,tax_category:tax};
+      const payload={uid,ws_id:wsId,name,condition,debit_account:debit,tax_category:tax,created_by:(window._firebaseUser?.uid||null)};
       if(editing&&editing.id){
         await fetch(`/api/category-rules/${encodeURIComponent(editing.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       }else{
@@ -4759,7 +4759,7 @@ async function saveMasterRule(){
   const title=editingTitle||document.getElementById('mTitle').value.trim();
   if(!title)return alert('取引先名を入力してください');
   const rule={debit:document.getElementById('mDebit').value,credit:document.getElementById('mCredit').value,tax:document.getElementById('mTax').value};
-  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[title]:rule})});
+  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[title]:rule,created_by:(window._firebaseUser?.uid||null)})});
   await loadMasterFromServer();
   closeModal();
 }
@@ -4796,7 +4796,7 @@ async function autoLearn(item){
   const rule={debit:item.debit,credit:item.credit,tax:item.tax};
   const existingKey=findExistingKey(item.title, masterData);
   const key=existingKey||item.title;
-  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:rule})});
+  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:rule,created_by:(window._firebaseUser?.uid||null)})});
   await loadMasterFromServer();
 }
 
@@ -6168,7 +6168,7 @@ async function doLearnFromCard(cardIdx){
   if(!la)return;
   const {title,debit,credit,tax}=la.dataset;
   const existingKey=findExistingKey(title,masterData)||title;
-  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[existingKey]:{debit,credit,tax}})});
+  await fetch(await getMasterUrl(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[existingKey]:{debit,credit,tax},created_by:(window._firebaseUser?.uid||null)})});
   await loadMasterFromServer();
   const yesEl=document.getElementById('la-yes'+cardIdx);
   if(yesEl){yesEl.textContent='✓ 完了';yesEl.style.background='#5DCAA5';yesEl.style.color='#04342C';}

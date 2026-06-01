@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PDFDocument } = require('pdf-lib');
-const { loadMaster, saveMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute, findMasterMatch } = require('./master');
+const { loadMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute, findMasterMatch, clearMaster, migrateMasterFilesToDb } = require('./master');
 const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 const { computeHash, getHashedResult, setHashedResult, cleanupAllHashes } = require('./hashes');
 
@@ -2430,11 +2430,35 @@ const server = http.createServer(async (req, res) => {
         const { uid, workspace_id } = JSON.parse(body || '{}');
         const wsId = await resolveWorkspaceId(uid || null, workspace_id);
         if (!wsId) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'workspace_id is required' })); return; }
-        saveMaster(uid || null, wsId, {});
+        await clearMaster(wsId);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
         console.log(`マスタをクリアしました uid=${uid} wsId=${wsId}`);
       } catch(e) { handleWsError(e, res); }
+    });
+    return;
+  }
+
+  // POST /api/admin/migrate-master-to-db → masters/*.json を partner_master へ一回限り移行（DSK専用）
+  if (req.method === 'POST' && req.url === '/api/admin/migrate-master-to-db') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { uid } = JSON.parse(body || '{}');
+        if (uid !== '6eZXyCx56ccpL2K4dYlUiYhrmbc2') {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'forbidden' }));
+          return;
+        }
+        const result = await migrateMasterFilesToDb();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+        console.log(`マスタDB移行完了: migrated=${result.migrated} workspaces=${result.workspaces.length} skipped=${result.skipped_files.length}`);
+      } catch(e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
     });
     return;
   }
@@ -3013,7 +3037,7 @@ const server = http.createServer(async (req, res) => {
         const cacheUid = masterUid || uid || null;
 
         // ① 取引先マスタのロード（最優先・ユーザー検証済み）
-        const master = loadMaster(cacheUid, workspace_id);
+        const master = await loadMaster(cacheUid, workspace_id);
         const masterKeys = Object.keys(master);
 
         // ② 学習済みルール + カテゴリルールのロード + 自動承認設定取得（並列）
@@ -4484,7 +4508,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, ws_id, industry } = JSON.parse(body || '{}');
+        const { uid, ws_id, industry, created_by } = JSON.parse(body || '{}');
         if (!uid || !ws_id || !industry) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid, ws_id, industry required' })); return; }
         try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
         const preset = INDUSTRY_PRESETS[industry];
@@ -4504,6 +4528,7 @@ const server = http.createServer(async (req, res) => {
           source: 'preset',
           preset_industry: industry,
           is_active: true,
+          created_by: (created_by || null),
           created_at: now,
           updated_at: now
         }));
@@ -4541,7 +4566,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, ws_id, rules } = JSON.parse(body || '{}');
+        const { uid, ws_id, rules, created_by } = JSON.parse(body || '{}');
         if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
         try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
         // 既に1件以上あれば何もしない（0件のときだけ引き上げる）
@@ -4568,6 +4593,7 @@ const server = http.createServer(async (req, res) => {
           source: 'manual',
           preset_industry: null,
           is_active: true,
+          created_by: (created_by || null),
           created_at: now,
           updated_at: now
         }));
@@ -4585,7 +4611,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, ws_id, name, condition, debit_account, tax_category, source, preset_industry, is_active } = JSON.parse(body || '{}');
+        const { uid, ws_id, name, condition, debit_account, tax_category, source, preset_industry, is_active, created_by } = JSON.parse(body || '{}');
         if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
         try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
         const now = new Date().toISOString();
@@ -4599,6 +4625,7 @@ const server = http.createServer(async (req, res) => {
           source: source || 'manual',
           preset_industry: preset_industry || null,
           is_active: is_active !== undefined ? is_active : true,
+          created_by: (created_by || null),
           created_at: now,
           updated_at: now
         });
@@ -4745,7 +4772,7 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const { uid, ws_id } = JSON.parse(body || '{}');
+        const { uid, ws_id, created_by } = JSON.parse(body || '{}');
         if (!uid || !ws_id) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid and ws_id required' })); return; }
         try { await resolveWorkspaceId(uid, ws_id); } catch(e) { handleWsError(e, res); return; }
         // owner_uid 一致のテンプレのみ取得（他ユーザーのテンプレは適用不可）
@@ -4771,6 +4798,7 @@ const server = http.createServer(async (req, res) => {
           source: 'template',
           preset_industry: null,
           is_active: true,
+          created_by: (created_by || null),
           created_at: now,
           updated_at: now
         }));
