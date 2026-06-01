@@ -3379,6 +3379,70 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // GET /api/staff-attribution?owner_uid=xxx → 登録者(created_by)ごとの登録数・実使用数（オーナー俯瞰）
+  // v2.10 ①-3: partner_master / category_rules / shiwake_records をリアルタイムJOIN集計（RPC calc_master_attribution）
+  if (req.method === 'GET' && req.url.startsWith('/api/staff-attribution')) {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const owner_uid = params.get('owner_uid');
+    if (!owner_uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'owner_uid required' })); return; }
+    try {
+      // owner であることを確認（staff は自分の俯瞰APIを叩けない）
+      const me = (await supabaseQuery(`/users?id=eq.${owner_uid}&select=role`))?.[0];
+      if (me && me.role === 'staff') { res.writeHead(403); res.end(JSON.stringify({ error: 'forbidden' })); return; }
+      // RPC でリアルタイム集計（owner配下WS横断）
+      const agg = await supabaseQuery('/rpc/calc_master_attribution', 'POST', { p_owner_uid: owner_uid });
+      // created_by を表示名に解決（owner本人 + 配下スタッフ）
+      const users = await supabaseQuery(`/users?or=(id.eq.${owner_uid},and(owner_id.eq.${owner_uid},role.eq.staff))&select=id,display_name,email,role,owner_id`);
+      const userMap = {};
+      for (const u of (users || [])) userMap[u.id] = u;
+      const rows = (agg || []).map(r => {
+        const cb = r.created_by;
+        let display_name;
+        if (!cb) display_name = '(移行・オーナー帰属)';
+        else if (userMap[cb]) display_name = userMap[cb].display_name || userMap[cb].email || cb;
+        else display_name = '(不明なユーザー)';
+        return {
+          uid: cb || null,
+          display_name,
+          role: cb && userMap[cb] ? userMap[cb].role : null,
+          master_registered: Number(r.master_registered) || 0,
+          rule_registered: Number(r.rule_registered) || 0,
+          master_used: Number(r.master_used) || 0
+        };
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ rows }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // GET /api/my-attribution?uid=xxx → 本人1人分の登録数・実使用数（staff/owner どちらでも自分の数字）
+  // v2.10 ①-3: 所属オーナー配下WS横断で、その人(created_by=uid)の登録分を集計
+  if (req.method === 'GET' && req.url.startsWith('/api/my-attribution')) {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    const uid = params.get('uid');
+    if (!uid) { res.writeHead(400); res.end(JSON.stringify({ error: 'uid required' })); return; }
+    try {
+      // 所属オーナーを特定（staff なら owner_id、owner なら自分）
+      const me = (await supabaseQuery(`/users?id=eq.${uid}&select=role,owner_id`))?.[0];
+      const ownerUid = (me && me.role === 'staff' && me.owner_id) ? me.owner_id : uid;
+      const agg = await supabaseQuery('/rpc/calc_master_attribution', 'POST', { p_owner_uid: ownerUid });
+      const mine = (agg || []).find(r => r.created_by === uid);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        uid,
+        master_registered: mine ? (Number(mine.master_registered) || 0) : 0,
+        rule_registered: mine ? (Number(mine.rule_registered) || 0) : 0,
+        master_used: mine ? (Number(mine.master_used) || 0) : 0
+      }));
+    } catch(e) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   // ===== v2.3.0: 自動取り込み API =====
 
   // GET /api/inbox/address?uid=xxx&workspace_id=yyy (将来用、現状は uid 単位)
