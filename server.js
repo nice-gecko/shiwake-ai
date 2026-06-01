@@ -20,7 +20,7 @@ let iconvLite;
 try { iconvLite = require('iconv-lite'); } catch(e) { console.warn('iconv-lite package not installed — Shift_JIS CSV decoding disabled'); }
 
 // インセンティブ設定（後から変更可能）
-const INCENTIVE_THRESHOLD = 1000; // 何枚でギフト券1枚
+const INCENTIVE_THRESHOLD = 100; // v2.10: 登録マスタの実使用 何件でギフト券1枚
 const INCENTIVE_AMOUNT    = 500;  // ギフト券の金額（円）
 const INCENTIVE_ALL_PLANS = false; // 本番: 代理店・チームプランのみ（adminは画面で切替可能）
 
@@ -293,13 +293,13 @@ async function sendEmailWithAttachments(to, subject, html, files) {
   }
 }
 
-async function sendIncentiveNotification(ownerEmail, staffName, unredeemedCount) {
+async function sendIncentiveNotification(ownerEmail, staffName, masterUsedCount) {
   const adminEmail = process.env.ADMIN_EMAIL || 'easy.you.me@gmail.com';
-  const subject = `【証憑仕訳AI】インセンティブ付与対象: ${staffName}さんが${unredeemedCount}件到達`;
+  const subject = `【証憑仕訳AI】インセンティブ付与対象: ${staffName}さんの登録マスタが実使用${masterUsedCount}件に到達`;
   const html = `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">
   <h2 style="color:#185FA5;">🎁 インセンティブ付与対象のお知らせ</h2>
-  <p><strong>${staffName}</strong>さんの処理件数が<strong>${unredeemedCount}件</strong>に到達しました。</p>
+  <p><strong>${staffName}</strong>さんが登録した取引先マスタの実使用が<strong>${masterUsedCount}件</strong>に到達しました。</p>
   <p>Amazonギフト券（¥${INCENTIVE_AMOUNT}相当）の付与をお願いします。</p>
   <hr style="margin:16px 0;">
   <p style="font-size:12px;color:#888;">証憑仕訳AI / shiwake-ai.com</p>
@@ -881,6 +881,76 @@ async function recalculateTrustMetrics(workspaceId) {
     }
   } catch(e) {
     console.warn('recalculateTrustMetrics error:', e.message);
+  }
+}
+
+// v2.10 ②-2: 登録マスタの実使用件数（登録者基準）でインセンティブ到達を判定し incentive_events に台帳記録。
+// 承認時に非同期で呼ぶ。冪等（already と比較してから INSERT）。revert で件数が減っても付与は取り消さない。
+async function reconcileMasterIncentive(wsId, matchedMasterKey) {
+  if (!matchedMasterKey) return;
+  try {
+    // 1) 登録者(created_by=R)を特定。NULL/無し（移行・オーナー帰属）は報酬対象外。
+    const pm = await supabaseQuery(
+      `/partner_master?workspace_id=eq.${encodeURIComponent(wsId)}&title=eq.${encodeURIComponent(matchedMasterKey)}&select=created_by&limit=1`
+    );
+    const R = pm?.[0]?.created_by;
+    if (!R) return;
+
+    // 2) R が登録した全マスタ (workspace_id,title) を取得し、その実使用件数(master_used)を算出。
+    const rMasters = await supabaseQuery(
+      `/partner_master?created_by=eq.${encodeURIComponent(R)}&select=workspace_id,title`
+    );
+    if (!rMasters || rMasters.length === 0) return;
+    let master_used = 0;
+    for (const m of rMasters) {
+      const used = await supabaseQuery(
+        `/shiwake_records?workspace_id=eq.${encodeURIComponent(m.workspace_id)}&matched_master_key=eq.${encodeURIComponent(m.title)}&status=neq.reverted&select=id`
+      );
+      master_used += (used ? used.length : 0);
+    }
+
+    // 3) 到達済み回数（既存 master_milestone 行数）
+    const awardedRows = await supabaseQuery(
+      `/incentive_events?uid=eq.${encodeURIComponent(R)}&event_type=eq.master_milestone&select=id`
+    );
+    const already = awardedRows ? awardedRows.length : 0;
+
+    // 4) 新しい到達回数
+    const newMilestones = Math.floor(master_used / INCENTIVE_THRESHOLD);
+    if (newMilestones <= already) return; // 新規到達なし（revert で減った場合も含め何もしない）
+
+    // 5) R の表示情報を取得
+    const userRow = (await supabaseQuery(
+      `/users?id=eq.${encodeURIComponent(R)}&select=email,display_name,role,owner_id`
+    ))?.[0] || {};
+    const rEmail = userRow.email || null;
+    const rName = userRow.display_name || userRow.email || R;
+
+    // (already+1)..newMilestones を1行ずつ台帳INSERT（冪等）
+    for (let m = already + 1; m <= newMilestones; m++) {
+      await supabaseQuery('/incentive_events', 'POST', {
+        id: crypto.randomUUID(),
+        uid: R,
+        event_type: 'master_milestone',
+        user_email: rEmail,
+        display_name: rName,
+        count_value: INCENTIVE_THRESHOLD,
+        detail: { milestone_no: m, amount_yen: INCENTIVE_AMOUNT, master_used_at_award: master_used },
+        consumed: false
+      }, { 'Prefer': 'return=minimal' });
+    }
+
+    // 6) 通知（新規到達があったときのみ1回）。staff ならオーナー宛、そうでなければ本人宛。
+    let notifyEmail = rEmail;
+    if (userRow.role === 'staff' && userRow.owner_id) {
+      const ownerRow = (await supabaseQuery(`/users?id=eq.${encodeURIComponent(userRow.owner_id)}&select=email`))?.[0];
+      if (ownerRow?.email) notifyEmail = ownerRow.email;
+    }
+    if (notifyEmail) {
+      await sendIncentiveNotification(notifyEmail, rName, master_used);
+    }
+  } catch(e) {
+    console.warn('reconcileMasterIncentive error:', e.message);
   }
 }
 
@@ -2604,9 +2674,7 @@ const server = http.createServer(async (req, res) => {
         if (row.billing_period_end && new Date(row.billing_period_end) < new Date()) {
           cur = 0;
         }
-        const incTotal = (row.incentive_total || 0) + n;
-        const incUnredeemed = (row.incentive_unredeemed || 0) + n;
-        // インセンティブ対象判定:
+        // インセンティブ対象判定（UIのカード出し分け用に残す。報酬加算は実使用ベースへ移行したため、ここでは加算しない）:
         //   1. INCENTIVE_ALL_PLANS=true（テスト時のみ）
         //   2. 旧代理店・チームプラン / 新チームプラン / 代理店プラン
         //   3. インセンティブオプション購入済み（incentive_plan）
@@ -2616,11 +2684,8 @@ const server = http.createServer(async (req, res) => {
               'ai_saas_team_lite','ai_saas_team_std','ai_saas_team_prem',
               'reseller_ai_saas_team_lite','reseller_ai_saas_team_std','reseller_ai_saas_team_prem'].includes(planForCheck)
           || (row.incentive_plan && STRIPE_PLANS[row.incentive_plan]?.is_option === true);
+        // v2.10: 報酬加算は撤去（incentive_total/unredeemed は patch しない）。monthly_count のみ更新。
         const patch = { monthly_count: cur + n };
-        if (isAgency) {
-          patch.incentive_total      = incTotal;
-          patch.incentive_unredeemed = incUnredeemed;
-        }
         await supabaseQuery(`/users?id=eq.${uid}`, 'PATCH', patch);
 
         // 累計件数インクリメント
@@ -2628,34 +2693,15 @@ const server = http.createServer(async (req, res) => {
         // workspace_id が解決できた場合は信頼度メトリクスを再計算
         if (wsId) recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error:', e.message));
 
-        // 1000件到達チェック → オーナーとadminにメール通知
-        if (isAgency) {
-          const prevUnredeemed = row.incentive_unredeemed || 0;
-          const crossed = Math.floor(prevUnredeemed / INCENTIVE_THRESHOLD) < Math.floor(incUnredeemed / INCENTIVE_THRESHOLD);
-          if (crossed) {
-            try {
-              // スタッフ情報とオーナー情報を取得
-              const staffRow = (await supabaseQuery(`/users?id=eq.${uid}&select=display_name,email,owner_id,role`))?.[0] || {};
-              const staffName = staffRow.display_name || staffRow.email || uid;
-              let ownerEmail = staffRow.email;
-              if (staffRow.role === 'staff' && staffRow.owner_id) {
-                const ownerRow = (await supabaseQuery(`/users?id=eq.${staffRow.owner_id}&select=email`))?.[0];
-                if (ownerRow?.email) ownerEmail = ownerRow.email;
-              }
-              await sendIncentiveNotification(ownerEmail, staffName, incUnredeemed);
-            } catch(e) {
-              console.error('インセンティブ通知エラー:', e.message);
-            }
-          }
-        }
+        // v2.10: 到達判定は承認時の reconcileMasterIncentive（登録マスタ実使用ベース）へ移管。ここでの加算・通知は廃止。
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           ok: true,
           monthly_count: cur + n,
           total_count: cur + n,
-          incentive_total: isAgency ? incTotal : (row.incentive_total || 0),
-          incentive_unredeemed: isAgency ? incUnredeemed : (row.incentive_unredeemed || 0),
+          incentive_total: row.incentive_total || 0,
+          incentive_unredeemed: row.incentive_unredeemed || 0,
           incentive_threshold: INCENTIVE_THRESHOLD,
           incentive_amount: INCENTIVE_AMOUNT,
           is_agency: isAgency,
@@ -4283,6 +4329,11 @@ const server = http.createServer(async (req, res) => {
 
         // 信頼度メトリクス再計算（非同期）
         recalculateTrustMetrics(wsId).catch(e => console.warn('trust metrics error:', e.message));
+
+        // v2.10: 登録マスタ実使用ベースのインセンティブ到達判定（非同期、失敗しても承認は成功）
+        if (record.matched_master_key) {
+          reconcileMasterIncentive(wsId, record.matched_master_key).catch(e => console.warn('incentive reconcile error:', e.message));
+        }
 
         // 自動エクスポートトリガー確認（非同期、失敗しても承認は成功）
         checkAutoExportTrigger(uid, wsId).catch(e => console.warn('auto-export trigger check error:', e.message));
