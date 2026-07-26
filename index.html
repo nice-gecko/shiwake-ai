@@ -1762,7 +1762,7 @@ function updateFabBadge() {
             _incentiveState = {
               total:      u.incentive_total      || 0,
               unredeemed: u.incentive_unredeemed  || 0,
-              threshold:  1000,
+              threshold:  INCENTIVE_THRESHOLD,
               amount:     500,
               is_agency:  true
             };
@@ -2181,30 +2181,31 @@ function updateFabBadge() {
             </div>
           </div>
         </div>
-        <!-- インセンティブプラン用 -->
+        <!-- インセンティブプラン用（v2.10 ④-1: 登録マスタの実使用ベース） -->
         <div class="dash-card" id="incentiveCard" style="display:none;">
           <div class="incentive-header">
             <span class="incentive-title">🎁 スタッフインセンティブ</span>
+            <span class="incentive-badge" id="incMilestoneBadge" style="background:#FAEEDA;color:#633806;">到達 0回</span>
           </div>
           <div class="ds-row">
             <div class="ds-sub">
-              <div class="ds-sub-label">累計処理数</div>
-              <div class="ds-sub-value" id="incTotal">0<span>枚</span></div>
+              <div class="ds-sub-label">登録件数</div>
+              <div class="ds-sub-value" id="incRegistered">0<span>件</span></div>
             </div>
             <div class="ds-main">
-              <div class="ds-main-label">インセンティブ対象数</div>
-              <div class="ds-main-value" id="incUnredeemed">0<span>枚</span></div>
+              <div class="ds-main-label">うち使われた</div>
+              <div class="ds-main-value" id="incUsed" style="color:#0F6E56;">0<span>件</span></div>
             </div>
           </div>
           <div class="incentive-progress-wrap">
             <div class="incentive-progress-label">
-              <span>次のインセンティブまで</span>
-              <span id="incProgressLabel">0 / 0枚</span>
+              <span>インセンティブ到達まで</span>
+              <span id="incProgressLabel">0 / 100件</span>
             </div>
             <div class="incentive-progress-bar">
               <div class="incentive-progress-fill" id="incProgressFill" style="width:0%"></div>
             </div>
-            <div class="incentive-next" id="incNext">あと <strong>0枚</strong></div>
+            <div class="incentive-next" id="incNext">あと <strong>100件</strong></div>
           </div>
         </div>
       </div>
@@ -4085,7 +4086,7 @@ window.toggleAdminView = function(){
           if(u){
             _incentiveState = {
               total: u.incentive_total||0, unredeemed: u.incentive_unredeemed||0,
-              threshold: 1000, amount: 500, is_agency: true
+              threshold: INCENTIVE_THRESHOLD, amount: 500, is_agency: true
             };
             updateAiStats();
           }
@@ -4097,7 +4098,29 @@ window.toggleAdminView = function(){
   const btn = document.getElementById('adminViewToggle');
   if(btn) btn.textContent = next === 'incentive' ? '👁 通常表示に切替' : '👁 インセンティブ表示に切替';
 };
-let _incentiveState = { total: 0, unredeemed: 0, threshold: 1000, amount: 500, is_agency: false };
+const INCENTIVE_THRESHOLD = 100; // v2.10 ④-1: 到達1回 = 登録マスタの実使用100件（server.js INCENTIVE_THRESHOLD と一致）
+let _incentiveState = { total: 0, unredeemed: 0, threshold: INCENTIVE_THRESHOLD, amount: 500, is_agency: false };
+
+// v2.10 ④-1: スタッフ本人の登録件数/実使用件数キャッシュ（GET /api/my-attribution）
+let _myAttribution = null;        // {registered, used}
+let _myAttributionLoading = false;
+function _loadMyAttribution(){
+  if(_myAttribution || _myAttributionLoading) return;
+  const uid = window._firebaseUser?.uid; // 本人UID（オーナーUID/getMasterUidではない）
+  if(!uid) return;
+  _myAttributionLoading = true;
+  fetch('/api/my-attribution?uid='+encodeURIComponent(uid))
+    .then(r=>r.json())
+    .then(d=>{
+      _myAttribution = {
+        registered: Number(d && d.master_registered) || 0,
+        used:       Number(d && d.master_used)       || 0
+      };
+      updateAiStats(); // 取得後に既存フローで再描画
+    })
+    .catch(e=>console.error('my-attribution 取得失敗:', e))
+    .finally(()=>{ _myAttributionLoading = false; });
+}
 
 function updateAiStats(){
   const monthKey = new Date().toISOString().slice(0,7);
@@ -4137,26 +4160,28 @@ function updateAiStats(){
   if(!ic || !as) return;
   const s = _incentiveState;
   if(s.is_agency){
-    // インセンティブプラン
+    // インセンティブプラン（v2.10 ④-1: 登録マスタの実使用ベース・到達概念で統一／¥は非表示）
     ic.style.display = '';
     as.style.display = 'none';
-    const elTotal      = document.getElementById('incTotal');
-    const elUnredeemed = document.getElementById('incUnredeemed');
-    const elFill       = document.getElementById('incProgressFill');
-    const elLabel      = document.getElementById('incProgressLabel');
-    const elNext       = document.getElementById('incNext');
-    const progress = s.unredeemed % s.threshold;
-    const pct      = Math.min(100, Math.round(progress / s.threshold * 100));
-    const remaining = s.threshold - progress;
-    if(elTotal){
-      // 累計処理数（Supabase monthly_countベース・全画面整合）
-      const total = (typeof window._userTotalCount === 'number') ? window._userTotalCount : s.total;
-      elTotal.innerHTML = total.toLocaleString()+'<span>枚</span>';
-    }
-    if(elUnredeemed) elUnredeemed.innerHTML = s.unredeemed.toLocaleString()+'<span>枚</span>';
-    if(elFill)       elFill.style.width     = pct+'%';
-    if(elLabel)      elLabel.textContent    = progress.toLocaleString()+' / '+s.threshold.toLocaleString()+'枚';
-    if(elNext)       elNext.innerHTML       = 'あと <strong>'+remaining.toLocaleString()+'枚</strong>';
+    _loadMyAttribution(); // 未取得なら非同期取得→取得後に updateAiStats で再描画（毎回は叩かない）
+    const registered = _myAttribution ? _myAttribution.registered : 0;
+    const used       = _myAttribution ? _myAttribution.used       : 0;
+    const milestones = Math.floor(used / INCENTIVE_THRESHOLD);
+    const progress   = used % INCENTIVE_THRESHOLD;
+    const remaining  = INCENTIVE_THRESHOLD - progress;
+    const pct        = Math.max(0, Math.min(100, Math.round(progress / INCENTIVE_THRESHOLD * 100)));
+    const elBadge = document.getElementById('incMilestoneBadge');
+    const elReg   = document.getElementById('incRegistered');
+    const elUsed  = document.getElementById('incUsed');
+    const elFill  = document.getElementById('incProgressFill');
+    const elLabel = document.getElementById('incProgressLabel');
+    const elNext  = document.getElementById('incNext');
+    if(elBadge) elBadge.textContent = '到達 '+milestones.toLocaleString()+'回';
+    if(elReg)   elReg.innerHTML     = registered.toLocaleString()+'<span>件</span>';
+    if(elUsed)  elUsed.innerHTML    = used.toLocaleString()+'<span>件</span>';
+    if(elFill)  elFill.style.width  = pct+'%';
+    if(elLabel) elLabel.textContent = progress.toLocaleString()+' / '+INCENTIVE_THRESHOLD.toLocaleString()+'件';
+    if(elNext)  elNext.innerHTML    = 'あと <strong>'+remaining.toLocaleString()+'件</strong>';
   } else {
     // 一般ユーザー：累計処理数のみ
     ic.style.display = 'none';
