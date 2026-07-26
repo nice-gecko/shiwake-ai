@@ -884,7 +884,8 @@ async function recalculateTrustMetrics(workspaceId) {
   }
 }
 
-// v2.10 ②-2: 登録マスタの実使用件数（登録者基準）でインセンティブ到達を判定し incentive_events に台帳記録。
+// v2.10 ④-1b: 登録マスタの「実使用マスタ種類数(DISTINCT)」でインセンティブ到達を判定し incentive_events に台帳記録。
+// master_used は RPC calc_master_attribution に一本化（カード /api/my-attribution と同一定義。ヒット回数ではなく種類数）。
 // 承認時に非同期で呼ぶ。冪等（already と比較してから INSERT）。revert で件数が減っても付与は取り消さない。
 async function reconcileMasterIncentive(wsId, matchedMasterKey) {
   if (!matchedMasterKey) return;
@@ -896,33 +897,29 @@ async function reconcileMasterIncentive(wsId, matchedMasterKey) {
     const R = pm?.[0]?.created_by;
     if (!R) return;
 
-    // 2) R が登録した全マスタ (workspace_id,title) を取得し、その実使用件数(master_used)を算出。
-    const rMasters = await supabaseQuery(
-      `/partner_master?created_by=eq.${encodeURIComponent(R)}&select=workspace_id,title`
-    );
-    if (!rMasters || rMasters.length === 0) return;
-    let master_used = 0;
-    for (const m of rMasters) {
-      const used = await supabaseQuery(
-        `/shiwake_records?workspace_id=eq.${encodeURIComponent(m.workspace_id)}&matched_master_key=eq.${encodeURIComponent(m.title)}&status=neq.reverted&select=id`
-      );
-      master_used += (used ? used.length : 0);
-    }
+    // 2) R の表示情報＋所属オーナーを取得（RPC の owner スコープ決定に使う）。
+    const userRow = (await supabaseQuery(
+      `/users?id=eq.${encodeURIComponent(R)}&select=email,display_name,role,owner_id`
+    ))?.[0] || {};
+    const ownerUid = (userRow.role === 'staff' && userRow.owner_id) ? userRow.owner_id : R;
 
-    // 3) 到達済み回数（既存 master_milestone 行数）
+    // 3) master_used を RPC で算出（/api/my-attribution と同一定義に一本化）。
+    //    v2.10 ④-1b: R が登録したマスタのうち実際に使われた「種類数(DISTINCT)」。
+    const agg = await supabaseQuery('/rpc/calc_master_attribution', 'POST', { p_owner_uid: ownerUid });
+    const mine = (agg || []).find(r => r.created_by === R);
+    const master_used = mine ? (Number(mine.master_used) || 0) : 0;
+    if (master_used <= 0) return;
+
+    // 4) 到達済み回数（既存 master_milestone 行数）
     const awardedRows = await supabaseQuery(
       `/incentive_events?uid=eq.${encodeURIComponent(R)}&event_type=eq.master_milestone&select=id`
     );
     const already = awardedRows ? awardedRows.length : 0;
 
-    // 4) 新しい到達回数
+    // 5) 新しい到達回数
     const newMilestones = Math.floor(master_used / INCENTIVE_THRESHOLD);
     if (newMilestones <= already) return; // 新規到達なし（revert で減った場合も含め何もしない）
 
-    // 5) R の表示情報を取得
-    const userRow = (await supabaseQuery(
-      `/users?id=eq.${encodeURIComponent(R)}&select=email,display_name,role,owner_id`
-    ))?.[0] || {};
     const rEmail = userRow.email || null;
     const rName = userRow.display_name || userRow.email || R;
 
