@@ -8757,14 +8757,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const leftLabel = document.getElementById('fcpLeftLabel');
     const rightEl = document.getElementById('fcpRightValue');
     if(!leftEl || !rightEl) return;
-    if(typeof _incentiveState !== 'undefined' && _incentiveState.is_agency){
-      if(leftLabel) leftLabel.textContent = '対象';
-      leftEl.textContent = (_incentiveState.unredeemed||0).toLocaleString();
-    } else {
-      if(leftLabel) leftLabel.textContent = '累計';
-      const total = typeof window._userTotalCount === 'number' ? window._userTotalCount : 0;
-      leftEl.textContent = total.toLocaleString();
-    }
+    // v2.10 ④-1c: 左は is_agency に関係なく常に「累計」= 処理枚数。インセンティブ進捗はカード側の担当。
+    if(leftLabel) leftLabel.textContent = '累計';
+    const total = typeof window._userTotalCount === 'number' ? window._userTotalCount : 0;
+    leftEl.textContent = total.toLocaleString();
     const mc = typeof masterData !== 'undefined' ? Object.keys(masterData||{}).length : 0;
     rightEl.textContent = mc.toLocaleString();
     _syncPillClearance();
