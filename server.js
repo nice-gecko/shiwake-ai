@@ -3438,23 +3438,58 @@ const server = http.createServer(async (req, res) => {
       const users = await supabaseQuery(`/users?or=(id.eq.${owner_uid},and(owner_id.eq.${owner_uid},role.eq.staff))&select=id,display_name,email,role,owner_id`);
       const userMap = {};
       for (const u of (users || [])) userMap[u.id] = u;
+
+      // v2.10 ④-2: 到達回数・付与額は incentive_events の実績行を数える（floor(used/100) で再計算しない）。
+      // 理由: ④-1b で計数定義を変えたため再計算値が過去の付与実績を下回りうる。オーナーが見る金額は実付与額でなければ台帳にならない。
+      const scopeUids = (users || []).map(u => u.id).filter(Boolean);
+      if (!scopeUids.includes(owner_uid)) scopeUids.push(owner_uid);
+      let events = [];
+      if (scopeUids.length) {
+        const uidList = scopeUids.map(u => `"${String(u).replace(/"/g, '')}"`).join(',');
+        try {
+          events = await supabaseQuery(
+            `/incentive_events?uid=in.(${encodeURIComponent(uidList)})&event_type=eq.master_milestone&select=uid`
+          ) || [];
+        } catch(e) {
+          console.warn('staff-attribution incentive_events error:', e.message);
+        }
+      }
+      const milestoneMap = {};
+      for (const ev of events) { if (ev.uid) milestoneMap[ev.uid] = (milestoneMap[ev.uid] || 0) + 1; }
+
       const rows = (agg || []).map(r => {
         const cb = r.created_by;
         let display_name;
         if (!cb) display_name = '(移行・オーナー帰属)';
         else if (userMap[cb]) display_name = userMap[cb].display_name || userMap[cb].email || cb;
         else display_name = '(不明なユーザー)';
+        // created_by=NULL（移行・オーナー帰属）は報酬対象外 → 到達/付与額は null（UI側で「—」表示）
+        const milestone_count = cb ? (milestoneMap[cb] || 0) : null;
         return {
           uid: cb || null,
           display_name,
           role: cb && userMap[cb] ? userMap[cb].role : null,
           master_registered: Number(r.master_registered) || 0,
           rule_registered: Number(r.rule_registered) || 0,
-          master_used: Number(r.master_used) || 0
+          master_used: Number(r.master_used) || 0,
+          milestone_count,
+          amount_yen: cb ? milestone_count * INCENTIVE_AMOUNT : null
         };
       });
+
+      // サマリー（NaN を出さないようサーバ側で確定させる）
+      const total_registered = rows.reduce((a, r) => a + r.master_registered, 0);
+      const total_used       = rows.reduce((a, r) => a + r.master_used, 0);
+      const total_milestones = events.length; // スコープ全体の実績行数（rows に現れない uid の付与も含める）
+      const summary = {
+        total_registered,
+        total_used,
+        total_milestones,
+        total_amount_yen: total_milestones * INCENTIVE_AMOUNT,
+        hit_rate_pct: total_registered > 0 ? Math.floor(total_used / total_registered * 100) : 0
+      };
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ rows }));
+      res.end(JSON.stringify({ rows, summary }));
     } catch(e) {
       res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
     }

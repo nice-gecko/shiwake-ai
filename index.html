@@ -734,6 +734,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .staff-card-email{font-size:11px;color:#888;margin-top:1px;}
 .staff-card-stats{font-size:11px;color:#185FA5;margin-top:3px;}
 .staff-empty{text-align:center;padding:24px;color:#aaa;font-size:13px;}
+/* v2.10 ④-2: スタッフ管理タブ オーナー俯瞰（サマリー3枚＋スタッフ別一覧テーブル） */
+.staff-overview{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+.staff-ov-card{background:#fff;border:0.5px solid var(--color-border-secondary,#e0dfd8);border-radius:10px;padding:12px 14px;}
+.staff-ov-value{font-size:20px;font-weight:700;color:#185FA5;line-height:1.2;}
+.staff-ov-value span{font-size:12px;font-weight:500;}
+.staff-ov-amount{color:#854F0B;}
+.staff-ov-used{color:#0F6E56;}
+.staff-ov-label{font-size:11px;color:#888;margin-top:3px;line-height:1.4;}
+.staff-attr-wrap{background:#fff;border:0.5px solid var(--color-border-secondary,#e0dfd8);border-radius:10px;overflow:hidden;}
+.staff-attr-table{width:100%;border-collapse:collapse;font-size:12px;}
+.staff-attr-table th{font-size:11px;font-weight:600;color:#888;text-align:left;padding:9px 12px;background:#faf9f5;border-bottom:0.5px solid #e8e7e0;}
+.staff-attr-table td{padding:10px 12px;color:#1a1a1a;border-bottom:0.5px solid #f0efe9;}
+.staff-attr-table tbody tr:last-child td{border-bottom:none;}
+.staff-attr-table th.num,.staff-attr-table td.num{text-align:right;white-space:nowrap;}
+.staff-attr-name{font-weight:600;}
+.staff-attr-used{color:#0F6E56;font-weight:600;}
+.staff-attr-amount{color:#854F0B;font-weight:600;}
+.staff-attr-muted{color:#aaa;font-weight:400;}
+@media(max-width:640px){
+  .staff-overview{grid-template-columns:1fr;}
+  .staff-attr-table{font-size:11px;}
+  .staff-attr-table th,.staff-attr-table td{padding:8px 9px;}
+}
 /* 招待バナー（ログイン画面） */
 .invite-banner{background:#E6F1FB;border-radius:10px;padding:12px 14px;margin-bottom:14px;text-align:center;}
 .invite-banner-title{font-size:14px;font-weight:600;color:#185FA5;margin-bottom:4px;}
@@ -2874,6 +2897,8 @@ function updateFabBadge() {
       </div>
       <div id="inviteResult" style="display:none;" class="staff-invite-result"></div>
     </div>
+    <!-- v2.10 ④-2: 事務所サマリー3枚（表の上） -->
+    <div class="staff-overview" id="staffOverview" style="display:none;"></div>
     <div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:10px;">スタッフ一覧</div>
     <div class="staff-list" id="staffList"><div class="staff-empty">まだスタッフがいません</div></div>
   </div>
@@ -4278,27 +4303,64 @@ async function sendInvite(){
   }
 }
 
+// v2.10 ④-2: オーナー俯瞰。サマリー3枚＋スタッフ別一覧（登録/使用/到達/付与額）。
+// 到達・付与額は incentive_events の実績行が正（floor(used/100) で再計算しない）。
+// created_by=NULL（移行・オーナー帰属）は報酬対象外のため到達/付与額は「—」。
 async function loadStaffList(){
   const uid = window._firebaseUser?.uid;
   if(!uid) return;
   const listEl = document.getElementById('staffList');
+  const ovEl   = document.getElementById('staffOverview');
   if(!listEl) return;
   try {
-    const r = await fetch(await withWsId('/api/staff?owner_uid='+uid));
+    const r = await fetch('/api/staff-attribution?owner_uid='+encodeURIComponent(uid));
     const d = await r.json();
-    if(!d.staff || d.staff.length === 0){
+    const rows = Array.isArray(d.rows) ? d.rows : [];
+    const sm = d.summary || {};
+    const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+    // サマリー3枚
+    if(ovEl){
+      ovEl.style.display = '';
+      ovEl.innerHTML = `
+        <div class="staff-ov-card">
+          <div class="staff-ov-value">${num(sm.total_registered).toLocaleString()}<span>件</span></div>
+          <div class="staff-ov-label">事務所合計 登録件数</div>
+        </div>
+        <div class="staff-ov-card">
+          <div class="staff-ov-value staff-ov-amount">¥${num(sm.total_amount_yen).toLocaleString()}</div>
+          <div class="staff-ov-label">今期の付与額</div>
+        </div>
+        <div class="staff-ov-card">
+          <div class="staff-ov-value staff-ov-used">${num(sm.hit_rate_pct).toLocaleString()}<span>%</span></div>
+          <div class="staff-ov-label">マスタヒット率</div>
+        </div>`;
+    }
+    if(rows.length === 0){
       listEl.innerHTML = '<div class="staff-empty">まだスタッフがいません<br><span style="font-size:11px;color:#bbb;">上の招待フォームからスタッフを招待してください</span></div>';
       return;
     }
-    listEl.innerHTML = d.staff.map(s=>`
-      <div class="staff-card">
-        <div class="staff-card-info">
-          <div class="staff-card-name">${esc(s.display_name||s.email)}</div>
-          <div class="staff-card-email">${esc(s.email)}</div>
-          <div class="staff-card-stats">累計 ${(s.incentive_total||0).toLocaleString()}枚 · 今月 ${(s.monthly_count||0).toLocaleString()}枚</div>
-        </div>
-      </div>`).join('');
+    listEl.innerHTML = `
+      <div class="staff-attr-wrap">
+        <table class="staff-attr-table">
+          <thead><tr>
+            <th>スタッフ</th><th class="num">登録</th><th class="num">使用</th><th class="num">到達</th><th class="num">付与額</th>
+          </tr></thead>
+          <tbody>${rows.map(rw=>{
+            const legacy = !rw.uid; // created_by=NULL → 報酬対象外
+            const ms  = legacy ? '—' : num(rw.milestone_count).toLocaleString()+'回';
+            const yen = legacy ? '—' : '¥'+num(rw.amount_yen).toLocaleString();
+            return `<tr>
+              <td class="staff-attr-name${legacy?' staff-attr-muted':''}">${esc(rw.display_name||'')}</td>
+              <td class="num">${num(rw.master_registered).toLocaleString()}</td>
+              <td class="num staff-attr-used">${num(rw.master_used).toLocaleString()}</td>
+              <td class="num${legacy?' staff-attr-muted':''}">${ms}</td>
+              <td class="num${legacy?' staff-attr-muted':' staff-attr-amount'}">${yen}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>`;
   } catch(e){
+    if(ovEl) ovEl.style.display = 'none';
     listEl.innerHTML = '<div class="staff-empty">読み込みに失敗しました</div>';
   }
 }
