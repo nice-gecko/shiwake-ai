@@ -3066,14 +3066,18 @@ function updateFabBadge() {
     <h3>明細を取り込む</h3>
     <div class="recon-modal-row">
       <label>ファイル</label>
-      <input type="file" id="recon-csv-file" accept=".csv,.pdf,.jpg,.jpeg,.png,.heic,text/csv">
-      <div style="font-size:11px;color:#999;margin-top:4px;">CSV・PDF・写真（レシート等）に対応</div>
+      <!-- accept と説明文は onReconSourceTypeChange() が source_type に応じて上書きする（既定=bank） -->
+      <input type="file" id="recon-csv-file" accept=".csv,.pdf,.jpg,.jpeg,.png,text/csv">
+      <div style="font-size:11px;color:#999;margin-top:4px;" id="recon-file-hint">CSV・PDF・写真に対応</div>
     </div>
     <div class="recon-modal-row"><label>ソース種別</label>
       <select id="recon-source-type" onchange="onReconSourceTypeChange()">
         <option value="bank">銀行明細</option>
         <option value="card">カード明細</option>
+        <!-- 請求書はサーバ未対応（PDF/画像/CSV の全経路で400）のため選択不可にしている。
+             請求書突合を実装する際にこの option と onReconSourceTypeChange() の invoice 分岐を復活させること。
         <option value="invoice">請求書</option>
+        -->
       </select>
     </div>
     <div class="recon-modal-row" id="recon-row-institution">
@@ -9796,27 +9800,37 @@ function _renderReconFooter(entries) {
   document.getElementById('recon-footer').style.display = rows.length > 0 ? '' : 'none';
 }
 
+// 受け付ける拡張子（サーバ実装に合わせる。card は写真がサーバ側400のため画像を含めない）
+const RECON_ACCEPT_BANK = '.csv,.pdf,.jpg,.jpeg,.png,text/csv';
+const RECON_ACCEPT_CARD = '.csv,.pdf,text/csv';
 function onReconSourceTypeChange() {
   const type = document.getElementById('recon-source-type').value;
   const labelEl   = document.getElementById('recon-label-institution');
   const inputEl   = document.getElementById('recon-institution');
   const rowAccount= document.getElementById('recon-row-account');
+  const fileEl    = document.getElementById('recon-csv-file');
+  const hintEl    = document.getElementById('recon-file-hint');
   if (type === 'bank') {
     labelEl.textContent = '金融機関名（任意）';
     inputEl.setAttribute('list', 'datalist-institutions');
     inputEl.placeholder = '例：三井住友銀行';
     rowAccount.style.display = '';
+    if (fileEl) fileEl.setAttribute('accept', RECON_ACCEPT_BANK);
+    if (hintEl) hintEl.textContent = 'CSV・PDF・写真に対応';
   } else if (type === 'card') {
     labelEl.textContent = 'カード会社（任意）';
     inputEl.setAttribute('list', 'datalist-cards');
     inputEl.placeholder = '例：楽天カード';
     rowAccount.style.display = 'none';
-  } else {
-    labelEl.textContent = '請求元（会社名・任意）';
-    inputEl.removeAttribute('list');
-    inputEl.placeholder = '例：株式会社○○';
-    rowAccount.style.display = 'none';
+    if (fileEl) fileEl.setAttribute('accept', RECON_ACCEPT_CARD);
+    if (hintEl) hintEl.textContent = 'CSV・PDFに対応（写真は非対応）';
   }
+  // 請求書(invoice)分岐はサーバ未対応のため撤去。復活させる場合は
+  // modal 側の <option value="invoice"> のコメントアウトと合わせて戻すこと:
+  //   labelEl.textContent = '請求元（会社名・任意）';
+  //   inputEl.removeAttribute('list');
+  //   inputEl.placeholder = '例：株式会社○○';
+  //   rowAccount.style.display = 'none';
 }
 
 function openReconUploadModal(defaultType) {
@@ -9844,6 +9858,18 @@ async function submitReconUpload() {
   const fileInput = document.getElementById('recon-csv-file');
   const fileObj   = fileInput.files[0];
   if (!fileObj) { showToast('CSVファイルを選択してください'); return; }
+  // accept はダイアログの初期フィルタにすぎず「すべてのファイル」で回避できるため、
+  // サーバが400を返す組み合わせは送信前にここで止める（サーバ側のガードは防御として残っている）。
+  const _srcType = document.getElementById('recon-source-type').value;
+  const _ext = (fileObj.name || '').toLowerCase().split('.').pop();
+  if (_ext === 'heic' || _ext === 'heif') {
+    showToast('HEIC形式には対応していません。JPEGまたはPNGで保存してからお試しください');
+    return;
+  }
+  if (_srcType === 'card' && ['jpg','jpeg','png','gif','webp','bmp','tif','tiff'].includes(_ext)) {
+    showToast('カード明細の写真には対応していません。CSVまたはPDFをご利用ください');
+    return;
+  }
   const btn = document.getElementById('btn-recon-upload-submit');
   btn.disabled = true; btn.textContent = 'アップロード中...';
   const fd = new FormData();
