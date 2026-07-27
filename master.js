@@ -196,18 +196,36 @@ function deleteMasterRoute(req, res, resolvedWsId) {
 // ・既に verified_status が入っている行 → スキップ（重複呼び出し防止）
 // ・対象行が無い（title 不一致）→ 何もせず return
 async function verifyPartnerName(workspaceId, title) {
-  if (!workspaceId || !title) return;
-  if (!process.env.NTA_APP_ID) return;
+  // v2.11.1: 無言 return を廃止。どの条件で止まったかを必ずログに残す
+  // （v2.11.0 で NTA_APP_ID 未設定に気付けず原因特定に時間を要したため）
+  if (!workspaceId || !title) {
+    console.warn(`L2skip: 引数不足 ws=${workspaceId} title="${title}"`);
+    return;
+  }
+  if (!process.env.NTA_APP_ID) {
+    console.warn('L2skip: NTA_APP_ID 未設定');
+    return;
+  }
 
   const rows = await supabaseQuery(
     `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&title=eq.${encodeURIComponent(title)}&select=id,verified_status&limit=1`
   );
   const row = rows && rows[0];
-  if (!row) return;                    // 行が無い（別キーで登録された等）
-  if (row.verified_status) return;     // 確認済み・判定済みは再実行しない
+  if (!row) {
+    console.warn(`L2skip: partner_master に行なし ws=${workspaceId} title="${title}"`);
+    return;
+  }
+  if (row.verified_status) {
+    // 正常動作（重複呼び出し防止）なので log レベル
+    console.log(`L2skip: 既に確認済み (${row.verified_status}) title="${title}"`);
+    return;
+  }
 
   const result = await nta.verifyName(title);
-  if (!result) return;                 // スキップ（未設定・正規化後が空）
+  if (!result) {
+    console.warn(`L2skip: 検索スキップ（NTA_APP_ID 未設定 or 正規化後が空） title="${title}"`);
+    return;
+  }
 
   await supabaseQuery(
     `/partner_master?id=eq.${encodeURIComponent(row.id)}`,
@@ -221,7 +239,15 @@ async function verifyPartnerName(workspaceId, title) {
     },
     { 'Prefer': 'return=minimal' }
   );
-  console.log(`L2確認: "${title}" → ${result.verified_status}${result.verified_name ? ` (${result.verified_name})` : ''}`);
+  // v2.11.1: 何段目でヒットしたか・実際に送ったクエリ・候補件数を残す
+  const stageLabel = result.stage === 2
+    ? `フォールバック(除去:"${result.removed_suffix}")`
+    : '1段目';
+  console.log(
+    `L2確認: "${title}" → ${result.verified_status}` +
+    `${result.verified_name ? ` (${result.verified_name})` : ''}` +
+    ` [${stageLabel} query="${result.query}" 候補${result.candidate_count}件]`
+  );
 }
 
 // 戻り値: { matched_id, debit_account, method: 'exact'|'partial'|null }

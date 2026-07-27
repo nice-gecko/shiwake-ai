@@ -109,8 +109,77 @@ async function searchByName(rawName) {
     .filter(c => !c.closeDate);   // 閉鎖済みは候補から除外
 }
 
+// ===== v2.11.1: 店舗名フォールバック =====
+// レシートの取引先名は「登記名＋店舗名」が常態のため、1段目が0件のときだけ
+// 末尾の店舗名を落として1回だけ再検索する（APIコールは1件あたり最大2回）。
+const BRANCH_SUFFIXES = ['営業所', '出張所', '支店', '支社', '本店', '店']; // 長い順に判定
+// 社名の一部であり、絶対に落としてはならない語（「山田商店」→「山田」を防ぐ）
+const BRANCH_EXCLUDE  = ['商店', '酒店', '売店', '書店', '薬店', '販売店'];
+const MIN_CORE_LEN    = 3;  // 法人格を除いた実体部分の最小長
+const MAX_PLACE_CHARS = 4;  // 店舗名の地名部分として落とす上限文字数
+
+// 正規化済み文字列から末尾の店舗名を1回だけ落とす。
+// 戻り値: { stripped, removed } / null（フォールバックしない）
+function stripBranchSuffix(normalized) {
+  if (!normalized) return null;
+  // 除外語に該当したらフォールバックしない
+  for (const ex of BRANCH_EXCLUDE) {
+    if (normalized.endsWith(ex)) return null;
+  }
+  const suffix = BRANCH_SUFFIXES.find(s => normalized.endsWith(s) && normalized.length > s.length);
+  if (!suffix) return null;
+
+  // 1) 接尾辞そのものを落とす（末尾1回だけ・再帰しない）
+  let stripped = normalized.slice(0, -suffix.length);
+  // 2) 地名部分を最大 MAX_PLACE_CHARS 文字まで落とす。
+  //    実体部分（法人格を除いた部分）が MIN_CORE_LEN を下回る手前で停止する。
+  for (let i = 0; i < MAX_PLACE_CHARS; i++) {
+    const next = stripped.slice(0, -1);
+    if (normalizeForCompare(next).length < MIN_CORE_LEN) break;
+    stripped = next;
+  }
+  if (stripped.length < MIN_CORE_LEN) return null;
+  if (normalizeForCompare(stripped).length < MIN_CORE_LEN) return null;
+  if (stripped === normalized) return null;
+  return { stripped, removed: normalized.slice(stripped.length) };
+}
+
+// フォールバック時の判定（1段目より厳しくする＝誤登録防止）
+// 採用条件: 候補の正規化名が「除去前の名前（正規化済み）の先頭部分に一致」し、
+//           かつ実体部分が MIN_CORE_LEN 以上であること。
+//           その上で、除去後の名前と完全一致する候補があればそれを最優先で採用する。
+function judgeFallback(originalQuery, strippedQuery, candidates) {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return { verified_status: 'not_found', corporate_number: null, verified_name: null };
+  }
+  const origCore = normalizeForCompare(originalQuery);
+  const stripCore = normalizeForCompare(strippedQuery);
+
+  // プレフィックス判定: 候補名（正規化）が除去前の名前（正規化）の先頭に一致すること
+  const prefixHits = candidates.filter(c => {
+    const cc = normalizeForCompare(c.name);
+    return cc.length >= MIN_CORE_LEN && origCore.startsWith(cc);
+  });
+  if (prefixHits.length === 0) {
+    return { verified_status: 'not_found', corporate_number: null, verified_name: null };
+  }
+  // 除去後の名前と完全一致する候補を最優先
+  const exact = prefixHits.filter(c => normalizeForCompare(c.name) === stripCore);
+  const picked = (exact.length === 1) ? exact
+               : (prefixHits.length === 1 ? prefixHits : null);
+  if (!picked) {
+    return { verified_status: 'ambiguous', corporate_number: null, verified_name: null };
+  }
+  return {
+    verified_status: 'verified',
+    corporate_number: picked[0].corporateNumber,
+    verified_name: picked[0].name,
+  };
+}
+
 // 候補リストから確認結果を判定する（文字列一致のみ。Sonnet は使わない）
 // 戻り値: { verified_status, corporate_number, verified_name }
+// ※ v2.11.1 でも 1段目の判定ロジックは変更していない
 function judge(title, candidates) {
   if (!Array.isArray(candidates) || candidates.length === 0) {
     // 該当なし。個人事業主・屋号は法人番号を持たないため、これは異常ではない
@@ -140,22 +209,48 @@ function judge(title, candidates) {
 // 名称1件を確認する高水準API。DBには触らない。
 // 戻り値: { verified_status, corporate_number, verified_name } / null(NTA_APP_ID未設定等でスキップ)
 async function verifyName(title) {
-  let candidates;
+  const q1 = normalizeForQuery(title);
+
+  // ---- 1段目: そのままの名前で検索（v2.11.0 と同一の挙動） ----
+  let c1;
   try {
-    candidates = await searchByName(title);
+    c1 = await searchByName(title);
   } catch (e) {
-    // API 呼び出し失敗（400 / 5xx / ネットワーク）。後から再試行できるよう 'error' を残す
-    console.warn('NTA searchByName failed:', title, e.message);
-    return { verified_status: 'error', corporate_number: null, verified_name: null };
+    console.warn('NTA searchByName failed (stage1):', title, e.message);
+    return { verified_status: 'error', corporate_number: null, verified_name: null,
+             stage: 1, query: q1, candidate_count: 0, removed_suffix: null };
   }
-  if (candidates === null) return null;   // 未設定・正規化後が空 → 何もしない
-  return judge(title, candidates);
+  if (c1 === null) return null;   // 未設定・正規化後が空 → 何もしない
+  if (c1.length > 0) {
+    return { ...judge(title, c1),
+             stage: 1, query: q1, candidate_count: c1.length, removed_suffix: null };
+  }
+
+  // ---- 2段目: 1段目が0件のときだけ、末尾の店舗名を落として再検索 ----
+  const fb = stripBranchSuffix(q1);
+  if (!fb) {
+    return { verified_status: 'not_found', corporate_number: null, verified_name: null,
+             stage: 1, query: q1, candidate_count: 0, removed_suffix: null };
+  }
+  let c2;
+  try {
+    c2 = await searchByName(fb.stripped);
+  } catch (e) {
+    console.warn('NTA searchByName failed (stage2):', fb.stripped, e.message);
+    return { verified_status: 'error', corporate_number: null, verified_name: null,
+             stage: 2, query: fb.stripped, candidate_count: 0, removed_suffix: fb.removed };
+  }
+  if (c2 === null) return null;
+  return { ...judgeFallback(q1, fb.stripped, c2),
+           stage: 2, query: fb.stripped, candidate_count: c2.length, removed_suffix: fb.removed };
 }
 
 module.exports = {
   normalizeForQuery,
   normalizeForCompare,
+  stripBranchSuffix,
   searchByName,
   judge,
+  judgeFallback,
   verifyName,
 };
