@@ -118,7 +118,42 @@ const BRANCH_EXCLUDE  = ['商店', '酒店', '売店', '書店', '薬店', '販�
 const MIN_CORE_LEN    = 3;  // 法人格を除いた実体部分の最小長
 const MAX_PLACE_CHARS = 4;  // 店舗名の地名部分として落とす上限文字数
 
+// v2.11.2: 文字種の判定。同一クラスの連続を途中で切らないための土台。
+//   'kata'（カタカナ） / 'hira'（ひらがな） / 'alnum'（半角英数字） / 'kanji' / 'other'
+//   長音符「ー」(U+30FC) は、ひらがな語にもカタカナ語にも付くため 'long'（ワイルドカード）とし、
+//   隣がかな（ひらがな/カタカナ/長音符）ならすべて「同一クラス扱い」にする。
+//   例:「すかいらーく」は ら|ー、ー|く の境界で切らせない。
+function charClass(ch) {
+  if (!ch) return 'other';
+  if (ch === 'ー') return 'long';
+  if (/[ァ-ヺ]/.test(ch)) return 'kata';
+  if (/[ぁ-ゖ]/.test(ch)) return 'hira';
+  if (/[0-9A-Za-z]/.test(ch)) return 'alnum';
+  if (/[一-鿿々〆]/.test(ch)) return 'kanji';
+  return 'other';
+}
+
+// 「境界 prev|next で切ってよいか」。同一クラスの連続を途中で切る場合は false。
+// ・漢字どうしは許可（地名は漢字が大半のため）
+// ・カタカナどうし / ひらがなどうし / 半角英数字どうし は禁止
+// ・長音符「ー」は隣がかなならすべて禁止（かな語の途中を切らない）
+function canCutBetween(prev, next) {
+  const a = charClass(prev), b = charClass(next);
+  if (a === 'other' || b === 'other') return true;
+  if (a === 'kanji' || b === 'kanji') return true;          // 漢字が絡む境界は許可
+  const kana = c => (c === 'kata' || c === 'hira' || c === 'long');
+  if (kana(a) && kana(b)) {
+    // かな同士: 長音符が絡むなら常に禁止。それ以外は同一クラスのときだけ禁止
+    if (a === 'long' || b === 'long') return false;
+    return a !== b;                                          // カタカナ|ひらがな の境界は許可
+  }
+  if (a === 'alnum' && b === 'alnum') return false;
+  return true;
+}
+
 // 正規化済み文字列から末尾の店舗名を1回だけ落とす。
+// v2.11.2: 貪欲な最大カットをやめ、地名の文字数を 4→3→2→1→0 の順に試し、
+//   「文字種制約」と「最小長制約」を両方満たす最初の候補を採用する。
 // 戻り値: { stripped, removed } / null（フォールバックしない）
 function stripBranchSuffix(normalized) {
   if (!normalized) return null;
@@ -129,51 +164,61 @@ function stripBranchSuffix(normalized) {
   const suffix = BRANCH_SUFFIXES.find(s => normalized.endsWith(s) && normalized.length > s.length);
   if (!suffix) return null;
 
-  // 1) 接尾辞そのものを落とす（末尾1回だけ・再帰しない）
-  let stripped = normalized.slice(0, -suffix.length);
-  // 2) 地名部分を最大 MAX_PLACE_CHARS 文字まで落とす。
-  //    実体部分（法人格を除いた部分）が MIN_CORE_LEN を下回る手前で停止する。
-  for (let i = 0; i < MAX_PLACE_CHARS; i++) {
-    const next = stripped.slice(0, -1);
-    if (normalizeForCompare(next).length < MIN_CORE_LEN) break;
-    stripped = next;
+  const base = normalized.slice(0, -suffix.length);   // 接尾辞だけ落とした状態（末尾1回だけ・再帰なし）
+  // 先頭の法人格（「株式会社」等）の長さ。ここへ食い込むカットは禁止する。
+  // ※ normalizeForCompare は「完全な法人格」しか除去できないため、
+  //   「株式会社」を「株式会」に切ると実体3文字と誤判定される。その穴を塞ぐ。
+  const legalPrefix = LEGAL_FORMS.find(f => normalized.startsWith(f));
+  const legalLen = legalPrefix ? legalPrefix.length : 0;
+
+  // 地名部分を n 文字（4→0）落とす候補を長い順に評価する
+  for (let n = MAX_PLACE_CHARS; n >= 0; n--) {
+    if (n > base.length) continue;
+    const stripped = n === 0 ? base : base.slice(0, -n);
+    if (!stripped || stripped === normalized) continue;
+    // 最小長制約（法人格を割らない ＋ 実体3文字以上）
+    if (stripped.length < legalLen + MIN_CORE_LEN) continue;
+    if (stripped.length < MIN_CORE_LEN) continue;
+    if (normalizeForCompare(stripped).length < MIN_CORE_LEN) continue;
+    // 文字種制約: 残る最後の文字と、除去部分の先頭文字が同一クラス連続なら切らない
+    const prev = stripped[stripped.length - 1];
+    const next = normalized[stripped.length];
+    if (!canCutBetween(prev, next)) continue;   // 1文字短い候補へバックオフ
+    return { stripped, removed: normalized.slice(stripped.length) };
   }
-  if (stripped.length < MIN_CORE_LEN) return null;
-  if (normalizeForCompare(stripped).length < MIN_CORE_LEN) return null;
-  if (stripped === normalized) return null;
-  return { stripped, removed: normalized.slice(stripped.length) };
+  return null;
 }
 
 // フォールバック時の判定（1段目より厳しくする＝誤登録防止）
-// 採用条件: 候補の正規化名が「除去前の名前（正規化済み）の先頭部分に一致」し、
-//           かつ実体部分が MIN_CORE_LEN 以上であること。
-//           その上で、除去後の名前と完全一致する候補があればそれを最優先で採用する。
+// v2.11.2: 削りすぎを直したので厳格版に戻した。以下の【両方】を満たす候補のみ採用する。
+//   (a) 候補の正規化名が「除去後の名前」と完全一致する
+//   (b) 候補の正規化名が「除去前の名前（正規化済み）」の先頭部分に一致する
+// 両方を満たす候補がちょうど1件のときだけ verified。複数なら ambiguous、0件なら not_found。
 function judgeFallback(originalQuery, strippedQuery, candidates) {
   if (!Array.isArray(candidates) || candidates.length === 0) {
     return { verified_status: 'not_found', corporate_number: null, verified_name: null };
   }
-  const origCore = normalizeForCompare(originalQuery);
+  const origCore  = normalizeForCompare(originalQuery);
   const stripCore = normalizeForCompare(strippedQuery);
-
-  // プレフィックス判定: 候補名（正規化）が除去前の名前（正規化）の先頭に一致すること
-  const prefixHits = candidates.filter(c => {
-    const cc = normalizeForCompare(c.name);
-    return cc.length >= MIN_CORE_LEN && origCore.startsWith(cc);
-  });
-  if (prefixHits.length === 0) {
+  if (!stripCore) {
     return { verified_status: 'not_found', corporate_number: null, verified_name: null };
   }
-  // 除去後の名前と完全一致する候補を最優先
-  const exact = prefixHits.filter(c => normalizeForCompare(c.name) === stripCore);
-  const picked = (exact.length === 1) ? exact
-               : (prefixHits.length === 1 ? prefixHits : null);
-  if (!picked) {
+
+  const hits = candidates.filter(c => {
+    const cc = normalizeForCompare(c.name);
+    return cc === stripCore            // (a) 除去後の名前と完全一致
+        && origCore.startsWith(cc);    // (b) 除去前の名前の先頭に一致
+  });
+  if (hits.length === 0) {
+    return { verified_status: 'not_found', corporate_number: null, verified_name: null };
+  }
+  if (hits.length > 1) {
     return { verified_status: 'ambiguous', corporate_number: null, verified_name: null };
   }
   return {
     verified_status: 'verified',
-    corporate_number: picked[0].corporateNumber,
-    verified_name: picked[0].name,
+    corporate_number: hits[0].corporateNumber,
+    verified_name: hits[0].name,
   };
 }
 
