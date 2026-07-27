@@ -190,20 +190,29 @@ function deleteMasterRoute(req, res, resolvedWsId) {
   });
 }
 
-// ===== v2.11.0 L2: 取引先名の実体確認（国税庁 法人番号Web-API） =====
+// ===== v2.12.0 L2: 取引先の実体確認（国税庁 法人番号Web-API・T番号による1件照会） =====
 // 承認時に fire-and-forget で呼ばれる。title は絶対に書き換えない（結合キーのため）。
-// ・NTA_APP_ID 未設定 → 何もせず return
-// ・既に verified_status が入っている行 → スキップ（重複呼び出し防止）
-// ・対象行が無い（title 不一致）→ 何もせず return
-async function verifyPartnerName(workspaceId, title) {
-  // v2.11.1: 無言 return を廃止。どの条件で止まったかを必ずログに残す
-  // （v2.11.0 で NTA_APP_ID 未設定に気付けず原因特定に時間を要したため）
+//   title         … partner_master のどの行を更新するかの特定に使う
+//   invoiceNumber … 何を照会するかに使う（T+13桁）
+// v2.11.x の名称検索は廃止（実測で機能しないことが判明。理由は nta.js 冒頭に記載）。
+async function verifyPartnerName(workspaceId, title, invoiceNumber) {
+  // v2.11.1 で追加したスキップ理由ログは全て維持する（原因特定に有効だったため）
   if (!workspaceId || !title) {
     console.warn(`L2skip: 引数不足 ws=${workspaceId} title="${title}"`);
     return;
   }
   if (!process.env.NTA_APP_ID) {
     console.warn('L2skip: NTA_APP_ID 未設定');
+    return;
+  }
+  // v2.12.0: 登録番号が無い/形式不正なら API を叩かずスキップ
+  const inv = (invoiceNumber == null) ? '' : String(invoiceNumber).trim();
+  if (!inv) {
+    console.warn(`L2skip: 登録番号なし title="${title}"`);
+    return;
+  }
+  if (!nta.INVOICE_NUMBER_RE.test(inv)) {
+    console.warn(`L2skip: 登録番号の形式不正 (T+13桁ではない) title="${title}" invoice="${inv}"`);
     return;
   }
 
@@ -221,9 +230,9 @@ async function verifyPartnerName(workspaceId, title) {
     return;
   }
 
-  const result = await nta.verifyName(title);
+  const result = await nta.verifyByInvoiceNumber(inv);
   if (!result) {
-    console.warn(`L2skip: 検索スキップ（NTA_APP_ID 未設定 or 正規化後が空） title="${title}"`);
+    console.warn(`L2skip: 照会スキップ（形式不正 or NTA_APP_ID 未設定） title="${title}" invoice="${inv}"`);
     return;
   }
 
@@ -239,14 +248,15 @@ async function verifyPartnerName(workspaceId, title) {
     },
     { 'Prefer': 'return=minimal' }
   );
-  // v2.11.1: 何段目でヒットしたか・実際に送ったクエリ・候補件数を残す
-  const stageLabel = result.stage === 2
-    ? `フォールバック(除去:"${result.removed_suffix}")`
-    : '1段目';
+
+  // 成功ログ: 照会したT番号 / 判定 / 登記名 / title と登記名が異なるか
+  const diff = (result.verified_name && result.verified_name !== title) ? ' ★AI読み取りと相違' : '';
+  const closed = result.close_date ? ` ※閉鎖済み(${result.close_date})` : '';
+  const loc = result.location ? ` ${result.location}` : '';
   console.log(
-    `L2確認: "${title}" → ${result.verified_status}` +
-    `${result.verified_name ? ` (${result.verified_name})` : ''}` +
-    ` [${stageLabel} query="${result.query}" 候補${result.candidate_count}件]`
+    `L2確認: "${title}" [invoice=${inv}] → ${result.verified_status}` +
+    `${result.verified_name ? ` 登記名="${result.verified_name}"${loc}` : ''}` +
+    `${diff}${closed}`
   );
 }
 

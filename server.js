@@ -4367,11 +4367,13 @@ const server = http.createServer(async (req, res) => {
           reconcileMasterIncentive(wsId, record.matched_master_key).catch(e => console.warn('incentive reconcile error:', e.message));
         }
 
-        // v2.11.0 L2: 取引先名の実体確認（国税庁 法人番号Web-API・非同期、失敗しても承認は成功）
-        // title は書き換えない。既に verified_status が入っていれば master.js 側でスキップされる。
+        // v2.12.0 L2: 登録番号(T番号)による取引先の実体確認（非同期、失敗しても承認は成功）
+        // title は partner_master の行特定に、invoice_number は照会に使う。title は書き換えない。
+        // 登録番号なし・形式不正・確認済みのスキップ判定は master.js 側でログ付きで行う。
         const _l2Title = record.matched_master_key || record.partner_name;
         if (_l2Title) {
-          verifyPartnerName(wsId, _l2Title).catch(e => console.warn('L2確認失敗:', e.message));
+          verifyPartnerName(wsId, _l2Title, record.invoice_number)
+            .catch(e => console.warn('L2確認失敗:', e.message));
         }
 
         // 自動エクスポートトリガー確認（非同期、失敗しても承認は成功）
