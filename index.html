@@ -230,6 +230,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sb-group-body{overflow:hidden;max-height:0;transition:max-height 0.25s ease;}
 .sb-group-body.open{max-height:600px;}
 .sb-group-body .sidebar-nav-item{padding-left:18px;}
+/* v2.10 ⑥: グループ見出しスタイル D-1（全幅の塗りバー）。
+   見た目の指定はすべて .sgt-filled 側に寄せてあるため、
+   HTML/JS を触らずクラスの付け替えだけで D-3 案へ差し替えられる。
+   ベース(.sb-group-header / .sb-group-label / .sb-group-chevron)は無変更。 */
+.sb-group-header.sgt-filled{background:#185FA5;border-radius:5px;margin-top:10px;margin-bottom:5px;}
+.sb-group-header.sgt-filled:hover{background:#0C447C;}
+.sb-group-header.sgt-filled .sb-group-label{color:#fff;font-weight:700;}
+.sb-group-header.sgt-filled .sb-group-chevron{color:#fff;}
+/* 作業フロー外（アカウント設定）はグレーで区別 */
+.sb-group-header.sgt-filled.sgt-neutral{background:#8A8578;}
+.sb-group-header.sgt-filled.sgt-neutral:hover{background:#736F64;}
 
 /* メインエリア */
 .main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow-y:scroll;min-height:0;}
@@ -1962,7 +1973,7 @@ function updateFabBadge() {
     <div class="ws-sidebar-section">
       <div class="sidebar-section-label" style="display:flex;align-items:center;justify-content:space-between;">
         <span class="ws-section-label-text">ワークスペース</span>
-        <button class="ws-gear-btn" onclick="openWsManage()" title="ワークスペースを管理"><span style="font-size:13px;">⚙</span>設定</button>
+        <button class="ws-gear-btn" onclick="openWsManage()" title="ワークスペースを管理"><span style="font-size:13px;">⚙</span>WS設定</button>
       </div>
       <div id="wsSelector" class="ws-selector">
         <button class="ws-selector-btn" id="wsSelectorBtn" onclick="toggleWsDropdown()">
@@ -1976,7 +1987,7 @@ function updateFabBadge() {
     <!-- v2.4.8: データの流れ 4グループ化 -->
     <!-- Group 1: 取り込む -->
     <div class="sb-group" data-group="1">
-      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+      <button class="sb-group-header sgt-filled" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">1. 取り込む</span>
         <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
@@ -2001,7 +2012,7 @@ function updateFabBadge() {
     </div>
     <!-- Group 2: 仕訳する -->
     <div class="sb-group" data-group="2">
-      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+      <button class="sb-group-header sgt-filled" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">2. 仕訳する</span>
         <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
@@ -2050,7 +2061,7 @@ function updateFabBadge() {
     </div>
     <!-- Group 3: 出力する -->
     <div class="sb-group" data-group="3">
-      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+      <button class="sb-group-header sgt-filled" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">3. 出力する</span>
         <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
@@ -2064,7 +2075,7 @@ function updateFabBadge() {
     </div>
     <!-- Group 4: 突合する -->
     <div class="sb-group" data-group="4">
-      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
+      <button class="sb-group-header sgt-filled" aria-expanded="false" onclick="toggleSbGroup(this)">
         <span class="sb-group-label">4. 突合する</span>
         <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
@@ -2078,8 +2089,8 @@ function updateFabBadge() {
     </div>
     <!-- Group 設定 -->
     <div class="sb-group" data-group="settings">
-      <button class="sb-group-header" aria-expanded="false" onclick="toggleSbGroup(this)">
-        <span class="sb-group-label">設定</span>
+      <button class="sb-group-header sgt-filled sgt-neutral" aria-expanded="false" onclick="toggleSbGroup(this)">
+        <span class="sb-group-label">アカウント設定</span>
         <span class="sb-group-agg-badge" style="display:none;"></span>
         <span class="sb-group-chevron">▶</span>
       </button>
