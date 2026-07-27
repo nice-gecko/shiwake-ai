@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PDFDocument } = require('pdf-lib');
-const { loadMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute, findMasterMatch, clearMaster, migrateMasterFilesToDb } = require('./master');
+const { loadMaster, getMasterRoutes, updateMasterRoute, deleteMasterRoute, findMasterMatch, clearMaster, migrateMasterFilesToDb, verifyPartnerName } = require('./master');
 const { getSession, appendToSession, saveSession, deleteSession } = require('./session');
 const { computeHash, getHashedResult, setHashedResult, cleanupAllHashes } = require('./hashes');
 
@@ -4365,6 +4365,13 @@ const server = http.createServer(async (req, res) => {
         // v2.10: 登録マスタ実使用ベースのインセンティブ到達判定（非同期、失敗しても承認は成功）
         if (record.matched_master_key) {
           reconcileMasterIncentive(wsId, record.matched_master_key).catch(e => console.warn('incentive reconcile error:', e.message));
+        }
+
+        // v2.11.0 L2: 取引先名の実体確認（国税庁 法人番号Web-API・非同期、失敗しても承認は成功）
+        // title は書き換えない。既に verified_status が入っていれば master.js 側でスキップされる。
+        const _l2Title = record.matched_master_key || record.partner_name;
+        if (_l2Title) {
+          verifyPartnerName(wsId, _l2Title).catch(e => console.warn('L2確認失敗:', e.message));
         }
 
         // 自動エクスポートトリガー確認（非同期、失敗しても承認は成功）

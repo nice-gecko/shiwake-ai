@@ -594,6 +594,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .master-table{width:100%;table-layout:fixed;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;}
 .master-table th{background:#fafafa;font-size:12px;color:#888;font-weight:500;padding:10px 14px;text-align:left;border-bottom:1px solid #eee;}
 .master-table td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
+/* v2.11.0 L2: 取引先名の実体確認バッジ（警告色は使わない・控えめに示すのみ） */
+.pm-badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:middle;line-height:1.5;}
+.pm-badge-verified{background:#E1F5EE;color:#0F6E56;}
+.pm-badge-ambiguous{background:#F1EFE8;color:#888;font-weight:500;}
+.pm-verified-name{display:block;font-size:10px;color:#888;font-weight:400;margin-top:2px;}
 .master-table tr:last-child td{border-bottom:none;}
 .master-table tr:hover td{background:#fafafa;}
 .master-tabs{display:flex;border-bottom:1px solid #eee;margin-bottom:12px;}
@@ -4825,6 +4830,26 @@ async function loadMasterFromServer(){
   updateAiStats();
 }
 
+// v2.11.0 L2: 取引先名の実体確認バッジ。
+// verified   → ✓ を控えめに表示。正式名称が title と異なるときだけ小さく併記
+// ambiguous  → 「候補複数」（中立表現）
+// not_found  → 何も出さない（個人事業主・屋号は法人番号を持たないため、印を付けると誤解を生む）
+// error/NULL → 何も出さない
+// ※ 警告色は使わない
+function _pmVerifiedBadge(title, rule){
+  const st = rule && rule.verified_status;
+  if(st === 'verified'){
+    const vn = rule.verified_name || '';
+    const alt = (vn && vn !== title)
+      ? `<span class="pm-verified-name">${esc(vn)}</span>` : '';
+    return `<span class="pm-badge pm-badge-verified" title="国税庁 法人番号で確認済み">✓</span>${alt}`;
+  }
+  if(st === 'ambiguous'){
+    return `<span class="pm-badge pm-badge-ambiguous" title="同名候補が複数あり特定できませんでした">候補複数</span>`;
+  }
+  return '';
+}
+
 function renderMaster(){
   const tbody=document.getElementById('masterTbody');
   const entries=Object.entries(masterData);
@@ -4834,7 +4859,7 @@ function renderMaster(){
   }
   tbody.innerHTML=entries.map(([title,rule])=>`
     <tr>
-      <td style="font-weight:500">${esc(title)}</td>
+      <td style="font-weight:500">${esc(title)}${_pmVerifiedBadge(title,rule)}</td>
       <td style="color:#185FA5">${esc(rule.debit)}</td>
       <td style="color:#C0392B">${esc(rule.credit)}</td>
       <td style="font-size:12px;color:#888">${esc(rule.tax)}</td>

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const nta = require('./nta');   // v2.11.0 L2: 国税庁 法人番号Web-API クライアント
 
 const MASTER_DIR = path.join(__dirname, 'masters');
 
@@ -36,15 +37,20 @@ async function supabaseQuery(path, method = 'GET', body = null, extraHeaders = {
 async function loadMaster(uid, workspaceId) {
   if (!workspaceId) throw new TypeError('workspaceId is required');
   const rows = await supabaseQuery(
-    `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=title,debit_account,credit_account,tax_category,memo`
+    `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=title,debit_account,credit_account,tax_category,memo,verified_status,verified_name,corporate_number`
   );
   const master = {};
   for (const r of (rows || [])) {
+    // v2.11.0 L2: verified_* はプロパティ追加のみ。戻り値の構造 {title:{debit,credit,tax,memo}} は変えない
+    // （server.js の masterText 生成が rule.debit/credit/tax を参照しているため）
     master[r.title] = {
       debit: r.debit_account || '',
       credit: r.credit_account || '',
       tax: r.tax_category || '',
-      memo: r.memo || ''
+      memo: r.memo || '',
+      verified_status: r.verified_status || null,
+      verified_name: r.verified_name || null,
+      corporate_number: r.corporate_number || null
     };
   }
   return master;
@@ -184,6 +190,40 @@ function deleteMasterRoute(req, res, resolvedWsId) {
   });
 }
 
+// ===== v2.11.0 L2: 取引先名の実体確認（国税庁 法人番号Web-API） =====
+// 承認時に fire-and-forget で呼ばれる。title は絶対に書き換えない（結合キーのため）。
+// ・NTA_APP_ID 未設定 → 何もせず return
+// ・既に verified_status が入っている行 → スキップ（重複呼び出し防止）
+// ・対象行が無い（title 不一致）→ 何もせず return
+async function verifyPartnerName(workspaceId, title) {
+  if (!workspaceId || !title) return;
+  if (!process.env.NTA_APP_ID) return;
+
+  const rows = await supabaseQuery(
+    `/partner_master?workspace_id=eq.${encodeURIComponent(workspaceId)}&title=eq.${encodeURIComponent(title)}&select=id,verified_status&limit=1`
+  );
+  const row = rows && rows[0];
+  if (!row) return;                    // 行が無い（別キーで登録された等）
+  if (row.verified_status) return;     // 確認済み・判定済みは再実行しない
+
+  const result = await nta.verifyName(title);
+  if (!result) return;                 // スキップ（未設定・正規化後が空）
+
+  await supabaseQuery(
+    `/partner_master?id=eq.${encodeURIComponent(row.id)}`,
+    'PATCH',
+    {
+      corporate_number: result.corporate_number,
+      verified_status: result.verified_status,
+      verified_name: result.verified_name,
+      verified_at: new Date().toISOString()
+      // ※ title / debit_account / credit_account / tax_category / memo / created_by は触らない
+    },
+    { 'Prefer': 'return=minimal' }
+  );
+  console.log(`L2確認: "${title}" → ${result.verified_status}${result.verified_name ? ` (${result.verified_name})` : ''}`);
+}
+
 // 戻り値: { matched_id, debit_account, method: 'exact'|'partial'|null }
 // ※無改修（読み込んだオブジェクトに対して動く既存ロジックのまま）
 function findMasterMatch(rawTitle, master) {
@@ -250,5 +290,6 @@ module.exports = {
   updateMasterRoute,
   deleteMasterRoute,
   findMasterMatch,
-  migrateMasterFilesToDb
+  migrateMasterFilesToDb,
+  verifyPartnerName
 };
