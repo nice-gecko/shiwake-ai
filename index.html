@@ -238,9 +238,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .sb-group-header.sgt-filled:hover{background:#0C447C;}
 .sb-group-header.sgt-filled .sb-group-label{color:#fff;font-weight:700;}
 .sb-group-header.sgt-filled .sb-group-chevron{color:#fff;}
-/* 作業フロー外（アカウント設定）はグレーで区別 */
-.sb-group-header.sgt-filled.sgt-neutral{background:#8A8578;}
-.sb-group-header.sgt-filled.sgt-neutral:hover{background:#736F64;}
+/* 作業フロー外（アカウント設定）は色で区別。配色は .pricing-nav-btn
+   （サイドバー下部「はじめてガイド」ボタン・1032-1033行）に揃える。
+   font-weight / font-size / border-radius / margin は .sgt-filled 由来のまま維持。 */
+.sb-group-header.sgt-filled.sgt-neutral{background:#e0dfd8;}
+.sb-group-header.sgt-filled.sgt-neutral .sb-group-label{color:#555;}
+.sb-group-header.sgt-filled.sgt-neutral .sb-group-chevron{color:#555;}
+/* ガイドボタンの hover は背景不変・文字色のみ #185FA5。それに合わせる */
+.sb-group-header.sgt-filled.sgt-neutral:hover{background:#e0dfd8;}
+.sb-group-header.sgt-filled.sgt-neutral:hover .sb-group-label{color:#185FA5;}
+.sb-group-header.sgt-filled.sgt-neutral:hover .sb-group-chevron{color:#185FA5;}
 
 /* メインエリア */
 .main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow-y:scroll;min-height:0;}
